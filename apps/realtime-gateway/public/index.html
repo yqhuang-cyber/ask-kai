@@ -1,13 +1,27 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ask Kai · 工程回放</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
-<body><main>
-  <p class="eyebrow">ASK KAI / STEP 01</p><h1>工程事件回放</h1>
-  <p class="notice">合成测试数据 · 豆包未连接 · 无采音、语音播放或真实学生数据</p>
-  <p>选择场景，检查回合、打断和迟到事件的处理结果。</p>
-  <div class="controls"><label>场景 <select id="scenario"><option value="normal">正常回合</option><option value="interruption">打断与迟到事件</option><option value="failure">连接失败</option></select></label><button id="start">开始回放</button><button id="stop" disabled>停止</button></div>
-  <p id="status" role="status">等待回放</p>
-  <section><h2>Kai 合成字幕</h2><p id="caption" aria-live="polite">—</p></section>
-  <section><h2>事件结果</h2><ol id="events"></ol></section>
-  <section><h2>回放摘要</h2><pre id="summary">尚未运行</pre></section>
-</main></body></html>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ask Kai · 和 Kai 聊一聊</title>
+  <link rel="stylesheet" href="/web.css"><script src="/web.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">ASK KAI<span>中文，一起慢慢说。</span></a><a class="dev-link" href="/dev/replay">工程回放 ↗</a></header>
+  <main>
+    <p class="preview">Web 开发预览 · 豆包未连接</p>
+    <div class="heading"><p class="eyebrow">YOUR CHINESE COMPANION</p><h1>和 Kai 聊一聊</h1><p>从一句简单的中文开始，每次进步一点点。</p></div>
+    <div class="workspace">
+      <aside class="teacher"><div class="avatar" aria-hidden="true">K<span>✦</span></div><h2>Kai</h2><p>你的中文对话伙伴</p><span class="level">HSK 1 · 初学者</span><div class="teacher-note">慢慢来，<br>一句话也很好。</div></aside>
+      <section class="conversation" aria-labelledby="conversation-title">
+        <div class="conversation-header"><h2 id="conversation-title">今天聊什么？</h2><span id="connection-status" class="connection">未连接</span></div>
+        <div class="modes" aria-label="对话模式"><button type="button" data-mode="sports" aria-pressed="true">运动主题</button><button type="button" data-mode="free" aria-pressed="false">自由聊天</button><button type="button" disabled title="等待课程服务接入">Mission 后对话 · 待接入</button></div>
+        <div class="goal"><span>今天的小目标</span><p id="goal">用「我喜欢……」说说喜欢的运动。</p></div>
+        <div class="start-space"><span class="speech-icon" aria-hidden="true">“</span><h3 id="prompt-title">你喜欢什么运动？</h3><p id="prompt-hint">可以从「我喜欢足球」开始。</p><span class="example-label">开场练习提示</span></div>
+        <div class="session-controls"><button id="connect" type="button">开始对话 <span aria-hidden="true">↗</span></button><p id="session-message" role="status" aria-live="polite">实时语音待接入，目前不会申请麦克风权限。</p></div>
+      </section>
+      <aside class="learning" aria-labelledby="word-title"><p class="eyebrow">ONE WORD AT A TIME</p><h2 id="word-title">今日词卡</h2><div class="word-card"><span class="card-label">练习示例</span><h3>喜欢</h3><p class="pinyin">xǐ huān</p><p class="translation">to like</p><div class="word-example">我喜欢足球。<small>I like football.</small></div></div><p class="learning-note">词卡是练习提示。真实会话接通后，才会根据你的对话记录学习尝试。</p></aside>
+    </div>
+    <footer>Ask Kai · Web 体验预览。真实语音和学习记录尚未启用。</footer>
+  </main>
+</body>
+</html>

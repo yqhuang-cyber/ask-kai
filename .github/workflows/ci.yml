@@ -19,3 +19,4 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run verify
       - run: npm run replay
+      - run: npm run probe:preflight

@@ -24,12 +24,15 @@ test('Doubao placeholder never claims readiness or accepts audio', async () => {
   await assert.rejects(async () => { for await (const _ of provider.open()) assert.fail('unexpected event'); },/DOUBAO_PROTOCOL_NOT_VERIFIED/);
   await assert.rejects(provider.sendAudio(new Uint8Array()),/DOUBAO_PROTOCOL_NOT_VERIFIED/);
 });
-test('health and page explicitly show disconnected synthetic mode', async t => {
+test('health and Web preview explicitly show disconnected mode; replay has its own entry', async t => {
   const {url} = await start(t);
   const health = await (await fetch(`${url}/healthz`)).json();
   assert.equal(health.provider_connected,false); assert.equal(health.mode,'synthetic_replay');
   const page = await fetch(url);
-  assert.match(await page.text(),/豆包未连接/);
+  const html = await page.text();
+  assert.match(html,/豆包未连接/); assert.match(html,/和 Kai 聊一聊/);
+  assert.match(html,/href="\/dev\/replay"/);
+  assert.match(await (await fetch(`${url}/dev/replay`)).text(),/合成测试数据/);
   assert.match(page.headers.get('content-security-policy'),/frame-ancestors 'none'/);
 });
 test('SSE delivers accepted projections, isolated late events and summary', async t => {
@@ -59,6 +62,8 @@ test('unknown fixtures and static paths are rejected', async t => {
   assert.equal((await fetch(`${url}/api/replays`)).status,200);
   assert.equal((await fetch(`${url}/app.js`)).status,200);
   assert.equal((await fetch(`${url}/style.css`)).status,200);
+  assert.equal((await fetch(`${url}/web.js`)).status,200);
+  assert.equal((await fetch(`${url}/web.css`)).status,200);
 });
 test('cross-site and foreign Host requests cannot access diagnostics', async t => {
   const {url} = await start(t);

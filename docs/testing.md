@@ -10,6 +10,11 @@ fixture cancellation, loopback configuration, real-provider fail-closed behavior
 HTTP/SSE end-to-end projections, WebSocket rejection and cross-site/Host checks.
 All fixtures contain authored synthetic text and audio metadata only.
 
+Protocol-probe tests additionally cover profile/credential preflight, real Node
+WebSocket headers against a loopback peer, historical readiness versus active
+connection state, payload-value masking, within-run identity aliases, malformed
+frames, aborts and bounded report output. See docs/protocol/duplex-spike.md.
+
 ## Traceability to the existing plan
 
 | Plan task | Step 1 evidence | Remaining |
@@ -29,12 +34,18 @@ They require the original dataset/case workbook to be archived and implemented.
 
 ## Manual local check
 
-1. `npm start`; visit http://127.0.0.1:4310.
-2. Run normal: synthetic subtitles increment and a single attempted evidence item appears.
-3. Run interruption: cancelled subtitles clear; three late events are dropped; new reply survives old cancellation acknowledgment.
-4. Run failure: the session stays failed; no provider connection is reported.
-5. Stop midway, then restart; no previous subtitles remain.
+1. `npm start`; visit http://127.0.0.1:4310. Switch sports/free topics and check prompts update. Mission stays disabled.
+2. Start conversation: service returns 501, page reports realtime unavailable and remains disconnected; no microphone permission is requested.
+3. Open /dev/replay and run normal: synthetic subtitles increment and a single attempted evidence item appears.
+4. Run interruption: cancelled subtitles clear; three late events are dropped; new reply survives old cancellation acknowledgment.
+5. Run failure: the session stays failed; no provider connection is reported.
+6. Stop midway, then restart; no previous subtitles remain.
 
 Automated verification in this environment is Node/HTTP/SSE testing. Browser visual,
 microphone, audio and real-provider validation are separate and must be reported
 explicitly when performed. No real speech/AEC/latency claim follows from step 1.
+
+Web preview verification: the HTTP suite checks the homepage, separate replay
+entry, asset routes and unimplemented session endpoint. A Playwright run was
+attempted, but the environment has no Chromium executable; browser interaction,
+visual layout and microphone permission behavior remain manual acceptance items.
