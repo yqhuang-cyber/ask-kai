@@ -6,6 +6,7 @@ import { TeachingSession } from '../../../packages/agent-core/teaching.js';
 export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500}={}) {
   const tickets = new Map();
   const connections = new Set();
+  const sessions=new Map();
   const wss = new WebSocketServer({noServer:true,maxPayload:65536,perMessageDeflate:false,handleProtocols:protocols=>protocols.has('ask-kai.v1') ? 'ask-kai.v1' : false});
   const sweep = setInterval(() => { for(const [key,item] of tickets) if(item.expires <= Date.now()) tickets.delete(key); },1000);
   sweep.unref();
@@ -19,12 +20,12 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
     const token = protocols.find(p=>p.startsWith('ticket.'))?.slice(7);
     const ticket = tickets.get(token);
     tickets.delete(token); // one use, including a failed attempt
-    if (!protocols.includes('ask-kai.v1') || !ticket || ticket.expires <= Date.now() || ticket.origin !== expectedOrigin) return reject(socket,'401 Unauthorized');
+    if (!protocols.includes('ask-kai.v1') || !ticket || ticket.expires <= Date.now() || ticket.identity.expires<=Date.now() || ticket.origin !== expectedOrigin) return reject(socket,'401 Unauthorized');
     if (connections.size >= maxConnections) return reject(socket,'429 Too Many Requests');
     wss.handleUpgrade(req,socket,head,ws => {
       connections.add(ws);
       const runtime = new SessionRuntime(ticket.session_id,{target:null});
-      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode});
+      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission});
       let provider;
       let ended = false;
       let ready = false;
@@ -50,9 +51,10 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
         }
         ws.close(code ? 1011:1000,'session ended');
         connections.delete(ws);
+        sessions.delete(ws);
       };
       const readyTimer = setTimeout(()=>finish('PROVIDER_READY_TIMEOUT'),readyTimeoutMs);
-      const lifetime = setTimeout(()=>finish('SESSION_DURATION_LIMIT'),maxSessionMs);
+      const lifetime = setTimeout(()=>finish('SESSION_DURATION_LIMIT'),Math.min(maxSessionMs,ticket.identity.authorization_until-Date.now()));
       const flushContext = () => {
         if(ended || !ready || runtime.active || pendingContext || appliedVersion===teaching.version)return;
         const version=teaching.version;
@@ -69,6 +71,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
         pendingCancel.set(id,setTimeout(()=>finish('CANCEL_ACK_TIMEOUT'),cancelTimeoutMs));
         try {provider.cancel(id);}catch{finish('PROVIDER_CANCEL_FAILED');}
       };
+      sessions.set(ws,{identity:ticket.identity,teaching,finish,flushContext});
       ws.on('close',()=>finish()); ws.on('error',()=>finish('CLIENT_TRANSPORT_ERROR'));
       ws.on('message',(bytes,binary) => {
         try {
@@ -116,13 +119,18 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
   });
   return {
     available:!!providerFactory,
-    create({origin,mode}) {
+    create({origin,mode,identity}) {
       if (!providerFactory) return null;
       if (tickets.size+connections.size >= maxConnections) throw new Error('SESSION_CAPACITY');
       const token = randomUUID();
-      const ticket = {session_id:randomUUID(),mode,origin,expires:Date.now()+30000};
+      const ticket = {session_id:randomUUID(),mode,origin,identity,expires:Math.min(Date.now()+30000,identity.expires)};
       tickets.set(token,ticket);
       return {session_id:ticket.session_id,ticket:token,websocket_path:'/api/realtime',protocol:'ask-kai.v1',expires_in:30,provider_connected:false};
+    },
+    updateMemory(identity,memory) {for(const session of sessions.values())if(session.identity.owner_id===identity.owner_id && session.identity.learner_id===identity.learner_id){session.teaching.memory=structuredClone(memory);session.teaching.version++;session.flushContext();}},
+    revoke(identity) {
+      for(const [key,ticket] of tickets)if(ticket.identity.owner_id===identity.owner_id && ticket.identity.learner_id===identity.learner_id)tickets.delete(key);
+      for(const session of sessions.values())if(session.identity.owner_id===identity.owner_id && session.identity.learner_id===identity.learner_id)session.finish('AUTHORIZATION_REVOKED');
     },
     close() {clearInterval(sweep);tickets.clear();for(const ws of connections)ws.terminate();wss.close();}
   };

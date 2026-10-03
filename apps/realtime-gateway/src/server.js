@@ -5,6 +5,7 @@ import { once } from 'node:events';
 import { SessionRuntime } from '../../../packages/agent-core/session.js';
 import { SCENARIOS, loadScenario, ReplayProvider } from '../../../packages/provider-replay/index.js';
 import { attachRealtime } from './realtime.js';
+import { validateMemoryRecord } from '../../../packages/hskai-bridge/identity.js';
 
 const publicDir = new URL('../public/', import.meta.url);
 const staticFiles = new Map([
@@ -48,7 +49,12 @@ export async function readJson(req,maxBytes=4096) {
   for await(const chunk of req){size+=chunk.length;if(size>maxBytes)throw new Error('REQUEST_TOO_LARGE');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString());
 }
-export function createGateway({ paceMs = 120, ...realtimeOptions } = {}) {
+export function createGateway({ paceMs = 120, bridge, memoryPort, ...realtimeOptions } = {}) {
+  const authorize=(req,scope)=> {
+    if(bridge)return bridge.authorize(req,scope);
+    if(realtimeOptions.providerKind==='test')return {owner_id:'test-owner',learner_id:'test-learner',market:'SG',expires:Date.now()+60000,authorization_until:Date.now()+600000,memory:[],mission:null,scopes:['session:create','memory:read','memory:write','memory:delete']};
+    throw new Error('UNAUTHORIZED');
+  };
   const server = createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Cache-Control','no-store');
@@ -60,14 +66,46 @@ export function createGateway({ paceMs = 120, ...realtimeOptions } = {}) {
       const url = new URL(req.url, 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { service:'ask-kai', mode:'synthetic_replay', provider_connected:false, status:'ok' });
       if (req.method === 'GET' && url.pathname === '/api/replays') return json(res, 200, { scenarios:SCENARIOS });
+      if(req.method==='GET' && url.pathname==='/api/bootstrap') {
+        let identity;try{identity=authorize(req,'session:create');}catch{return json(res,401,{error:'HSKAI_AUTHORIZATION_REQUIRED'});}
+        return json(res,200,{modes:['sports','free',...(identity.mission?['mission']:[])],mission:identity.mission?{id:identity.mission.id,title:identity.mission.title,targets:identity.mission.targets}:null,memory_writable:!!memoryPort && identity.scopes.includes('memory:write')});
+      }
+      if(url.pathname==='/api/memory') {
+        if(['POST','DELETE'].includes(req.method) && req.headers.origin!==`http://${req.headers.host}`)return json(res,403,{error:'ORIGIN_REQUIRED'});
+        const scope=req.method==='GET'?'memory:read':req.method==='POST'?'memory:write':'memory:delete';
+        let identity;try{identity=authorize(req,scope);}catch{return json(res,401,{error:'HSKAI_AUTHORIZATION_REQUIRED'});}
+        if(!['GET','POST','DELETE'].includes(req.method))return json(res,405,{error:'METHOD_NOT_ALLOWED'});
+        try {
+          if(req.method==='GET')return json(res,200,{records:memoryPort ? await memoryPort.read(identity):identity.memory,writable:!!memoryPort && identity.scopes.includes('memory:write'),can_delete:!!memoryPort && identity.scopes.includes('memory:delete')});
+          if(!memoryPort)return json(res,501,{error:'HSKAI_MEMORY_WRITER_REQUIRED'});
+          let input;try{input=await readJson(req,1024);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
+          const allowed=['interest','correction_preference','support_language'];
+          if(!input || typeof input!=='object' || Array.isArray(input) || !Object.keys(input).every(k=>['field',...(req.method==='POST'?['value']:[])].includes(k)) || (input.field!==undefined && !allowed.includes(input.field)))return json(res,400,{error:'INVALID_MEMORY'});
+          if(req.method==='POST') {
+            const now=new Date().toISOString(),expires=new Date(Date.now()+30*86400000).toISOString();
+            let record;try{record=validateMemoryRecord({field:input.field,value:input.value,source:'student_correction',updated_at:now,expires_at:expires});}catch{return json(res,400,{error:'INVALID_MEMORY'});}
+            await memoryPort.write(identity,record);realtime.updateMemory(identity,await memoryPort.read(identity));
+          } else {await memoryPort.delete(identity,input.field);realtime.revoke(identity);}
+          return json(res,200,{records:await memoryPort.read(identity)});
+        }catch{return json(res,503,{error:'HSKAI_MEMORY_UNAVAILABLE'});}
+      }
+      if(req.method==='POST' && url.pathname==='/api/authorization/revoke') {
+        if(req.headers.origin!==`http://${req.headers.host}`)return json(res,403,{error:'ORIGIN_REQUIRED'});
+        let identity;try{identity=authorize(req,'session:revoke');}catch{return json(res,401,{error:'HSKAI_AUTHORIZATION_REQUIRED'});}
+        realtime.revoke(identity);return json(res,200,{revoked:true});
+      }
       if (req.method === 'POST' && url.pathname === '/api/sessions') {
         if (!realtime.available) return json(res,501,{error:'REALTIME_NOT_IMPLEMENTED',provider_connected:false});
         const origin=`http://${req.headers.host}`;
         if(req.headers.origin!==origin)return json(res,403,{error:'ORIGIN_REQUIRED'});
+        let identity;try{identity=authorize(req,'session:create');}catch{return json(res,401,{error:'HSKAI_AUTHORIZATION_REQUIRED'});}
         let input;
         try {input=await readJson(req);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
-        if(!input || !['sports','free'].includes(input.mode) || Object.keys(input).some(k=>k!=='mode'))return json(res,400,{error:'INVALID_MODE'});
-        try{return json(res,201,realtime.create({origin,mode:input.mode}));}catch{return json(res,429,{error:'SESSION_CAPACITY'});}
+        if(!input || !['sports','free','mission'].includes(input.mode) || Object.keys(input).some(k=>!['mode','mission_id'].includes(k)) || (input.mode==='mission' && typeof input.mission_id!=='string'))return json(res,400,{error:'INVALID_MODE'});
+        if(input.mode==='mission' && identity.mission?.id!==input.mission_id)return json(res,403,{error:'TRUSTED_MISSION_REQUIRED'});
+        try{if(memoryPort)identity.memory=await memoryPort.read(identity);}catch{return json(res,503,{error:'HSKAI_MEMORY_UNAVAILABLE'});}
+        try{bridge?.consume(identity);}catch{return json(res,401,{error:'LAUNCH_ALREADY_USED'});}
+        try{return json(res,201,realtime.create({origin,mode:input.mode,identity}));}catch{return json(res,429,{error:'SESSION_CAPACITY'});}
       }
       if (req.method === 'GET' && url.pathname.startsWith('/api/replays/')) {
         const id = url.pathname.slice('/api/replays/'.length);

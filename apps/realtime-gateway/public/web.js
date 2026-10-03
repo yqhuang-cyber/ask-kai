@@ -4,7 +4,7 @@ const modes=[...document.querySelectorAll('[data-mode]')];
 const goal=document.querySelector('#goal'),promptTitle=document.querySelector('#prompt-title'),promptHint=document.querySelector('#prompt-hint');
 const connect=document.querySelector('#connect'),status=document.querySelector('#connection-status'),message=document.querySelector('#session-message');
 const mute=document.querySelector('#mute'),end=document.querySelector('#end'),caption=document.querySelector('#caption'),student=document.querySelector('#student-caption');
-let mode='sports',ws,io,generation=0,config,muted=false;
+let mode='sports',ws,io,generation=0,config,muted=false,mission=null;
 const interrupt=document.querySelector('#interrupt');
 const presentation=new Presentation({render:text=>{caption.textContent=text;},play:(audio,rate)=>io?.play(audio,rate),stopAudio:()=>io?.stopPlayback()});
 function learning(packet) {
@@ -16,12 +16,12 @@ function learning(packet) {
 function selectMode(button) {
   mode=button.dataset.mode;
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
-  goal.textContent=mode==='sports'?'用「我喜欢……」说说喜欢的运动。':'从感兴趣的话题开始，用中文表达自己。';
-  promptTitle.textContent=mode==='sports'?'你喜欢什么运动？':'今天想聊什么？';
-  promptHint.textContent=mode==='sports'?'可以从「我喜欢足球」开始。':'可以从「你好，我叫……」开始。';
+  goal.textContent=mode==='sports'?'用「我喜欢……」说说喜欢的运动。':mode==='mission'?mission.targets.join('、'):'从感兴趣的话题开始，用中文表达自己。';
+  promptTitle.textContent=mode==='sports'?'你喜欢什么运动？':mode==='mission'?mission.title:'今天想聊什么？';
+  promptHint.textContent=mode==='sports'?'可以从「我喜欢足球」开始。':'可以从一句简单的中文开始。';
 }
 for(const button of modes)button.addEventListener('click',()=>selectMode(button));
-function controls(active) {connect.disabled=active;for(const button of modes)button.disabled=active;end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
+function controls(active) {connect.disabled=active;for(const button of modes)button.disabled=active || (button.dataset.mode==='mission' && !mission);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
 async function stop(text='对话已结束。') {
   const stopped=++generation;presentation.reset();const previous=ws;ws=null;previous?.close();
   const audio=io;io=null;await audio?.close();
@@ -38,7 +38,7 @@ connect.addEventListener('click',async()=> {
       if(ws?.readyState===WebSocket.OPEN){if(ws.bufferedAmount>65536){void stop('网络上传拥塞，请重新开始。');return;}ws.send(bytes);}
     },onFailure:text=>void stop(text)});
     await io.prepare();
-    const response=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode}),signal:AbortSignal.timeout(8000)});
+    const response=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(mode==='mission'?{mission_id:mission.id}:{})}),signal:AbortSignal.timeout(8000)});
     const result=await response.json();if(current!==generation)return;
     if(!response.ok){await stop(response.status===501?'实时语音尚未开通。需完成豆包协议和服务端连接验证。':'会话无法创建，请检查授权或服务容量。');return;}
     config=null;status.textContent='连接中';
@@ -80,3 +80,31 @@ interrupt.addEventListener('click',()=> {
 });
 document.querySelector('#show-subtitles').addEventListener('change',event=>{caption.hidden=!event.target.checked;student.hidden=!event.target.checked;});
 window.addEventListener('pagehide',()=>{void stop();});
+const memoryStatus=document.querySelector('#memory-status');
+async function loadMemory() {
+  const response=await fetch('/api/memory');if(!response.ok)throw new Error('MEMORY_UNAVAILABLE');
+  const result=await response.json(),list=document.querySelector('#memory-list');list.replaceChildren();
+  document.querySelector('#memory-save').disabled=!result.writable;document.querySelector('#memory-delete').disabled=!result.can_delete;
+  const names={interest:'兴趣',correction_preference:'纠错偏好',support_language:'语言支架'};
+  for(const record of result.records){const item=document.createElement('li');item.textContent=`${names[record.field]}：${record.value}（来源：${record.source}；更新：${record.updated_at.slice(0,10)}）`;list.append(item);}
+  memoryStatus.textContent=result.records.length?'只使用与你当前练习相关、仍有效的偏好。':'目前没有有效偏好。';
+}
+async function bootstrap() {
+  try {
+    const response=await fetch('/api/bootstrap');if(!response.ok){await loadMemory();return;}const result=await response.json();
+    mission=result.mission;
+    const missionButton=document.querySelector('[data-mode="mission"]');missionButton.disabled=!mission;missionButton.textContent=mission?'Mission 后对话':'Mission 后对话 · 待授权';
+    document.querySelector('#memory-save').disabled=!result.memory_writable;document.querySelector('#memory-delete').disabled=!result.memory_writable;
+    await loadMemory();
+  }catch{memoryStatus.textContent='偏好服务暂不可用。';}
+}
+document.querySelector('#memory-form').addEventListener('submit',async event=> {
+  event.preventDefault();
+  try{const response=await fetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field:document.querySelector('#memory-field').value,value:document.querySelector('#memory-value').value})});if(!response.ok)throw new Error('WRITE_FAILED');await loadMemory();memoryStatus.textContent='偏好已更正；后续回合将使用新偏好。';}
+  catch{memoryStatus.textContent='更正未成功，请检查授权或偏好值。';}
+});
+document.querySelector('#memory-delete').addEventListener('click',async()=> {
+  try{const response=await fetch('/api/memory',{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('DELETE_FAILED');await loadMemory();await stop('偏好已删除，当前对话已结束。');}
+  catch{memoryStatus.textContent='删除未成功，请检查授权或服务。';}
+});
+void bootstrap();

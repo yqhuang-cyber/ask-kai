@@ -14,13 +14,14 @@
       <aside class="teacher"><div class="avatar" aria-hidden="true">K<span>✦</span></div><h2>Kai</h2><p>你的中文对话伙伴</p><span class="level">HSK 1 · 初学者</span><div class="teacher-note">慢慢来，<br>一句话也很好。</div></aside>
       <section class="conversation" aria-labelledby="conversation-title">
         <div class="conversation-header"><h2 id="conversation-title">今天聊什么？</h2><span id="connection-status" class="connection">未连接</span></div>
-        <div class="modes" aria-label="对话模式"><button type="button" data-mode="sports" aria-pressed="true">运动主题</button><button type="button" data-mode="free" aria-pressed="false">自由聊天</button><button type="button" disabled title="等待课程服务接入">Mission 后对话 · 待接入</button></div>
+        <div class="modes" aria-label="对话模式"><button type="button" data-mode="sports" aria-pressed="true">运动主题</button><button type="button" data-mode="free" aria-pressed="false">自由聊天</button><button type="button" data-mode="mission" aria-pressed="false" disabled title="等待课程服务接入">Mission 后对话 · 待授权</button></div>
         <div class="goal"><span>今天的小目标</span><p id="goal">用「我喜欢……」说说喜欢的运动。</p></div>
         <div class="start-space"><span class="speech-icon" aria-hidden="true">“</span><h3 id="prompt-title">你喜欢什么运动？</h3><p id="prompt-hint">可以从「我喜欢足球」开始。</p><span class="example-label">开场练习提示</span><p id="caption" aria-live="off"></p><p id="student-caption"></p></div>
         <div class="session-controls"><button id="connect" type="button">开始对话 <span aria-hidden="true">↗</span></button><button id="interrupt" type="button" disabled>打断 Kai</button><button id="mute" type="button" disabled aria-pressed="false">静音</button><button id="end" type="button" disabled>结束</button><label class="subtitle-toggle"><input id="show-subtitles" type="checkbox" checked> 显示字幕</label><p id="session-message" role="status" aria-live="polite">真实服务就绪后才申请麦克风权限；默认预览未接通。</p></div>
       </section>
       <aside class="learning" aria-labelledby="word-title"><p class="eyebrow">ONE WORD AT A TIME</p><h2 id="word-title">今日词卡</h2><div class="word-card"><span class="card-label">练习示例</span><h3 id="word-chinese">喜欢</h3><p id="word-pinyin" class="pinyin">xǐ huān</p><p id="word-english" class="translation">to like</p><div id="word-example" class="word-example">我喜欢足球。</div></div><h2>本轮学习尝试</h2><p id="learning-attempts" class="learning-note">尚无对话记录。</p><p class="learning-note">词卡是练习提示。学习尝试不代表已经掌握或发音准确。</p></aside>
     </div>
+    <details class="memory"><summary>我的偏好与记忆</summary><p id="memory-status" role="status">经 HSKai 授权后，可查看、更正或删除自己的偏好。</p><ul id="memory-list"></ul><form id="memory-form"><label>偏好 <select id="memory-field"><option value="interest">兴趣</option><option value="correction_preference">纠错偏好：gentle / on_request</option><option value="support_language">语言支架：zh / zh_en</option></select></label><label>值 <input id="memory-value" maxlength="80" required></label><button id="memory-save" disabled>保存更正</button><button id="memory-delete" type="button" disabled>删除全部偏好</button></form></details>
     <footer>Ask Kai · Web 体验预览。真实语音和学习记录尚未启用。</footer>
   </main>
 </body>
