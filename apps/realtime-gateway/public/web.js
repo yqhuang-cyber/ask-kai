@@ -7,6 +7,12 @@ const mute=document.querySelector('#mute'),end=document.querySelector('#end'),ca
 let mode='sports',ws,io,generation=0,config,muted=false;
 const interrupt=document.querySelector('#interrupt');
 const presentation=new Presentation({render:text=>{caption.textContent=text;},play:(audio,rate)=>io?.play(audio,rate),stopAudio:()=>io?.stopPlayback()});
+function learning(packet) {
+  goal.textContent=packet.goal;promptHint.textContent=packet.start_tip;
+  const card=packet.cards[0];document.querySelector('.word-card').hidden=!card;
+  if(card)for(const [key,id] of Object.entries({word:'word-chinese',pinyin:'word-pinyin',english:'word-english',example:'word-example'}))document.getElementById(id).textContent=card[key];
+  document.querySelector('#learning-attempts').textContent=packet.attempts.length ? `本轮记录 ${packet.attempts.length} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
+}
 function selectMode(button) {
   mode=button.dataset.mode;
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
@@ -26,6 +32,7 @@ async function stop(text='对话已结束。') {
 }
 connect.addEventListener('click',async()=> {
   const current=++generation;controls(true);status.textContent='检查连接';message.textContent='正在检查实时服务……';
+  document.querySelector('#learning-attempts').textContent='本轮尚无对话记录。';
   try {
     io=new AudioIO({onFrame:bytes=> {
       if(ws?.readyState===WebSocket.OPEN){if(ws.bufferedAmount>65536){void stop('网络上传拥塞，请重新开始。');return;}ws.send(bytes);}
@@ -41,6 +48,7 @@ connect.addEventListener('click',async()=> {
       try {
         const packet=JSON.parse(event.data);
         if(packet.type==='session.config'){config=packet.audio;return;}
+        if(packet.type==='teaching.state' || packet.type==='teaching.summary'){learning(packet);return;}
         if(packet.type==='session.failed'){await stop('实时连接失败，请重试。');return;}
         if(packet.type==='session.closed'){await stop();return;}
         if(packet.type==='output.stop'){presentation.stop(packet.response_id);return;}
@@ -62,7 +70,10 @@ connect.addEventListener('click',async()=> {
   } catch {if(current===generation)await stop('无法开始对话。请检查麦克风权限及本地服务。');}
 });
 mute.addEventListener('click',()=>{muted=!muted;io?.mute(muted);mute.setAttribute('aria-pressed',String(muted));mute.textContent=muted?'取消静音':'静音';});
-end.addEventListener('click',()=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'session.end'}));void stop();});
+end.addEventListener('click',()=>{
+  if(ws?.readyState===WebSocket.OPEN){ws.send(JSON.stringify({type:'session.end'}));const current=generation;message.textContent='正在结束对话……';setTimeout(()=>{if(current===generation)void stop();},1500);}
+  else void stop();
+});
 interrupt.addEventListener('click',()=> {
   const response_id=presentation.current;presentation.stop();
   if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'response.cancel',response_id:response_id ?? undefined}));

@@ -88,12 +88,12 @@ export class ReviewedDoubaoProvider {
     if (name === 'error') throw new Error('PROVIDER_REPORTED_ERROR');
     if (name === 'context_updated') return this.onEvent({control:'context.updated',version:field(raw,rule.version)});
     const ids = {turn_id:this.id(field(raw,rule.turn))};
-    if (rule.response) ids.response_id = this.id(field(raw,rule.response));
+    if (['response_started','text_delta','audio_chunk','response_done','response_cancelled'].includes(name)) ids.response_id = this.id(field(raw,rule.response));
     if (name === 'speech_started') return this.onEvent({control:'user.speech.started',...ids});
     const types = {user_partial:'user.partial',user_final:'user.final',response_started:'response.started',text_delta:'response.text.delta',audio_chunk:'response.audio.chunk',response_done:'response.done',response_cancelled:'response.cancelled'};
     let payload = {};
-    if (rule.text) payload = {text:field(raw,rule.text)};
-    if (rule.audio) {
+    if (['user_partial','user_final','text_delta'].includes(name)) payload = {text:field(raw,rule.text)};
+    if (name==='audio_chunk') {
       const audio = field(raw,rule.audio);
       if (typeof audio !== 'string' || audio.length > 87384 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(audio)) throw new Error('INVALID_PROVIDER_AUDIO');
       const bytes = Buffer.from(audio,'base64');
