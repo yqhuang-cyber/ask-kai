@@ -42,5 +42,9 @@ Current acceptance covers a real local WebSocket peer, ticket reuse/origin,
 readiness-before-upload, PCM forwarding, identity-bound output, timeouts and
 cleanup. It does not establish a real Doubao connection or device AEC quality.
 Browser installation was attempted but the Chromium download was invalid in
-this environment. Real-device audio, secure deployed origin and latency remain
+this environment. A packaged Chromium executable later enabled native local
+browser checks with synthetic device audio (controls, AudioWorklet PCM, continuous
+capture during playback stop and mobile overflow). The local renderer lacked
+CJK fonts, so screenshots alone do not establish Chinese typography quality.
+Real-device audio, secure deployed origin and latency remain
 required before release. No public hosting or HSKai production mutation occurred.

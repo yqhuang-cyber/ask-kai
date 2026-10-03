@@ -28,3 +28,9 @@ test('realtime mappings reject unreviewed formats and prototype-mutating paths',
   const profile=fakeProfile();profile.realtime.audio.encoding='opus';assert.throws(()=>validateRealtimeProfile(profile),/AUDIO/);
   const bad=fakeProfile();bad.realtime.outbound.context.instructions='constructor.prototype';assert.throws(()=>validateRealtimeProfile(bad),/MAPPING/);
 });
+test('initialization/send failures remain safe provider errors instead of escaping the socket listener',()=> {
+  const socket=new EventEmitter();socket.readyState=1;socket.bufferedAmount=0;socket.send=()=>{throw new Error('private-error-with-key');};socket.terminate=()=>{};
+  const failures=[];const provider=new ReviewedDoubaoProvider({profile:fakeProfile(),env:{DOUBAO_TEST_KEY:'test-only'},socketFactory:()=>socket});
+  provider.open({sessionId:'s1',instructions:'safe',onEvent:()=>{},onFailure:code=>failures.push(code)});
+  assert.doesNotThrow(()=>socket.emit('open'));assert.deepEqual(failures,['PROVIDER_INITIALIZATION_FAILED']);provider.close();
+});

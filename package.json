@@ -13,9 +13,19 @@
     "verify": "npm run check && npm test",
     "replay": "node apps/eval-runner/src/replay.js",
     "probe:preflight": "node --env-file-if-exists=.env scripts/duplex-probe.js",
-    "probe:live": "node --env-file-if-exists=.env scripts/duplex-probe.js --live"
+    "probe:live": "node --env-file-if-exists=.env scripts/duplex-probe.js --live",
+    "eval:content": "node --env-file-if-exists=.env scripts/content-eval.js",
+    "eval:demo": "node scripts/content-eval.js --demo",
+    "release:status": "node scripts/release-check.js",
+    "release:check": "node scripts/release-check.js --require-ready",
+    "test:browser": "node scripts/browser-check.js"
   },
   "dependencies": {
+    "@langchain/core": "1.2.14",
+    "@langchain/openai": "1.6.2",
     "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
   }
 }

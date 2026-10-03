@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { SessionRuntime } from '../../../packages/agent-core/session.js';
 import { TeachingSession } from '../../../packages/agent-core/teaching.js';
+import { SafetyPolicy,SAFETY_MESSAGE } from '../../../packages/policy/safety.js';
 
-export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500}={}) {
+export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,safeguardingPort,metrics}={}) {
   const tickets = new Map();
   const connections = new Set();
   const sessions=new Map();
@@ -26,6 +27,9 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       connections.add(ws);
       const runtime = new SessionRuntime(ticket.session_id,{target:null});
       const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission});
+      const policy=new SafetyPolicy();
+      const started=performance.now();metrics?.count(providerKind,'sessions');
+      let restricted=false,controlCount=0,controlAt=Date.now(),replyAt=null,firstAudio=false;
       let provider;
       let ended = false;
       let ready = false;
@@ -42,6 +46,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
         if (ended) return;
         ended = true;
         clearTimeout(readyTimer); clearTimeout(lifetime);
+        clearInterval(heartbeat);
+        if(code)metrics?.count(providerKind,'failures');
         for(const timer of pendingCancel.values())clearTimeout(timer);
         if(pendingContext)clearTimeout(pendingContext.timer);
         try { provider?.close(); } catch {}
@@ -55,6 +61,9 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       };
       const readyTimer = setTimeout(()=>finish('PROVIDER_READY_TIMEOUT'),readyTimeoutMs);
       const lifetime = setTimeout(()=>finish('SESSION_DURATION_LIMIT'),Math.min(maxSessionMs,ticket.identity.authorization_until-Date.now()));
+      let alive=true;
+      const heartbeat=setInterval(()=>{if(!alive){finish('CLIENT_HEARTBEAT_TIMEOUT');ws.terminate();return;}alive=false;if(ws.readyState===ws.OPEN)ws.ping();},15000);
+      ws.on('pong',()=>{alive=true;});
       const flushContext = () => {
         if(ended || !ready || runtime.active || pendingContext || appliedVersion===teaching.version)return;
         const version=teaching.version;
@@ -66,14 +75,29 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
         const id=responseId ?? active?.id ?? lastResponse?.id;
         if (!id) return;
         send({type:'output.stop',response_id:id});
+        metrics?.count(providerKind,'interruptions');
         if (!active || active.id!==id) return;
         runtime.ingest({version:1,event_id:randomUUID(),session_id:ticket.session_id,seq:0,at_ms:0,type:'response.cancel.requested',turn_id:active.turn,response_id:id,payload:{}});
         pendingCancel.set(id,setTimeout(()=>finish('CANCEL_ACK_TIMEOUT'),cancelTimeoutMs));
         try {provider.cancel(id);}catch{finish('PROVIDER_CANCEL_FAILED');}
       };
       sessions.set(ws,{identity:ticket.identity,teaching,finish,flushContext});
+      const restrict = (risk,event) => {
+        restricted=true;metrics?.count(providerKind,'restricted');
+        send({type:'output.stop',response_id:runtime.active?.id ?? lastResponse?.id});
+        try{if(runtime.active)provider.cancel(runtime.active.id);}catch{}
+        send({type:'safety.notice',message:SAFETY_MESSAGE,handoff:'pending',policy_version:risk.policy_version});
+        const request={identity:ticket.identity,session_id:ticket.session_id,source_event_id:event.event_id,reason:risk.reason,policy_version:risk.policy_version};
+        const delivery=safeguardingPort ? Promise.resolve().then(()=>safeguardingPort.request(request)):Promise.reject(new Error('NO_HANDOFF_PORT'));
+        let timer;
+        Promise.race([delivery,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('HANDOFF_TIMEOUT')),1800);})]).then(result=> {
+          if(result?.delivered!==true)throw new Error('HANDOFF_NOT_CONFIRMED');
+          metrics?.count(providerKind,'handoffs_delivered');send({type:'safety.handoff',delivered:true});
+        }).catch(()=>send({type:'safety.handoff',delivered:false})).finally(()=>{clearTimeout(timer);finish('SAFETY_RESTRICTED');});
+      };
       ws.on('close',()=>finish()); ws.on('error',()=>finish('CLIENT_TRANSPORT_ERROR'));
       ws.on('message',(bytes,binary) => {
+        if(ended || restricted)return;
         try {
           if (binary) {
             if (!ready) throw new Error('AUDIO_BEFORE_READY');
@@ -82,6 +106,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
             if (byteWindow > provider.audio.input_rate*2*1.25) throw new Error('AUDIO_RATE_LIMIT');
             provider.sendAudio(bytes);
           } else {
+            if(Date.now()-controlAt>=1000){controlAt=Date.now();controlCount=0;}
+            if(++controlCount>20){metrics?.count(providerKind,'control_rate_limited');return finish('CONTROL_RATE_LIMIT');}
             if (bytes.length > 1024) throw new Error('CONTROL_TOO_LARGE');
             const value = JSON.parse(bytes.toString());
             if (value?.type === 'session.end' && Object.keys(value).length === 1) finish();
@@ -93,7 +119,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       try {
         provider = providerFactory(ticket);
         provider.open({sessionId:ticket.session_id,instructions:teaching.instructions(),onFailure:code=>finish(code),onEvent:packet=> {
-          if (ended) return;
+          if (ended || restricted) return;
           if (packet.control==='user.speech.started') {if(ready)interrupt();return;}
           if(packet.control==='context.updated') {
             if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;pendingContext=null;send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
@@ -102,11 +128,17 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
           if (!packet.event) return;
           const result = runtime.ingest(packet.event);
           if (!result.accepted) {
+            metrics?.count(providerKind,'dropped_events');
             if (result.reason === 'event_limit' || result.reason === 'invalid_event') finish('PROVIDER_PROTOCOL_ERROR');
             return;
           }
-          if (packet.event.type === 'session.ready') {ready=true;clearTimeout(readyTimer);}
-          if (packet.event.type==='response.started')lastResponse={id:packet.event.response_id,turn:packet.event.turn_id};
+          if (packet.event.type === 'session.ready') {ready=true;clearTimeout(readyTimer);metrics?.count(providerKind,'ready');metrics?.observe(providerKind,'ready_ms',performance.now()-started);}
+          if (packet.event.type==='response.started'){lastResponse={id:packet.event.response_id,turn:packet.event.turn_id};policy.newResponse();replyAt=performance.now();firstAudio=false;}
+          if(['user.partial','user.final','response.text.delta'].includes(packet.event.type)) {
+            const risk=policy.inspect(packet.event.payload.text,{output:packet.event.type==='response.text.delta'});
+            if(risk.restricted){restrict(risk,packet.event);return;}
+          }
+          if(packet.event.type==='response.audio.chunk' && !firstAudio && replyAt!==null){firstAudio=true;metrics?.observe(providerKind,'first_audio_ms',performance.now()-replyAt);}
           if (packet.event.type==='response.cancelled') {clearTimeout(pendingCancel.get(packet.event.response_id));pendingCancel.delete(packet.event.response_id);}
           if(teaching.accept(packet.event))send({type:'teaching.state',...teaching.view()});
           send({type:'event',event:packet.event,audio:packet.audio,sample_rate:packet.sample_rate,provider_connected:ready && providerKind==='doubao',synthetic:providerKind!=='doubao'});

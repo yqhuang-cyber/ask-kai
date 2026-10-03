@@ -1,4 +1,4 @@
-# Foundation verification and remaining acceptance
+# Implementation verification and remaining acceptance
 
 Run `npm ci --ignore-scripts`, `npm run verify` and `npm run replay` on Node
 >=22.18. No provider credentials or network are required. CI runs Node 22 and 24.
@@ -8,7 +8,8 @@ duplicate and cross-session events, final-only attempted evidence with provenanc
 wrong-turn and reused reply IDs, interruption with late audio/text/done/ack events,
 fixture cancellation, loopback configuration, real-provider fail-closed behavior,
 HTTP/SSE end-to-end projections, WebSocket rejection and cross-site/Host checks.
-All fixtures contain authored synthetic text and audio metadata only.
+All committed dialogue is authored/synthetic. WebSocket tests additionally contain
+generated PCM bytes; browser checks use a Chromium synthetic microphone device.
 
 Protocol-probe tests additionally cover profile/credential preflight, real Node
 WebSocket headers against a loopback peer, historical readiness versus active
@@ -23,14 +24,15 @@ frames, aborts and bounded report output. See docs/protocol/duplex-spike.md.
 | F02 | pinned HSKai source inventory | consent, region, schema and actual deployed integration |
 | Q01 | foundation coverage mapped here | import original 58 case IDs and full requirements matrix |
 | Q02 / V04 | deterministic late-event cancellation regression | real provider event fixtures and browser audio measurements |
-| V03 / V05 | adapter placeholder and visible synthetic subtitles | real WSS/audio, provider text timing and phrase/audio alignment |
+| V03 / V05 | reviewed-profile adapter, real local WebSocket/PCM, progressive reply-fenced captions, native browser API checks | actual account WSS/audio, provider timing and phrase/audio alignment |
 | A03 | attempted-only evidence invariant | prompted/independent use rules and persistent evidence |
-| Q03 / Q04 | replay CLI entry point | actual multi-turn model execution, Langfuse Dataset, Judge and human calibration |
+| Q03 / Q04 | separate scorer, LangChain structured Judge, numeric Langfuse export port, NA/critical/release rules | real-model runs, original cases, deployed Dataset/score readback and human calibration |
 
 The replay CLI is an event regression tool. It does not evaluate teaching content,
-does not call a model and does not report quality scores. Existing 10-dimensional
-rubric, N/A weight handling and critical-failure gates remain the evaluation design.
-They require the original dataset/case workbook to be archived and implemented.
+does not call a model and does not report quality scores. The separate content
+runner implements the 10-dimensional scoring contract. Its eight seed examples
+are illustrative scoring data, not actual teacher performance or the original
+58-case workbook/53 P0 cases. Those original IDs still need archival and mapping.
 
 ## Manual local check
 
@@ -41,11 +43,11 @@ They require the original dataset/case workbook to be archived and implemented.
 5. Run failure: the session stays failed; no provider connection is reported.
 6. Stop midway, then restart; no previous subtitles remain.
 
-Automated verification in this environment is Node/HTTP/SSE testing. Browser visual,
-microphone, audio and real-provider validation are separate and must be reported
-explicitly when performed. No real speech/AEC/latency claim follows from step 1.
-
-Web preview verification: the HTTP suite checks the homepage, separate replay
-entry, asset routes and unimplemented session endpoint. A Playwright run was
-attempted, but the environment has no Chromium executable; browser interaction,
-visual layout and microphone permission behavior remain manual acceptance items.
+Local verification now includes Node rules, HTTP/SSE, real loopback WebSocket,
+PCM/ownership/cancellation/context, auth/Mission/memory/privacy, safety/tool rules,
+LangChain callable Judge and Langfuse HTTP contract tests, plus native Chromium.
+Browser controls and synthetic-device AudioWorklet capture/playback pass, including
+continuous capture during stop and no permission request while disconnected.
+Local CJK fonts were absent, so typography needs a font-capable device check.
+No real-provider, live Judge/Langfuse, deployed HSKai, human-team or actual AEC/
+audible-latency acceptance was performed. Release status remains blocked.

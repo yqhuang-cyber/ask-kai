@@ -20,3 +20,20 @@ jobs:
       - run: npm run verify
       - run: npm run replay
       - run: npm run probe:preflight
+      - run: npm run eval:demo
+      - run: npm run release:status
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-check
+          path: .local/browser-check

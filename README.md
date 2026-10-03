@@ -2,11 +2,11 @@
 
 面向 HSK 1 初学者的实时中文对话老师。学生可以自由聊天、围绕主题练习，或在完成 Mission 后继续对话。Kai 的语音由豆包实时全双工模型生成；Ask Kai 服务负责教学目标、会话状态、个性化、安全策略和学习证据。
 
-> **当前状态：第 1 步工程框架已实现，第 2 步协议 Spike 已开始，Web 表现层已有开发预览。** 已有本地事件回放、事件校验、合成供应商、测试、CI 和独立连接探针。真实豆包、WSS 音频、HSKai 鉴权和完整教学仍待实现；后文路线图不是已运行能力清单。公开提供给学生之前，必须完成本文的发布门槛。
+> **当前状态：第 1–7 步的工程实现已进入主干，真实接入与发布验收仍未完成。** 已有 Web AudioWorklet 采音／播放、票据式 WebSocket 网关、受核验配置约束的适配器、打断与渐进字幕、运动教学闭环、HSKai 身份与数据端口、风险处置、LangChain Judge／Langfuse 分数导出和发布检查。尚未取得经过核验的完整豆包协议配置与测试密钥，HSKai 新端口也未部署；默认保持内部预览，不冒充真实接通。进度与验收见下方文档。
 
-## 本地运行第 1 步
+## 本地运行
 
-需要 Node >=22.18（建议 Node 22 最新补丁或 Node 24）。WebSocket 依赖固定版本 ws；默认回放不需要豆包密钥。
+需要 Node >=22.18（建议 Node 22 最新补丁或 Node 24）。依赖版本已固定并锁定；默认回放、规则测试和评分示例不需要豆包密钥。
 
 ```bash
 npm ci --ignore-scripts
@@ -20,7 +20,7 @@ npm start
 
 可选：复制 `.env.example` 为 `.env` 配置端口。当前只允许本机监听。默认语音接口返回 501；真实供应商需要经过核验的协议配置和服务端密钥，配置不完整会拒绝启用。SSE 仅用于工程诊断。[Web 音频链路及验收边界](docs/web-realtime.md)。
 
-已实现目录包括 `apps/realtime-gateway`、`apps/eval-runner`、`packages/contracts`、`packages/agent-core`、`packages/provider-replay` 和 `packages/provider-doubao`（未实现占位接口）。数据均在内存中，不新增数据库。
+已实现目录包括 `apps/realtime-gateway`、`apps/eval-runner`、`packages/contracts`、`packages/agent-core`、`packages/provider-replay`、`packages/provider-doubao`、`packages/hskai-bridge` 和 `packages/policy`。真实适配器要求显式核验的字段映射；旧占位接口继续拒绝使用。会话状态在内存中，业务记忆通过授权端口留在 HSKai，不新增独立业务数据库。
 
 - [工程决策与剩余协议验证](docs/adr/0001-foundation.md)
 - [内部事件与诊断接口契约](docs/contracts.md)
@@ -28,10 +28,17 @@ npm start
 - [测试覆盖及验收边界](docs/testing.md)
 - [逐步实施与当前进度](docs/implementation-plan.md)
 - [全双工协议核对与连接探针](docs/protocol/duplex-spike.md)
+- [Web 音频、网关和打断验收](docs/web-realtime.md)
+- [运动教学状态与证据](docs/teaching.md)
+- [HSKai 新 BFF 接入合同](docs/hskai-bridge.md)
+- [安全、隐私、评测与发布门槛实现](docs/release-and-eval.md)
 
 下一步是用实际豆包全双工账号验证协议并实现真实适配器。内部 `session.ready` 等事件名称不能作为供应商协议使用；合成回放通过也不能证明真实语音或字幕体验。
+当前配置式适配器只支持经过核验的 JSON/base64 PCM 变体；如果实际账号的格式不兼容，需要补充对应适配实现并做真实回归。
 
 `npm run probe:preflight` 可以检查第 2 步配置，不发网络请求。真实探针需要先根据完整官方 API 核对协议配置，并在服务端配置测试密钥；提交的模板保持未核验状态，`npm run probe:live` 默认会拒绝连接。详见上方协议说明。探针与 Web 会话接口隔离，现有回放页面继续使用合成数据。
+
+`npm run eval:demo` 只展示评分计算；`npm run eval:content -- cases.json judgements.json` 评分经批准的观测，`--live-judge` 可显式调用配置好的 LangChain Judge。`npm run release:status` 列出缺口，`npm run release:check` 在缺少真实验收时退出失败。Chromium 安装后，`npm run test:browser` 使用测试音源检查原生音频 API 与页面；不能替代真实供应商／真机验收。
 
 ## 1. 产品目标与首期边界
 

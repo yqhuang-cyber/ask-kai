@@ -4,17 +4,18 @@
 | --- | --- | --- | --- |
 | 1 | Local foundation, event contracts, synthetic replay, CI | Local verification passes; true provider readiness is never simulated | Merged to main (PR #1) |
 | 2 | Actual Doubao protocol spike and adapter | Verified auth/audio/text/cancel/context behavior with redacted event samples | Started: preflight/probe and local WebSocket tests; full API and live account verification pending |
-| 3 | Web presentation, browser capture/playback and real gateway | Continuous upload and stable real bidirectional speech | Implemented: AudioWorklet, PCM/playback, ticketed WebSocket, reviewed-profile adapter; real account/browser audio acceptance pending |
+| 3 | Web presentation, browser capture/playback and real gateway | Continuous upload and stable real bidirectional speech | Implemented: AudioWorklet, PCM/playback, ticketed WebSocket, reviewed-profile adapter; native Chromium synthetic-device checks pass; real account/device acceptance pending |
 | 4 | Interruption, late-event isolation and subtitles | Real recordings/measurements confirm behavior across devices | Implemented: manual/provider speech-start cancellation, ACK timeout, reply fences and paced subtitles; real-device timing pending |
 | 5 | One sports teaching loop | Goal, word card and evidence have traceable sources | Implemented: authored versioned goal/cards, persona, stages, sourced attempts, boundary context updates with ACK; real model teaching quality pending |
 | 6 | HSKai authorization, three modes and minimal learner memory | Trusted course input, owner-scoped data and corrected preferences | Implemented: signed BFF bridge, scope/consent/market checks, trusted Mission, owner memory port/UI, correction/deletion/revocation; HSKai endpoint deployment pending |
-| 7 | Safety, privacy, content eval and controlled release | P0 regression, critical-failure gates, human handling and separate real-time metrics | Pending |
+| 7 | Safety, privacy, content eval and controlled release | P0 regression, critical-failure gates, human handling and separate real-time metrics | Implemented: safety floor/handoff and privacy ports, aggregate metrics, LangChain Judge, Langfuse scores, release checker and browser CI; live services/calibration/original P0/market approvals pending |
 
 The first client is Web only. No iOS SDK or native app is required. The homepage
-is a learner-facing layout preview with topic selection, prompts and an example
-word card; it reports the unimplemented session endpoint honestly and does not
-request microphone access. Engineering replay lives at /dev/replay. These UI
-changes advance the presentation portion of step 3 without closing its audio gate.
+defaults to a disconnected preview. Real audio requires a reviewed supplier
+profile, server credential and authenticated HSKai BFF contract. Test providers
+have no UI activation switch. Engineering replay lives at /dev/replay. Steps
+3–7 are code implementations with separate acceptance gates, not a released
+student service. See release-and-eval.md and the release checker for open gates.
 
 Testing progresses alongside each step. Platform reuse is a separate spike: inspect
 its source and prove one authorized teaching result before introducing a runtime

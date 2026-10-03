@@ -4,7 +4,7 @@ const modes=[...document.querySelectorAll('[data-mode]')];
 const goal=document.querySelector('#goal'),promptTitle=document.querySelector('#prompt-title'),promptHint=document.querySelector('#prompt-hint');
 const connect=document.querySelector('#connect'),status=document.querySelector('#connection-status'),message=document.querySelector('#session-message');
 const mute=document.querySelector('#mute'),end=document.querySelector('#end'),caption=document.querySelector('#caption'),student=document.querySelector('#student-caption');
-let mode='sports',ws,io,generation=0,config,muted=false,mission=null;
+let mode='sports',ws,io,generation=0,config,muted=false,mission=null,safetyMessage=null;
 const interrupt=document.querySelector('#interrupt');
 const presentation=new Presentation({render:text=>{caption.textContent=text;},play:(audio,rate)=>io?.play(audio,rate),stopAudio:()=>io?.stopPlayback()});
 function learning(packet) {
@@ -32,6 +32,7 @@ async function stop(text='对话已结束。') {
 }
 connect.addEventListener('click',async()=> {
   const current=++generation;controls(true);status.textContent='检查连接';message.textContent='正在检查实时服务……';
+  safetyMessage=null;
   document.querySelector('#learning-attempts').textContent='本轮尚无对话记录。';
   try {
     io=new AudioIO({onFrame:bytes=> {
@@ -49,24 +50,27 @@ connect.addEventListener('click',async()=> {
         const packet=JSON.parse(event.data);
         if(packet.type==='session.config'){config=packet.audio;return;}
         if(packet.type==='teaching.state' || packet.type==='teaching.summary'){learning(packet);return;}
-        if(packet.type==='session.failed'){await stop('实时连接失败，请重试。');return;}
+        if(packet.type==='session.failed'){await stop(safetyMessage ?? '实时连接失败，请重试。');return;}
+        if(packet.type==='safety.notice'){safetyMessage=packet.message;message.textContent=safetyMessage;presentation.stop();await io?.close();return;}
+        if(packet.type==='safety.handoff'){safetyMessage+=(packet.delivered?' 已提交给人工处理队列。':' 人工处理服务暂不可用，请直接联系可信任的大人。');message.textContent=safetyMessage;return;}
         if(packet.type==='session.closed'){await stop();return;}
         if(packet.type==='output.stop'){presentation.stop(packet.response_id);return;}
         if(packet.type!=='event')return;
+        if(safetyMessage)return;
         const value=packet.event;
         if(value.type==='session.ready') {
           if(packet.synthetic || !packet.provider_connected || !config){await stop('服务未完成真实就绪验证。');return;}
           status.textContent='已连接';document.querySelector('.preview').textContent='Web 对话 · 实时服务已就绪';message.textContent='正在开启麦克风……';
-          await io.start(config);if(current===generation)message.textContent='麦克风持续开启，你可以自然地说话。';
+          await io.start(config);if(current===generation && !safetyMessage)message.textContent='麦克风持续开启，你可以自然地说话。';
         } else if(value.type==='response.started'){presentation.begin(value.response_id);}
         else if(value.type==='response.text.delta')presentation.append(value.response_id,value.payload.text);
         else if(value.type==='user.partial' || value.type==='user.final')student.textContent=value.payload.text;
         else if(value.type==='response.audio.chunk' && packet.audio)presentation.audio(value.response_id,packet.audio,packet.sample_rate);
         else if(value.type==='response.done')presentation.done(value.response_id);
-      } catch {await stop('音频或协议处理失败，请重新开始。');}
+      } catch {await stop(safetyMessage ?? '音频或协议处理失败，请重新开始。');}
     };
-    ws.onerror=()=>{if(current===generation)void stop('无法连接实时服务，请重试。');};
-    ws.onclose=()=>{if(current===generation)void stop('连接已断开，请重新开始。');};
+    ws.onerror=()=>{if(current===generation)void stop(safetyMessage ?? '无法连接实时服务，请重试。');};
+    ws.onclose=()=>{if(current===generation)void stop(safetyMessage ?? '连接已断开，请重新开始。');};
   } catch {if(current===generation)await stop('无法开始对话。请检查麦克风权限及本地服务。');}
 });
 mute.addEventListener('click',()=>{muted=!muted;io?.mute(muted);mute.setAttribute('aria-pressed',String(muted));mute.textContent=muted?'取消静音':'静音';});

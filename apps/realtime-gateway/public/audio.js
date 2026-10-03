@@ -61,6 +61,6 @@ export class AudioIO {
   stopPlayback() {for(const source of this.sources){try{source.stop();}catch{}}this.sources.clear();this.nextAt=0;}
   async close() {
     this.generation++;this.stopPlayback();this.capture?.disconnect();this.input?.disconnect();this.stream?.getTracks().forEach(t=>t.stop());
-    this.pending=new Uint8Array(0);await this.context?.close();
+    this.pending=new Uint8Array(0);const context=this.context;this.context=null;if(context && context.state!=='closed')await context.close();
   }
 }

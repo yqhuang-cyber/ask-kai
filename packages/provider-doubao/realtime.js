@@ -60,9 +60,11 @@ export class ReviewedDoubaoProvider {
     this.sessionId = sessionId; this.started = performance.now(); this.onEvent = onEvent;
     this.socket = this.socketFactory(DUPLEX_ENDPOINT,{headers:this.headers,maxPayload:131072,perMessageDeflate:false,handshakeTimeout:5000,followRedirects:false});
     this.socket.on('open',() => {
-      const create = structuredClone(this.profile.session_create);
-      put(create,this.profile.realtime.initial_instructions,instructions);
-      this.send(create);
+      try {
+        const create = structuredClone(this.profile.session_create);
+        put(create,this.profile.realtime.initial_instructions,instructions);
+        this.send(create);
+      }catch{onFailure('PROVIDER_INITIALIZATION_FAILED');}
     });
     this.socket.on('message',(bytes,binary) => {
       try {

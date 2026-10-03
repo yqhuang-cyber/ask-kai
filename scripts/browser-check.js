@@ -1,0 +1,38 @@
+import { chromium } from 'playwright';
+import { once } from 'node:events';
+import { mkdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { createGateway } from '../apps/realtime-gateway/src/server.js';
+const server=createGateway({paceMs:1});server.listen(0,'127.0.0.1');await once(server,'listening');
+let browser;
+try {
+  browser=await chromium.launch({headless:true,executablePath:process.env.ASK_KAI_BROWSER_EXECUTABLE,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
+  const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(()=> {window.microphoneRequests=0;const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);navigator.mediaDevices.getUserMedia=async(...args)=>{window.microphoneRequests++;return original(...args);};});
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  await page.getByRole('button',{name:'自由聊天',exact:true}).click();assert.match(await page.locator('#goal').textContent(),/感兴趣/);
+  await page.getByRole('button',{name:'运动主题',exact:true}).click();assert.match(await page.locator('#goal').textContent(),/我喜欢/);
+  assert.equal(await page.locator('[data-mode=mission]').isDisabled(),true);
+  await page.locator('#connect').click();await page.getByText('实时语音尚未开通。需完成豆包协议和服务端连接验证。',{exact:true}).waitFor();
+  assert.equal(await page.locator('#connection-status').textContent(),'未连接');assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
+  assert.equal(await page.locator('[data-mode=mission]').isDisabled(),true);
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await mkdir('.local/browser-check',{recursive:true});await page.screenshot({path:'.local/browser-check/mobile.png',fullPage:true});
+  await page.setViewportSize({width:1280,height:900});await page.screenshot({path:'.local/browser-check/desktop.png',fullPage:true});
+  // Exercise actual native AudioWorklet/AudioContext with Chromium's synthetic device, independently of provider readiness.
+  await page.evaluate(async()=> {
+    const {AudioIO}=await import('/audio.js');window.framesObserved=[];
+    window.audioFailure=null;window.testAudio=new AudioIO({onFrame:bytes=>window.framesObserved.push(bytes.length),onFailure:error=>window.audioFailure=error});
+    await window.testAudio.prepare();await window.testAudio.start({input_rate:16000,output_rate:24000});
+  });
+  await page.waitForFunction(()=>window.framesObserved.length>=6);
+  assert.equal(await page.evaluate(()=>window.framesObserved.every(size=>size===640)),true);
+  const before=await page.evaluate(()=>{window.testAudio.play(btoa(String.fromCharCode(...new Uint8Array(640))),16000);window.testAudio.mute(true);window.testAudio.stopPlayback();return window.framesObserved.length;});
+  await page.waitForFunction(count=>window.framesObserved.length>count+5,before);
+  await page.evaluate(async()=>{await window.testAudio.close();await window.testAudio.close();});
+  assert.equal(await page.evaluate(()=>window.audioFailure),null);
+  await page.getByRole('link',{name:'工程回放'}).click();await page.locator('#start').click();await page.waitForFunction(()=>document.querySelector('#summary').textContent.includes('attempted'));
+  assert.equal(errors.length,0);
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,replay:true,page_errors:0}));
+}finally{await browser?.close();server.stopRealtime();await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});}
