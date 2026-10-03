@@ -5,6 +5,6 @@ export function readConfig(env = process.env) {
   if (host !== '127.0.0.1' && host !== '::1') throw new Error('STEP1_REQUIRES_LOOPBACK_HOST');
   if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535) throw new Error('INVALID_PORT');
   if (provider !== 'replay' && provider !== 'doubao') throw new Error('INVALID_PROVIDER');
-  if (provider === 'doubao') throw new Error('DOUBAO_PROTOCOL_NOT_VERIFIED');
-  return { host, port: Number(rawPort), provider };
+  if (provider === 'doubao' && !env.DOUBAO_REALTIME_PROFILE) throw new Error('DOUBAO_PROTOCOL_NOT_VERIFIED');
+  return { host, port: Number(rawPort), provider, profilePath:env.DOUBAO_REALTIME_PROFILE };
 }

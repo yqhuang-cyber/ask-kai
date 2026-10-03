@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.18.0" },
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env apps/realtime-gateway/src/main.js",
     "test": "node --test",
@@ -12,5 +14,8 @@
     "replay": "node apps/eval-runner/src/replay.js",
     "probe:preflight": "node --env-file-if-exists=.env scripts/duplex-probe.js",
     "probe:live": "node --env-file-if-exists=.env scripts/duplex-probe.js --live"
+  },
+  "dependencies": {
+    "ws": "8.21.0"
   }
 }

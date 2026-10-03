@@ -6,7 +6,7 @@
 
 ## 本地运行第 1 步
 
-需要 Node >=22.18（建议 Node 22 最新补丁或 Node 24）。当前没有第三方依赖，也不需要豆包密钥。
+需要 Node >=22.18（建议 Node 22 最新补丁或 Node 24）。WebSocket 依赖固定版本 ws；默认回放不需要豆包密钥。
 
 ```bash
 npm ci --ignore-scripts
@@ -18,7 +18,7 @@ npm start
 
 工程回放已移至 http://127.0.0.1:4310/dev/replay，可选择“正常回合”“打断与迟到事件”或“连接失败”。该页面始终标记 **合成测试数据／豆包未连接**；不采音、不播放语音、不接收真实学生输入。`npm run replay` 可在终端回放全部场景。
 
-可选：复制 `.env.example` 为 `.env` 配置端口。当前只允许本机监听，选择真实供应商模式会明确报错。SSE 仅用于工程诊断；真实会话接口和 WebSocket 升级均返回 501。
+可选：复制 `.env.example` 为 `.env` 配置端口。当前只允许本机监听。默认语音接口返回 501；真实供应商需要经过核验的协议配置和服务端密钥，配置不完整会拒绝启用。SSE 仅用于工程诊断。[Web 音频链路及验收边界](docs/web-realtime.md)。
 
 已实现目录包括 `apps/realtime-gateway`、`apps/eval-runner`、`packages/contracts`、`packages/agent-core`、`packages/provider-replay` 和 `packages/provider-doubao`（未实现占位接口）。数据均在内存中，不新增数据库。
 

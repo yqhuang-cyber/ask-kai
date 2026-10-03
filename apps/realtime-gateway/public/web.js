@@ -1,40 +1,60 @@
-const modes = [...document.querySelectorAll('[data-mode]')];
-const goal = document.querySelector('#goal');
-const promptTitle = document.querySelector('#prompt-title');
-const promptHint = document.querySelector('#prompt-hint');
-const connect = document.querySelector('#connect');
-const status = document.querySelector('#connection-status');
-const message = document.querySelector('#session-message');
-let mode = 'sports';
-for (const button of modes) {
-  button.addEventListener('click', () => {
-    mode = button.dataset.mode;
-    for (const item of modes) item.setAttribute('aria-pressed', String(item === button));
-    goal.textContent = mode === 'sports' ? '用「我喜欢……」说说喜欢的运动。' : '从感兴趣的话题开始，用中文表达自己。';
-    promptTitle.textContent = mode === 'sports' ? '你喜欢什么运动？' : '今天想聊什么？';
-    promptHint.textContent = mode === 'sports' ? '可以从「我喜欢足球」开始。' : '可以从「你好，我叫……」开始。';
-  });
+import { AudioIO } from './audio.js';
+const modes=[...document.querySelectorAll('[data-mode]')];
+const goal=document.querySelector('#goal'),promptTitle=document.querySelector('#prompt-title'),promptHint=document.querySelector('#prompt-hint');
+const connect=document.querySelector('#connect'),status=document.querySelector('#connection-status'),message=document.querySelector('#session-message');
+const mute=document.querySelector('#mute'),end=document.querySelector('#end'),caption=document.querySelector('#caption'),student=document.querySelector('#student-caption');
+let mode='sports',ws,io,generation=0,config,muted=false;
+function selectMode(button) {
+  mode=button.dataset.mode;
+  for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
+  goal.textContent=mode==='sports'?'用「我喜欢……」说说喜欢的运动。':'从感兴趣的话题开始，用中文表达自己。';
+  promptTitle.textContent=mode==='sports'?'你喜欢什么运动？':'今天想聊什么？';
+  promptHint.textContent=mode==='sports'?'可以从「我喜欢足球」开始。':'可以从「你好，我叫……」开始。';
 }
-connect.addEventListener('click', async () => {
-  connect.disabled = true;
-  for (const button of modes) button.disabled = true;
-  status.textContent = '检查连接';
-  message.textContent = '正在检查实时语音服务……';
+for(const button of modes)button.addEventListener('click',()=>selectMode(button));
+function controls(active) {connect.disabled=active;for(const button of modes)button.disabled=active;end.disabled=!active;mute.disabled=!active;}
+async function stop(text='对话已结束。') {
+  generation++;const previous=ws;ws=null;previous?.close();
+  const audio=io;io=null;await audio?.close();
+  controls(false);status.textContent='未连接';message.textContent=text;caption.textContent='';student.textContent='';
+  document.querySelector('.preview').textContent='Web 对话 · 豆包未连接';
+  muted=false;mute.setAttribute('aria-pressed','false');mute.textContent='静音';
+}
+connect.addEventListener('click',async()=> {
+  const current=++generation;controls(true);status.textContent='检查连接';message.textContent='正在检查实时服务……';
   try {
-    const response = await fetch('/api/sessions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }), signal: AbortSignal.timeout(8000)
-    });
-    const result = await response.json();
-    message.textContent = response.status === 501 && result.error === 'REALTIME_NOT_IMPLEMENTED'
-      ? '实时语音尚未开通。豆包协议和服务端连接验证完成后，这里将启用麦克风对话。'
-      : '当前 Web 预览尚未支持实时对话，请稍后重试。';
-  } catch {
-    message.textContent = '暂时无法连接服务，请检查本地服务是否运行后重试。';
-  } finally {
-    status.textContent = '未连接';
-    connect.textContent = '重新检查连接 ↗';
-    connect.disabled = false;
-    for (const button of modes) button.disabled = false;
-  }
+    io=new AudioIO({onFrame:bytes=> {
+      if(ws?.readyState===WebSocket.OPEN){if(ws.bufferedAmount>65536){void stop('网络上传拥塞，请重新开始。');return;}ws.send(bytes);}
+    },onFailure:text=>void stop(text)});
+    await io.prepare();
+    const response=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode}),signal:AbortSignal.timeout(8000)});
+    const result=await response.json();if(current!==generation)return;
+    if(!response.ok){await stop(response.status===501?'实时语音尚未开通。需完成豆包协议和服务端连接验证。':'会话无法创建，请检查授权或服务容量。');return;}
+    config=null;status.textContent='连接中';
+    ws=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${result.websocket_path}`,[result.protocol,`ticket.${result.ticket}`]);
+    ws.onmessage=async event=> {
+      if(current!==generation)return;
+      try {
+        const packet=JSON.parse(event.data);
+        if(packet.type==='session.config'){config=packet.audio;return;}
+        if(packet.type==='session.failed'){await stop('实时连接失败，请重试。');return;}
+        if(packet.type==='session.closed'){await stop();return;}
+        if(packet.type!=='event')return;
+        const value=packet.event;
+        if(value.type==='session.ready') {
+          if(packet.synthetic || !packet.provider_connected || !config){await stop('服务未完成真实就绪验证。');return;}
+          status.textContent='已连接';document.querySelector('.preview').textContent='Web 对话 · 实时服务已就绪';message.textContent='正在开启麦克风……';
+          await io.start(config);if(current===generation)message.textContent='麦克风持续开启，你可以自然地说话。';
+        } else if(value.type==='response.started'){caption.textContent='';}
+        else if(value.type==='response.text.delta')caption.textContent+=value.payload.text;
+        else if(value.type==='user.partial' || value.type==='user.final')student.textContent=value.payload.text;
+        else if(value.type==='response.audio.chunk' && packet.audio)io.play(packet.audio,packet.sample_rate);
+      } catch {await stop('音频或协议处理失败，请重新开始。');}
+    };
+    ws.onerror=()=>{if(current===generation)void stop('无法连接实时服务，请重试。');};
+    ws.onclose=()=>{if(current===generation)void stop('连接已断开，请重新开始。');};
+  } catch {if(current===generation)await stop('无法开始对话。请检查麦克风权限及本地服务。');}
 });
+mute.addEventListener('click',()=>{muted=!muted;io?.mute(muted);mute.setAttribute('aria-pressed',String(muted));mute.textContent=muted?'取消静音':'静音';});
+end.addEventListener('click',()=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'session.end'}));void stop();});
+window.addEventListener('pagehide',()=>{void stop();});

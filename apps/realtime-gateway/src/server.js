@@ -4,10 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { once } from 'node:events';
 import { SessionRuntime } from '../../../packages/agent-core/session.js';
 import { SCENARIOS, loadScenario, ReplayProvider } from '../../../packages/provider-replay/index.js';
+import { attachRealtime } from './realtime.js';
 
 const publicDir = new URL('../public/', import.meta.url);
 const staticFiles = new Map([
   ['/', ['index.html','text/html']], ['/web.js', ['web.js','text/javascript']], ['/web.css', ['web.css','text/css']],
+  ['/audio.js',['audio.js','text/javascript']], ['/capture-worklet.js',['capture-worklet.js','text/javascript']],
   ['/dev/replay', ['replay.html','text/html']], ['/app.js',['app.js','text/javascript']], ['/style.css',['style.css','text/css']]
 ]);
 function json(res, status, body) {
@@ -40,7 +42,12 @@ async function streamReplay(req, res, id, paceMs) {
     if (!res.destroyed) res.end();
   }
 }
-export function createGateway({ paceMs = 120 } = {}) {
+export async function readJson(req,maxBytes=4096) {
+  let size=0;const chunks=[];
+  for await(const chunk of req){size+=chunk.length;if(size>maxBytes)throw new Error('REQUEST_TOO_LARGE');chunks.push(chunk);}
+  return JSON.parse(Buffer.concat(chunks).toString());
+}
+export function createGateway({ paceMs = 120, ...realtimeOptions } = {}) {
   const server = createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options','nosniff');
     res.setHeader('Cache-Control','no-store');
@@ -52,7 +59,15 @@ export function createGateway({ paceMs = 120 } = {}) {
       const url = new URL(req.url, 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { service:'ask-kai', mode:'synthetic_replay', provider_connected:false, status:'ok' });
       if (req.method === 'GET' && url.pathname === '/api/replays') return json(res, 200, { scenarios:SCENARIOS });
-      if (req.method === 'POST' && url.pathname === '/api/sessions') return json(res, 501, { error:'REALTIME_NOT_IMPLEMENTED', provider_connected:false, next_step:'verified_doubao_adapter_and_hskai_authorization' });
+      if (req.method === 'POST' && url.pathname === '/api/sessions') {
+        if (!realtime.available) return json(res,501,{error:'REALTIME_NOT_IMPLEMENTED',provider_connected:false});
+        const origin=`http://${req.headers.host}`;
+        if(req.headers.origin!==origin)return json(res,403,{error:'ORIGIN_REQUIRED'});
+        let input;
+        try {input=await readJson(req);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
+        if(!input || !['sports','free'].includes(input.mode) || Object.keys(input).some(k=>k!=='mode'))return json(res,400,{error:'INVALID_MODE'});
+        try{return json(res,201,realtime.create({origin,mode:input.mode}));}catch{return json(res,429,{error:'SESSION_CAPACITY'});}
+      }
       if (req.method === 'GET' && url.pathname.startsWith('/api/replays/')) {
         const id = url.pathname.slice('/api/replays/'.length);
         if (!SCENARIOS.some(item => item.id === id)) return json(res, 404, { error:'UNKNOWN_SCENARIO' });
@@ -73,6 +88,8 @@ export function createGateway({ paceMs = 120 } = {}) {
   });
   server.requestTimeout = 10000;
   server.headersTimeout = 5000;
-  server.on('upgrade', (_req, socket) => socket.end('HTTP/1.1 501 Not Implemented\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'));
+  const realtime=attachRealtime(server,realtimeOptions);
+  server.stopRealtime=()=>realtime.close();
+  server.on('close',()=>realtime.close());
   return server;
 }

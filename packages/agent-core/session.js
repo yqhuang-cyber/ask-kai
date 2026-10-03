@@ -34,7 +34,7 @@ export class SessionRuntime {
       if (event.type === 'user.final') {
         if (this.finalTurns.has(event.turn_id)) return drop('duplicate_final_turn');
         this.finalTurns.add(event.turn_id);
-        if (event.payload.text.includes(this.target)) {
+        if (this.target && event.payload.text.includes(this.target)) {
           this.evidence.push({ session_id: this.sessionId, turn_id: event.turn_id, source_event_id: event.event_id, target: this.target, kind: 'attempted', rule_version: 'keyword-attempt-v1' });
         }
       } else if (event.type === 'response.started') {

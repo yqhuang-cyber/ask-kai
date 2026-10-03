@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | 1 | Local foundation, event contracts, synthetic replay, CI | Local verification passes; true provider readiness is never simulated | Merged to main (PR #1) |
 | 2 | Actual Doubao protocol spike and adapter | Verified auth/audio/text/cancel/context behavior with redacted event samples | Started: preflight/probe and local WebSocket tests; full API and live account verification pending |
-| 3 | Web presentation, browser capture/playback and real gateway | Continuous upload and stable real bidirectional speech | Web preview implemented; capture/playback and real gateway pending |
+| 3 | Web presentation, browser capture/playback and real gateway | Continuous upload and stable real bidirectional speech | Implemented: AudioWorklet, PCM/playback, ticketed WebSocket, reviewed-profile adapter; real account/browser audio acceptance pending |
 | 4 | Interruption, late-event isolation and subtitles | Real recordings/measurements confirm behavior across devices | Pending; only synthetic regression exists |
 | 5 | One sports teaching loop | Goal, word card and evidence have traceable sources | Pending |
 | 6 | HSKai authorization, three modes and minimal learner memory | Trusted course input, owner-scoped data and corrected preferences | Pending |
