@@ -6,7 +6,10 @@ import { SessionRuntime } from '../../../packages/agent-core/session.js';
 import { SCENARIOS, loadScenario, ReplayProvider } from '../../../packages/provider-replay/index.js';
 
 const publicDir = new URL('../public/', import.meta.url);
-const staticFiles = new Map([['/', ['index.html','text/html']], ['/app.js',['app.js','text/javascript']], ['/style.css',['style.css','text/css']]]);
+const staticFiles = new Map([
+  ['/', ['index.html','text/html']], ['/web.js', ['web.js','text/javascript']], ['/web.css', ['web.css','text/css']],
+  ['/dev/replay', ['replay.html','text/html']], ['/app.js',['app.js','text/javascript']], ['/style.css',['style.css','text/css']]
+]);
 function json(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));

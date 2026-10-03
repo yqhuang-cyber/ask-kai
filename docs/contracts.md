@@ -20,6 +20,8 @@ codec/sample-rate negotiation, backpressure, context updates and tool proposals.
 
 ## Local diagnostic HTTP
 
+- GET /: Web presentation preview; no microphone, playback or learner persistence.
+- GET /dev/replay: separate engineering replay page.
 - GET /healthz: synthetic_replay status; provider_connected always false.
 - GET /api/replays: allowlisted scenario IDs and labels.
 - GET /api/replays/:id: synthetic SSE `mode`, `accepted`, `dropped`, `summary`.
