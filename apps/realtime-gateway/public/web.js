@@ -1,9 +1,12 @@
 import { AudioIO } from './audio.js';
+import { Presentation } from './presentation.js';
 const modes=[...document.querySelectorAll('[data-mode]')];
 const goal=document.querySelector('#goal'),promptTitle=document.querySelector('#prompt-title'),promptHint=document.querySelector('#prompt-hint');
 const connect=document.querySelector('#connect'),status=document.querySelector('#connection-status'),message=document.querySelector('#session-message');
 const mute=document.querySelector('#mute'),end=document.querySelector('#end'),caption=document.querySelector('#caption'),student=document.querySelector('#student-caption');
 let mode='sports',ws,io,generation=0,config,muted=false;
+const interrupt=document.querySelector('#interrupt');
+const presentation=new Presentation({render:text=>{caption.textContent=text;},play:(audio,rate)=>io?.play(audio,rate),stopAudio:()=>io?.stopPlayback()});
 function selectMode(button) {
   mode=button.dataset.mode;
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
@@ -12,10 +15,11 @@ function selectMode(button) {
   promptHint.textContent=mode==='sports'?'可以从「我喜欢足球」开始。':'可以从「你好，我叫……」开始。';
 }
 for(const button of modes)button.addEventListener('click',()=>selectMode(button));
-function controls(active) {connect.disabled=active;for(const button of modes)button.disabled=active;end.disabled=!active;mute.disabled=!active;}
+function controls(active) {connect.disabled=active;for(const button of modes)button.disabled=active;end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
 async function stop(text='对话已结束。') {
-  generation++;const previous=ws;ws=null;previous?.close();
+  const stopped=++generation;presentation.reset();const previous=ws;ws=null;previous?.close();
   const audio=io;io=null;await audio?.close();
+  if(stopped!==generation)return;
   controls(false);status.textContent='未连接';message.textContent=text;caption.textContent='';student.textContent='';
   document.querySelector('.preview').textContent='Web 对话 · 豆包未连接';
   muted=false;mute.setAttribute('aria-pressed','false');mute.textContent='静音';
@@ -39,16 +43,18 @@ connect.addEventListener('click',async()=> {
         if(packet.type==='session.config'){config=packet.audio;return;}
         if(packet.type==='session.failed'){await stop('实时连接失败，请重试。');return;}
         if(packet.type==='session.closed'){await stop();return;}
+        if(packet.type==='output.stop'){presentation.stop(packet.response_id);return;}
         if(packet.type!=='event')return;
         const value=packet.event;
         if(value.type==='session.ready') {
           if(packet.synthetic || !packet.provider_connected || !config){await stop('服务未完成真实就绪验证。');return;}
           status.textContent='已连接';document.querySelector('.preview').textContent='Web 对话 · 实时服务已就绪';message.textContent='正在开启麦克风……';
           await io.start(config);if(current===generation)message.textContent='麦克风持续开启，你可以自然地说话。';
-        } else if(value.type==='response.started'){caption.textContent='';}
-        else if(value.type==='response.text.delta')caption.textContent+=value.payload.text;
+        } else if(value.type==='response.started'){presentation.begin(value.response_id);}
+        else if(value.type==='response.text.delta')presentation.append(value.response_id,value.payload.text);
         else if(value.type==='user.partial' || value.type==='user.final')student.textContent=value.payload.text;
-        else if(value.type==='response.audio.chunk' && packet.audio)io.play(packet.audio,packet.sample_rate);
+        else if(value.type==='response.audio.chunk' && packet.audio)presentation.audio(value.response_id,packet.audio,packet.sample_rate);
+        else if(value.type==='response.done')presentation.done(value.response_id);
       } catch {await stop('音频或协议处理失败，请重新开始。');}
     };
     ws.onerror=()=>{if(current===generation)void stop('无法连接实时服务，请重试。');};
@@ -57,4 +63,9 @@ connect.addEventListener('click',async()=> {
 });
 mute.addEventListener('click',()=>{muted=!muted;io?.mute(muted);mute.setAttribute('aria-pressed',String(muted));mute.textContent=muted?'取消静音':'静音';});
 end.addEventListener('click',()=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'session.end'}));void stop();});
+interrupt.addEventListener('click',()=> {
+  const response_id=presentation.current;presentation.stop();
+  if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'response.cancel',response_id:response_id ?? undefined}));
+});
+document.querySelector('#show-subtitles').addEventListener('change',event=>{caption.hidden=!event.target.checked;student.hidden=!event.target.checked;});
 window.addEventListener('pagehide',()=>{void stop();});

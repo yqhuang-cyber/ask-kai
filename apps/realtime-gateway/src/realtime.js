@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { SessionRuntime } from '../../../packages/agent-core/session.js';
 
-export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000}={}) {
+export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500}={}) {
   const tickets = new Map();
   const connections = new Set();
   const wss = new WebSocketServer({noServer:true,maxPayload:65536,perMessageDeflate:false,handleProtocols:protocols=>protocols.has('ask-kai.v1') ? 'ask-kai.v1' : false});
@@ -26,6 +26,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       let provider;
       let ended = false;
       let ready = false;
+      let lastResponse = null;
+      const pendingCancel = new Map();
       let byteWindow = 0; let windowAt = Date.now();
       const send = data => {
         if (ws.readyState !== ws.OPEN) return;
@@ -36,6 +38,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
         if (ended) return;
         ended = true;
         clearTimeout(readyTimer); clearTimeout(lifetime);
+        for(const timer of pendingCancel.values())clearTimeout(timer);
         try { provider?.close(); } catch {}
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({type:code ? 'session.failed':'session.closed',code:code ?? undefined,provider_connected:false}));
         ws.close(code ? 1011:1000,'session ended');
@@ -43,6 +46,16 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       };
       const readyTimer = setTimeout(()=>finish('PROVIDER_READY_TIMEOUT'),readyTimeoutMs);
       const lifetime = setTimeout(()=>finish('SESSION_DURATION_LIMIT'),maxSessionMs);
+      const interrupt = responseId => {
+        const active = runtime.active;
+        const id=responseId ?? active?.id ?? lastResponse?.id;
+        if (!id) return;
+        send({type:'output.stop',response_id:id});
+        if (!active || active.id!==id) return;
+        runtime.ingest({version:1,event_id:randomUUID(),session_id:ticket.session_id,seq:0,at_ms:0,type:'response.cancel.requested',turn_id:active.turn,response_id:id,payload:{}});
+        pendingCancel.set(id,setTimeout(()=>finish('CANCEL_ACK_TIMEOUT'),cancelTimeoutMs));
+        try {provider.cancel(id);}catch{finish('PROVIDER_CANCEL_FAILED');}
+      };
       ws.on('close',()=>finish()); ws.on('error',()=>finish('CLIENT_TRANSPORT_ERROR'));
       ws.on('message',(bytes,binary) => {
         try {
@@ -56,6 +69,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
             if (bytes.length > 1024) throw new Error('CONTROL_TOO_LARGE');
             const value = JSON.parse(bytes.toString());
             if (value?.type === 'session.end' && Object.keys(value).length === 1) finish();
+            else if (value?.type==='response.cancel' && ready && Object.keys(value).every(k=>['type','response_id'].includes(k)) && (value.response_id===undefined || /^[a-zA-Z0-9_.:-]{1,128}$/.test(value.response_id))) interrupt(value.response_id);
             else throw new Error('INVALID_CONTROL');
           }
         } catch { finish('INVALID_CLIENT_MESSAGE'); }
@@ -63,13 +77,17 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       try {
         provider = providerFactory(ticket);
         provider.open({sessionId:ticket.session_id,onFailure:code=>finish(code),onEvent:packet=> {
-          if (ended || !packet.event) return;
+          if (ended) return;
+          if (packet.control==='user.speech.started') {if(ready)interrupt();return;}
+          if (!packet.event) return;
           const result = runtime.ingest(packet.event);
           if (!result.accepted) {
             if (result.reason === 'event_limit' || result.reason === 'invalid_event') finish('PROVIDER_PROTOCOL_ERROR');
             return;
           }
           if (packet.event.type === 'session.ready') {ready=true;clearTimeout(readyTimer);}
+          if (packet.event.type==='response.started')lastResponse={id:packet.event.response_id,turn:packet.event.turn_id};
+          if (packet.event.type==='response.cancelled') {clearTimeout(pendingCancel.get(packet.event.response_id));pendingCancel.delete(packet.event.response_id);}
           send({type:'event',event:packet.event,audio:packet.audio,sample_rate:packet.sample_rate,provider_connected:ready && providerKind==='doubao',synthetic:providerKind!=='doubao'});
         }});
         send({type:'session.config',session_id:ticket.session_id,audio:provider.audio,provider_connected:false,synthetic:providerKind!=='doubao'});

@@ -10,6 +10,7 @@ const publicDir = new URL('../public/', import.meta.url);
 const staticFiles = new Map([
   ['/', ['index.html','text/html']], ['/web.js', ['web.js','text/javascript']], ['/web.css', ['web.css','text/css']],
   ['/audio.js',['audio.js','text/javascript']], ['/capture-worklet.js',['capture-worklet.js','text/javascript']],
+  ['/presentation.js',['presentation.js','text/javascript']],
   ['/dev/replay', ['replay.html','text/html']], ['/app.js',['app.js','text/javascript']], ['/style.css',['style.css','text/css']]
 ]);
 function json(res, status, body) {

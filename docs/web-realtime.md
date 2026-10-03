@@ -12,6 +12,15 @@ preserves fractional positions across buffers. Playback has a bounded queue;
 mute affects output only. Ending, disconnecting or leaving stops tracks and closes
 the AudioContext/provider. HTTPS/localhost is required for microphone access.
 
+Interruption stops client playback immediately without pausing capture. A reviewed
+provider speech-start mapping or manual button cancels the active response. The
+runtime fences late text/audio/done; an old cancellation ACK never clears a new
+reply. Missing ACK closes the connection after 1.5s and asks the user to restart.
+The browser independently checks reply ownership and reveals text progressively;
+timers/queued text are cleared on interruption/end. Subtitles are paced display,
+not proven phoneme or playback synchronization. No local amplitude-based VAD
+is substituted for the provider's full-duplex semantics.
+
 `ASK_KAI_PROVIDER=doubao` additionally needs `DOUBAO_REALTIME_PROFILE` pointing
 to a local reviewed profile plus its server-side credential. The realtime adapter
 extends the step-2 profile with `realtime.reviewed`, an official `evidence_source`,
