@@ -2,7 +2,7 @@
 
 面向 HSK 1 初学者的实时中文对话老师。学生可以自由聊天、围绕主题练习，或在完成 Mission 后继续对话。Kai 的语音由豆包实时全双工模型生成；Ask Kai 服务负责教学目标、会话状态、个性化、安全策略和学习证据。
 
-> **当前状态：第 1–7 步的工程实现已进入主干，真实接入与发布验收仍未完成。** 已有 Web AudioWorklet 采音／播放、票据式 WebSocket 网关、受核验配置约束的适配器、打断与渐进字幕、运动教学闭环、HSKai 身份与数据端口、风险处置、LangChain Judge／Langfuse 分数导出和发布检查。尚未取得经过核验的完整豆包协议配置与测试密钥，HSKai 新端口也未部署；默认保持内部预览，不冒充真实接通。进度与验收见下方文档。
+> **当前状态：第 1–7 步的工程实现已进入主干，真实接入与发布验收仍未完成。** 已有 Web AudioWorklet 采音／播放、票据式 WebSocket 网关、打断与渐进字幕、教学、HSKai 端口、安全与评测。现已依据用户提供的官方 PDF 及其 Go/Python/Web Demo 增加 Seeduplex 3.0 专用适配器；ACK 顺序和结束事件归属仍需《接入必读》及真实账号核验。当前工作区没有测试密钥／HSKai 运行配置，默认内部预览，不冒充真实接通。
 
 ## 本地运行
 
@@ -28,13 +28,13 @@ npm start
 - [测试覆盖及验收边界](docs/testing.md)
 - [逐步实施与当前进度](docs/implementation-plan.md)
 - [全双工协议核对与连接探针](docs/protocol/duplex-spike.md)
+- [Seeduplex 官方 PDF／Demo 映射与接入步骤](docs/protocol/seeduplex-integration.md)
 - [Web 音频、网关和打断验收](docs/web-realtime.md)
 - [运动教学状态与证据](docs/teaching.md)
 - [HSKai 新 BFF 接入合同](docs/hskai-bridge.md)
 - [安全、隐私、评测与发布门槛实现](docs/release-and-eval.md)
 
-下一步是用实际豆包全双工账号验证协议并实现真实适配器。内部 `session.ready` 等事件名称不能作为供应商协议使用；合成回放通过也不能证明真实语音或字幕体验。
-当前配置式适配器只支持经过核验的 JSON/base64 PCM 变体；如果实际账号的格式不兼容，需要补充对应适配实现并做真实回归。
+下一步是配置实际豆包账号，完成连接探针、事件时序和语音验收。Seeduplex 专用模板为 `docs/protocol/seeduplex-profile.template.json`，所有审核开关默认关闭；通用配置式适配器仍兼容已有审核配置。两者仅实现 JSON/base64 PCM，不把内部事件名当成供应商协议。合成回放通过不能证明真实语音、取消／更新确认或字幕体验。
 
 `npm run probe:preflight` 可以检查第 2 步配置，不发网络请求。真实探针需要先根据完整官方 API 核对协议配置，并在服务端配置测试密钥；提交的模板保持未核验状态，`npm run probe:live` 默认会拒绝连接。详见上方协议说明。探针与 Web 会话接口隔离，现有回放页面继续使用合成数据。
 

@@ -35,11 +35,11 @@ export function validateRealtimeProfile(profile) {
   return profile;
 }
 
-/** Explicitly reviewed JSON/base64 mappings only. No real wire defaults. */
-export class ReviewedDoubaoProvider {
+/** Shared bounded JSON transport. Protocol subclasses validate their own wire contract. */
+export class DoubaoJsonTransport {
   kind = 'doubao';
   constructor({profile,env=process.env,socketFactory=(url,options)=>new WebSocket(url,options)}) {
-    this.profile = validateRealtimeProfile(profile);
+    this.profile = validateProfile(profile);
     if (!preflight(profile,env).live_eligible) throw new Error('PROBE_PREFLIGHT_BLOCKED');
     const credential = env[profile.auth.env];
     if (typeof credential !== 'string' || credential.length > 8192 || /[^\x21-\x7e]/.test(credential)) throw new Error('INVALID_CREDENTIAL_FORMAT');
@@ -67,6 +67,7 @@ export class ReviewedDoubaoProvider {
       }catch{onFailure('PROVIDER_INITIALIZATION_FAILED');}
     });
     this.socket.on('message',(bytes,binary) => {
+      if (this.closed) return;
       try {
         if (binary) throw new Error('BINARY_MAPPING_NOT_VERIFIED');
         this.receive(JSON.parse(bytes.toString()));
@@ -78,6 +79,17 @@ export class ReviewedDoubaoProvider {
   event(type,payload={},ids={}) {
     return {version:1,event_id:randomUUID(),session_id:this.sessionId,seq:++this.seq,at_ms:Math.max(0,Math.round(performance.now()-this.started)),type,...ids,payload};
   }
+  send(value) {
+    if (this.closed || this.socket?.readyState !== WebSocket.OPEN) throw new Error('PROVIDER_NOT_OPEN');
+    if (this.socket.bufferedAmount > 262144) throw new Error('PROVIDER_BACKPRESSURE');
+    this.socket.send(JSON.stringify(value));
+  }
+  close() { this.closed = true; this.socket?.terminate(); this.ids.clear(); this.reverse.clear(); }
+}
+
+/** Explicitly reviewed generic mappings. No wire defaults. */
+export class ReviewedDoubaoProvider extends DoubaoJsonTransport {
+  constructor(options) { validateRealtimeProfile(options.profile); super(options); }
   receive(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('INVALID_PROVIDER_EVENT');
     if (raw.type === this.profile.ready.type) {
@@ -105,11 +117,6 @@ export class ReviewedDoubaoProvider {
     }
     this.onEvent({event:this.event(types[name],payload,ids)});
   }
-  send(value) {
-    if (this.closed || this.socket?.readyState !== WebSocket.OPEN) throw new Error('PROVIDER_NOT_OPEN');
-    if (this.socket.bufferedAmount > 262144) throw new Error('PROVIDER_BACKPRESSURE');
-    this.socket.send(JSON.stringify(value));
-  }
   sendAudio(bytes) {
     if (!bytes.length || bytes.length % 2 || bytes.length > this.audio.input_rate * 2 / 50) throw new Error('INVALID_INPUT_AUDIO');
     const rule = this.profile.realtime.outbound.audio;
@@ -125,5 +132,4 @@ export class ReviewedDoubaoProvider {
     const rule = this.profile.realtime.outbound.context;
     this.send(put(put({type:rule.type},rule.instructions,instructions),rule.version,version));
   }
-  close() { this.closed = true; this.socket?.terminate(); this.ids.clear(); this.reverse.clear(); }
 }

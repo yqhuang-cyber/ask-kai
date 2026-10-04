@@ -114,3 +114,15 @@ test('live CLI with the unreviewed template fails before connection and masks cr
   assert.match(result.stderr,/PROBE_PREFLIGHT_BLOCKED/);
   assert.ok(!`${result.stdout}${result.stderr}`.includes('synthetic-cli-secret'));
 });
+test('official metadata probe mutes after readiness, closes session and masks fatal wire errors', async () => {
+  const p = JSON.parse(await readFile(new URL('../docs/protocol/seeduplex-profile.template.json',import.meta.url),'utf8'));
+  p.reviewed = true;
+  const {socket,promise} = simulated({profile:p,env:{DOUBAO_API_KEY:'synthetic-only'}});
+  socket.open();socket.message('{"type":"session.created","session":{"id":"private-session"}}');
+  const report = await promise;
+  assert.equal(report.session_ready_observed,true);
+  assert.equal(socket.sent.map(s=>JSON.parse(s).type).join(','),'session.create,input_audio_mute.commit,session.close');
+  const failed = simulated({profile:p,env:{DOUBAO_API_KEY:'synthetic-only'}});failed.socket.open();
+  failed.socket.message('{"type":"error","error":{"message":"synthetic-only private failure"}}');
+  const error = await failed.promise;assert.equal(error.ended,'provider_error');assert.ok(!JSON.stringify(error).includes('private failure'));
+});

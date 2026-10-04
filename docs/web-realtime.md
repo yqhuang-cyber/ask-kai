@@ -21,8 +21,15 @@ timers/queued text are cleared on interruption/end. Subtitles are paced display,
 not proven phoneme or playback synchronization. No local amplitude-based VAD
 is substituted for the provider's full-duplex semantics.
 
+The Seeduplex 3.0 dedicated adapter now implements the supplied official PDF and
+Go/Python/Web demo fields: 16k input, 24k int16 output, X-Api-Key, accumulated ASR,
+text-before-audio, simple cancellation and serialized session-bound ACKs. See
+[its mapping, review gates and setup](protocol/seeduplex-integration.md). Its
+unreviewed template cannot enable a connection. ACK ordering and ID-less terminal
+events remain real-account gates; this implementation is not live acceptance.
+
 `ASK_KAI_PROVIDER=doubao` additionally needs `DOUBAO_REALTIME_PROFILE` pointing
-to a local reviewed profile plus its server-side credential. The realtime adapter
+to a local reviewed profile plus its server-side credential. The generic realtime adapter
 extends the step-2 profile with `realtime.reviewed`, an official `evidence_source`,
 `audio` (PCM s16le, input/output rate, 20ms frame), an `initial_instructions` path,
 explicit `inbound` mappings and explicit `outbound` mappings. Accepted inbound

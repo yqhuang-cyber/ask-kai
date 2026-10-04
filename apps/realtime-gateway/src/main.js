@@ -1,20 +1,20 @@
 import { readConfig } from './config.js';
 import { createGateway } from './server.js';
 import { loadProfile } from '../../../packages/provider-doubao/probe.js';
-import { ReviewedDoubaoProvider, validateRealtimeProfile } from '../../../packages/provider-doubao/realtime.js';
+import { createDoubaoProvider, validateDoubaoRealtimeProfile } from '../../../packages/provider-doubao/seeduplex.js';
 import { HskaiBridge } from '../../../packages/hskai-bridge/identity.js';
 import { HskaiMemoryPort } from '../../../packages/hskai-bridge/memory.js';
 import { HskaiSafeguardingPort } from '../../../packages/hskai-bridge/safeguarding.js';
 import { HskaiPrivacyPort } from '../../../packages/hskai-bridge/privacy.js';
 try {
   const config = readConfig();
-  const profile=config.provider==='doubao' ? validateRealtimeProfile(await loadProfile(config.profilePath)) : null;
-  if(profile)new ReviewedDoubaoProvider({profile});
+  const profile=config.provider==='doubao' ? validateDoubaoRealtimeProfile(await loadProfile(config.profilePath)) : null;
+  if(profile)createDoubaoProvider({profile});
   const bridge=profile ? new HskaiBridge({secret:process.env.HSKAI_BRIDGE_SECRET,markets:(process.env.HSKAI_ALLOWED_MARKETS ?? '').split(',').filter(Boolean)}) : undefined;
   const memoryPort=profile && process.env.HSKAI_MEMORY_ENDPOINT ? new HskaiMemoryPort({endpoint:process.env.HSKAI_MEMORY_ENDPOINT,secret:process.env.HSKAI_BRIDGE_SECRET}):undefined;
   const safeguardingPort=profile && process.env.HSKAI_SAFEGUARDING_ENDPOINT ? new HskaiSafeguardingPort({endpoint:process.env.HSKAI_SAFEGUARDING_ENDPOINT,secret:process.env.HSKAI_BRIDGE_SECRET}):undefined;
   const privacyPort=profile && process.env.HSKAI_PRIVACY_ENDPOINT ? new HskaiPrivacyPort({endpoint:process.env.HSKAI_PRIVACY_ENDPOINT,secret:process.env.HSKAI_BRIDGE_SECRET}):undefined;
-  const server = createGateway({bridge,memoryPort,safeguardingPort,privacyPort,providerFactory:profile ? ()=>new ReviewedDoubaoProvider({profile}) : undefined});
+  const server = createGateway({bridge,memoryPort,safeguardingPort,privacyPort,providerFactory:profile ? ()=>createDoubaoProvider({profile}) : undefined});
   server.listen(config.port, config.host, () => console.log(`Ask Kai Web: http://${config.host === '::1' ? '[::1]' : config.host}:${config.port} (${profile ? 'reviewed provider configured; readiness per session':'Doubao disconnected'})`));
   server.on('error', () => { console.error('GATEWAY_START_FAILED'); process.exitCode = 1; });
   for (const signal of ['SIGINT','SIGTERM']) process.once(signal, () => {

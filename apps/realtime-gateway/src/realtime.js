@@ -65,7 +65,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       const heartbeat=setInterval(()=>{if(!alive){finish('CLIENT_HEARTBEAT_TIMEOUT');ws.terminate();return;}alive=false;if(ws.readyState===ws.OPEN)ws.ping();},15000);
       ws.on('pong',()=>{alive=true;});
       const flushContext = () => {
-        if(ended || !ready || runtime.active || pendingContext || appliedVersion===teaching.version)return;
+        if(ended || !ready || runtime.active || pendingCancel.size || pendingContext || appliedVersion===teaching.version)return;
         const version=teaching.version;
         pendingContext={version,timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
         try{provider.updateContext({version,instructions:teaching.instructions()});}catch{finish('PROVIDER_CONTEXT_FAILED');}

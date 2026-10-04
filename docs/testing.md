@@ -51,3 +51,14 @@ continuous capture during stop and no permission request while disconnected.
 Local CJK fonts were absent, so typography needs a font-capable device check.
 No real-provider, live Judge/Langfuse, deployed HSKai, human-team or actual AEC/
 audible-latency acceptance was performed. Release status remains blocked.
+# Seeduplex protocol follow-up
+
+`tests/seeduplex.test.js` uses authored synthetic payloads shaped by the supplied
+official PDF and Go/Python/Web demos. It covers text-before-audio, ASR increment
+assembly, attempted-only final evidence, output format/framing, text suffixes,
+audio-vs-interaction completion, cancellation with a newer reply, serialized and
+deduplicated ACKs, wrong ownership and masked failures. A local gateway/WebSocket
+integration exercises teaching context updates. Additional probe and interruption
+regressions verify mute/close/error behavior and waiting for cancellation before
+updating context. No real provider transcript/audio, key or live assertion is used.
+See `protocol/seeduplex-integration.md` for ACK and terminal-identity limitations.

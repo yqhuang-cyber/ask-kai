@@ -3,6 +3,14 @@
 Checked 2026-10-04 (Asia/Shanghai). This step implements a connection probe,
 not a completed speech adapter or proof of an actual account connection.
 
+**Update:** the supplied official API PDF and its linked Go/Python/Web demos have
+now been read. Auth/audio/event names are mapped in
+[Seeduplex integration](seeduplex-integration.md), with a dedicated adapter and
+`seeduplex-profile.template.json`. The inventory below preserves the original
+spike's evidence boundary; its previously unknown static fields are superseded
+by that mapping. 接入必读, ACK ordering, terminal ownership and actual account
+speech acceptance remain open. This workspace contains no live credential.
+
 ## Sources and evidence
 
 1. [Official full-duplex API](https://www.volcengine.com/docs/6561/2549778),

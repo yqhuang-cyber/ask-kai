@@ -29,6 +29,15 @@ test('unconfirmed cancellation fails the session instead of silently continuing'
   provider.control('user.speech.started');await once(ws,'close');
   assert.ok(packets.some(p=>p.code==='CANCEL_ACK_TIMEOUT'));assert.equal(provider.closed,true);
 });
+test('teaching context waits for outstanding cancellation ACK before sending an update',async t=> {
+  const {create,open}=await setup(t);const {ws,provider}=await open(await(await create()).json());
+  const old={turn_id:'t1',response_id:'r1'},next={turn_id:'t2',response_id:'r2'};
+  provider.emit('session.ready');provider.emit('response.started',{},old);
+  ws.send(JSON.stringify({type:'response.cancel',response_id:'r1'}));await until(()=>provider.cancelled.length===1);
+  provider.emit('user.final',{text:'我喜欢足球'},{turn_id:'t2'});provider.emit('response.started',{},next);provider.emit('response.done',{},next);
+  assert.equal(provider.contexts.length,0);provider.emit('response.cancelled',{},old);
+  assert.equal(provider.contexts.length,1);provider.control('context.updated',{version:provider.contexts[0].version});
+});
 test('subtitles reveal gradually, cancel clears pending text, stale ack/audio cannot clear new output',()=> {
   const callbacks=new Map();let counter=0,visible='',played=[],stops=0;
   const view=new Presentation({render:v=>visible=v,play:(audio)=>played.push(audio),stopAudio:()=>stops++,schedule:f=>{callbacks.set(++counter,f);return counter;},unschedule:id=>callbacks.delete(id)});
