@@ -125,5 +125,5 @@ word, a full target sentence, a request for help, two unclear answers, refusal,
 a new topic and expression help on that new topic. Check that Kai follows the
 meaning, stays short and bilingual, gives one manageable next step, and does not
 repeat the old goal. Export only the metadata report; keep actual keys, audio
-and learner transcripts local. Task 06 next adds playback-aware captions;
+and learner transcripts local. [Task 06](progressive-captions.md) now adds playback-aware captions;
 Tasks 07/08 provide sourced summaries and cards; Tasks 09/10 own full evaluation.

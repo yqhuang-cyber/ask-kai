@@ -19,7 +19,8 @@ Only the reported speed, turn-taking, length/density, natural HSK association,
 progressive subtitles and visual summary issues are P0 for the next iteration.
 The basic language rule (short Chinese first, corresponding short English next)
 is P0 within tasks 04, 06, 09 and 10. Task 04 implements the model policy and
-metadata checks; live compliance and playback-aware captions remain pending.
+metadata checks; Task 06 now implements approximate playback-aware captions.
+Live model compliance and actual caption listening quality remain pending.
 Both languages share the reply budget. Full personas/complex bilingual or word-by-word glosses,
 age-based duration, complete profiles/target
 selection/scaffolding and correction branches are P1; cross-session continuity,
@@ -33,7 +34,7 @@ Existing authorization and safety invariants remain in force.
 | 03 | Turn-taking and false interruption fixes | Engineering implemented: ASR text confirmation, owner-bound output wait, serialized controls and duplicate/obsolete cancel handling. Real pause/echo/noise calibration pending. See [turn taking](turn-taking.md) |
 | 04 | Short reply and teaching-density budgets; Chinese first, corresponding English next | Engineering implemented: versioned bilingual/density policy, shared budgets, metadata audits and scoring criteria. Real model compliance/listening pending. See [short replies](short-replies.md) |
 | 05 | Natural teaching decisions | Engineering implemented: single-goal/action selection, refusal/topic pause, clarification limit, teaching cooldown and sourced ACK snapshots. Real semantics/model teaching quality pending. See [natural teaching](natural-teaching.md) |
-| 06 | Playback-aware progressive subtitles, preserving Chinese/English order | Pending |
+| 06 | Playback-aware progressive subtitles, preserving Chinese/English order | Engineering implemented: phrase buffering, PCM clock, pause/cancel fences, labeled text fallback and Web size/highlight controls. Real device synchronization pending. See [progressive captions](progressive-captions.md) |
 | 07 | Per-session structured summary data | Pending |
 | 08 | Web summary cards | Pending |
 | 09 | P0 regression and content evaluation, including language order and bilingual length | Pending |

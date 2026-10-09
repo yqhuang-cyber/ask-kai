@@ -33,8 +33,12 @@ happen immediately. Obsolete queued cancels never target a newer response.
 Missing ACK closes the connection 1.5s after actual wire dispatch and asks the
 user to restart; a queued cancel waiting on context retains the context deadline.
 The browser independently checks reply ownership and reveals text progressively;
-timers/queued text are cleared on interruption/end. Subtitles are paced display,
-not proven phoneme or playback synchronization. No local amplitude-based VAD
+timers/queued text are cleared on interruption/end. [Task 06](progressive-captions.md)
+now buffers short phrases and paces them approximately with played PCM spans,
+preferring the browser's output timestamp with a rendering-clock fallback.
+No reviewed supplier word timestamps or proven phoneme alignment are claimed.
+Completed replies without accepted PCM are explicitly labeled text-only.
+No local amplitude-based VAD
 is substituted for the provider's full-duplex semantics.
 
 The Seeduplex 3.0 dedicated adapter now implements the supplied official PDF and

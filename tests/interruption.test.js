@@ -40,13 +40,15 @@ test('teaching context waits for outstanding cancellation ACK before sending an 
 });
 test('subtitles reveal gradually, cancel clears pending text, stale ack/audio cannot clear new output',()=> {
   const callbacks=new Map();let counter=0,visible='',played=[],stops=0;
-  const view=new Presentation({render:v=>visible=v,play:(audio)=>played.push(audio),stopAudio:()=>stops++,schedule:f=>{callbacks.set(++counter,f);return counter;},unschedule:id=>callbacks.delete(id)});
+  const view=new Presentation({render:v=>visible=v,play:(audio)=>played.push(audio),getPlayback:()=>({running:true,played_ms:1000,received_ms:2000}),stopAudio:()=>stops++,schedule:f=>{callbacks.set(++counter,f);return counter;},unschedule:id=>callbacks.delete(id)});
   const tick=()=>{const [id,f]=callbacks.entries().next().value;callbacks.delete(id);f();};
   view.begin('old');view.append('old','这是整段字幕，不应该一次出现。');assert.equal(visible,'');
+  view.done('old'); // A completed text-only reply still reveals one phrase at a time.
   tick();assert.ok(visible.length>0 && visible.length<10);
   view.stop('old');assert.equal(visible,'');assert.equal(callbacks.size,0);
   view.begin('new');view.append('new','新的字幕');assert.equal(view.stop('old'),false);
   assert.equal(view.audio('old','stale',24000),false);view.audio('new','current',24000);
+  view.done('new');
   tick();assert.match(visible,/新的/);assert.deepEqual(played,['current']);
   view.done('new');assert.equal(view.append('new','迟到'),false);
   assert.equal(view.begin('old'),false);view.reset();assert.equal(callbacks.size,0);assert.ok(stops>=3);

@@ -1,5 +1,20 @@
 // Internal Web audio contract: mono PCM s16le, 20ms frames. Provider rates are reviewed server-side.
 import { safeObserve } from './diagnostics.js';
+// Prefer the estimated output-device position; fallback is the rendering clock,
+// not a measurement of what the learner heard. Never advance it with wall time
+// while the context is suspended/interrupted.
+export function outputClock(context,nowMs=performance.now()) {
+  const current=Number.isFinite(context?.currentTime)?context.currentTime:0;
+  if(context?.state==='running' && typeof context.getOutputTimestamp==='function') {
+    try {
+      const stamp=context.getOutputTimestamp(),age=nowMs-stamp.performanceTime;
+      if(Number.isFinite(stamp.contextTime) && stamp.contextTime>0 && Number.isFinite(age) && age>=0 && age<1000) {
+        return {seconds:Math.min(current,stamp.contextTime+age/1000),source:'output_timestamp'};
+      }
+    }catch{/* Some devices do not expose a usable output timestamp. */}
+  }
+  return {seconds:current,source:'context_time'};
+}
 export class PCMResampler {
   constructor(sourceRate,targetRate) {this.ratio=sourceRate/targetRate;this.position=0;this.pending=[];}
   push(input) {
@@ -19,7 +34,7 @@ export class PCMResampler {
   }
 }
 export class AudioIO {
-  constructor({onFrame,onFailure,onObserve}) {this.onFrame=onFrame;this.onFailure=onFailure;this.onObserve=onObserve;this.sources=new Set();this.generation=0;this.pending=new Uint8Array(0);this.queuedStats=new Map();}
+  constructor({onFrame,onFailure,onObserve}) {this.onFrame=onFrame;this.onFailure=onFailure;this.onObserve=onObserve;this.sources=new Set();this.generation=0;this.playbackEpoch=0;this.pending=new Uint8Array(0);this.queuedStats=new Map();}
   async prepare() {
     if (!window.isSecureContext) throw new Error('MICROPHONE_REQUIRES_SECURE_CONTEXT');
     this.context=new AudioContext();this.gain=this.context.createGain();this.gain.connect(this.context.destination);
@@ -59,15 +74,28 @@ export class AudioIO {
     for(let i=0;i<channel.length;i++)channel[i]=view.getInt16(i*2,true)/32768;
     const at=Math.max(this.context.currentTime+0.03,this.nextAt ?? 0);
     if(at-this.context.currentTime>3)throw new Error('PLAYBACK_BACKLOG');
+    const stats=this.queuedStats.get(responseId)??{duration:0,finished:0,played:0,spans:[],observedAt:null};
+    // Bound live nodes and metadata even for unexpectedly tiny audio chunks.
+    this.playback(responseId);
+    if(this.sources.size>=1024 || stats.spans.length>=1024 || this.queuedStats.size>=32 && !this.queuedStats.has(responseId))throw new Error('PLAYBACK_LIMIT');
     const source=this.context.createBufferSource();source.buffer=buffer;source.connect(this.gain);this.sources.add(source);
-    source.onended=()=>{if(this.sources.delete(source) && !this.sources.size)safeObserve(this.onObserve,'audio.drained',{response_id:responseId,scheduled_ms:this.context?.currentTime*1000});};source.start(at);this.nextAt=at+buffer.duration;
-    const stats=this.queuedStats.get(responseId)??{duration:0,observedAt:null};stats.duration+=buffer.duration*1000;this.queuedStats.set(responseId,stats);
+    const epoch=this.playbackEpoch;
+    source.onended=()=>{if(epoch===this.playbackEpoch && this.sources.delete(source) && !this.sources.size)safeObserve(this.onObserve,'audio.drained',{response_id:responseId,scheduled_ms:this.context?.currentTime*1000});};source.start(at);this.nextAt=at+buffer.duration;
+    stats.duration+=buffer.duration*1000;stats.spans.push({start:at,end:this.nextAt,duration:buffer.duration*1000});this.queuedStats.set(responseId,stats);
     if(stats.observedAt===null || performance.now()-stats.observedAt>=250) {
       stats.observedAt=performance.now();safeObserve(this.onObserve,'audio.queued',{response_id:responseId,queue_ms:(this.nextAt-this.context.currentTime)*1000,scheduled_ms:at*1000,duration_ms:stats.duration,output_rate:rate,sources:this.sources.size});
     }
   }
+  playback(responseId) {
+    const stats=this.queuedStats.get(responseId);if(!stats || !this.context)return null;
+    const clock=outputClock(this.context),seconds=clock.seconds;
+    while(stats.spans.length && stats.spans[0].end<=seconds)stats.finished+=stats.spans.shift().duration;
+    const partial=stats.spans.reduce((sum,span)=>sum+Math.min(span.duration,Math.max(0,(seconds-span.start)*1000)),0);
+    stats.played=Math.min(stats.duration,Math.max(stats.played,stats.finished+partial));
+    return {played_ms:stats.played,received_ms:stats.duration,queued_ms:Math.max(0,stats.duration-stats.played),running:this.context.state==='running',clock_source:clock.source};
+  }
   mute(value) {if(this.gain)this.gain.gain.value=value?0:1;safeObserve(this.onObserve,'audio.muted',{muted:value});}
-  stopPlayback() {if(this.sources.size)safeObserve(this.onObserve,'audio.stopped',{sources:this.sources.size,queue_ms:Math.max(0,(this.nextAt-(this.context?.currentTime??0))*1000)});for(const source of this.sources){try{source.stop();}catch{}}this.sources.clear();this.queuedStats.clear();this.nextAt=0;}
+  stopPlayback() {this.playbackEpoch++;if(this.sources.size)safeObserve(this.onObserve,'audio.stopped',{sources:this.sources.size,queue_ms:Math.max(0,(this.nextAt-(this.context?.currentTime??0))*1000)});for(const source of this.sources){try{source.stop();}catch{}}this.sources.clear();this.queuedStats.clear();this.nextAt=0;}
   async close() {
     this.generation++;this.stopPlayback();this.capture?.disconnect();this.input?.disconnect();this.stream?.getTracks().forEach(t=>t.stop());
     this.pending=new Uint8Array(0);const context=this.context;this.context=null;if(context && context.state!=='closed')await context.close();

@@ -68,7 +68,9 @@ test('missing cancellation ACK is explained by source, pending state and termina
 });
 test('caption metadata measures pending reveal, clearing and stale ownership without retaining text',()=>{
   let tick;const observations=[],view=new Presentation({render:()=>{},play:()=>{},stopAudio:()=>{},schedule:f=>{tick=f;return 1;},unschedule:()=>{},onObserve:(name,fields)=>observations.push({name,fields})});
-  view.begin('r');view.append('r','一整段私密字幕');assert.equal(observations.at(-1).fields.pending_chars,7);
+  const text='一整段私密字幕，后半句也有私密内容。';
+  view.begin('r');view.append('r',text);assert.equal(observations.at(-1).fields.pending_chars,[...text].length);
+  view.done('r');
   tick();assert.ok(observations.some(o=>o.name==='caption.revealed' && o.fields.visible_chars>0));
   view.stop();assert.ok(observations.some(o=>o.name==='caption.cleared' && o.fields.pending_chars>0));
   assert.equal(view.append('r','旧字幕'),false);assert.equal(observations.at(-1).name,'presentation.dropped');

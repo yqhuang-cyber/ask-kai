@@ -44,6 +44,44 @@ try {
   });
   await page.waitForFunction(()=>window.framesObserved.length>=6);
   assert.equal(await page.evaluate(()=>window.framesObserved.every(size=>size===640)),true);
+  // Production caption module + native playback clock; authored text/silent PCM
+  // are a synthetic fixture, never a provider-ready or listening-quality result.
+  const fixtureFrames=await page.evaluate(async()=> {
+    const {Presentation}=await import('/presentation.js');
+    window.captionFixtureText='你好。 Hello. 我喜欢足球。 I like football.';window.captionReveals=[];
+    window.captionFixture=new Presentation({render:(text,parts)=>{
+      window.captionReveals.push({text,current:parts.current,at:performance.now()});
+      const caption=document.querySelector('#caption');caption.replaceChildren();
+      const previous=document.createElement('span');previous.textContent=parts.previous;previous.className='caption-previous';caption.append(previous);
+      if(parts.current){const active=document.createElement('strong');active.textContent=parts.current;active.className='caption-current';caption.append(active);}
+    },play:(pcm,rate,id)=>window.testAudio.play(pcm,rate,id),stopAudio:()=>window.testAudio.stopPlayback(),
+      getPlayback:id=>window.testAudio.playback(id),onObserve:(name,fields)=>window.audioTrace.record(name,fields)});
+    window.captionFixture.begin('synthetic-caption');window.captionFixture.append('synthetic-caption',window.captionFixtureText);
+    const pcm=btoa(String.fromCharCode(...new Uint8Array(28800))); // 600ms @ 24kHz
+    for(let i=0;i<4;i++)window.captionFixture.audio('synthetic-caption',pcm,24000);
+    window.captionFixture.done('synthetic-caption');
+    if(document.querySelector('#caption').textContent!=='')throw new Error('CAPTION_BURST');
+    return window.framesObserved.length;
+  });
+  await page.waitForFunction(()=>window.captionFixture.visible.length>0);
+  assert.equal(await page.evaluate(()=>window.captionFixture.visible.length<window.captionFixtureText.length),true);
+  assert.equal(await page.locator('#caption .caption-current').count(),1);
+  const pausedText=await page.evaluate(async()=>{await window.testAudio.context.suspend();return window.captionFixture.visible;});
+  await page.waitForFunction(()=>window.captionFixture.mode==='paused');
+  await page.waitForTimeout(420);assert.equal(await page.evaluate(()=>window.captionFixture.visible),pausedText);
+  await page.evaluate(()=>window.testAudio.context.resume());
+  await page.waitForFunction(()=>window.captionFixture.mode==='complete');
+  assert.equal(await page.evaluate(()=>window.captionFixture.visible===window.captionFixtureText),true);
+  assert.equal(await page.evaluate(()=>window.framesObserved.length>window.captionReveals.length && window.framesObserved.length>0),true);
+  assert.ok(await page.evaluate(()=>window.framesObserved.length)>fixtureFrames+5);
+  const reveals=await page.evaluate(()=>window.captionReveals.filter(r=>r.current));assert.equal(reveals.length,4);
+  assert.ok(reveals.slice(1).every((r,i)=>r.at-reveals[i].at>=310));
+  await page.locator('#subtitle-size').selectOption('large');assert.equal(await page.locator('#caption').evaluate(el=>getComputedStyle(el).fontSize),'25px');
+  await page.locator('#show-subtitles').uncheck();assert.equal(await page.locator('#caption').isVisible(),false);assert.equal(await page.locator('#caption-hint').isVisible(),false);
+  await page.locator('#show-subtitles').check();assert.equal(await page.locator('#caption').isVisible(),true);
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'.local/browser-check/captions-mobile.png',fullPage:true});await page.setViewportSize({width:1280,height:900});
+  await page.evaluate(()=>window.captionFixture.reset());
   const before=await page.evaluate(()=>{window.testAudio.play(btoa(String.fromCharCode(...new Uint8Array(640))),16000);window.testAudio.mute(true);window.testAudio.stopPlayback();return window.framesObserved.length;});
   await page.waitForFunction(count=>window.framesObserved.length>count+5,before);
   await page.waitForFunction(()=>window.audioTrace.rows.some(r=>r.name==='audio.capture.progress'));
@@ -51,6 +89,8 @@ try {
   assert.equal(await page.evaluate(()=>window.audioFailure),null);
   const audioReport=await page.evaluate(()=>window.audioTrace.snapshot());assert.equal(audioReport.kind,'synthetic');
   assert.ok(audioReport.timeline.some(r=>r.name==='audio.capture.started'));assert.ok(audioReport.timeline.some(r=>r.name==='audio.stopped'));assert.equal(audioReport.contains_audio,false);
+  assert.ok(audioReport.timeline.some(r=>r.name==='caption.playback' && r.played_pcm_ms>0));
+  assert.equal(JSON.stringify(audioReport).includes('我喜欢足球'),false);
   await page.getByRole('link',{name:'工程回放'}).click();await page.locator('#start').click();await page.waitForFunction(()=>document.querySelector('#summary').textContent.includes('attempted'));
   // Synthetic Seeduplex transport: inspect actual Web selection -> ticket -> session.create.
   // Withhold provider ready; never expose the synthetic peer as connected or open the microphone.
@@ -101,5 +141,5 @@ try {
   await page.locator('#memory-delete').click();await page.getByText('偏好已删除，当前对话已结束。',{exact:true}).waitFor();assert.equal(await page.locator('#memory-list li').count(),0);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'.local/browser-check/poc-mobile.png',fullPage:true});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,replay:true,page_errors:0}));
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,replay:true,page_errors:0}));
 }finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}for(const backend of backends)await backend.close();}

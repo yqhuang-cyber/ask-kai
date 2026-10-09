@@ -4,7 +4,7 @@
 
 ## Task 01 时的代码基线
 
-下表保留 Task 01 起点，便于前后对比。Task 02 已增加默认慢速和正常档，详见 [语速实现与试听](speech-pace.md)；Task 03 已增加 [话轮等待、文本确认与控制串行化](turn-taking.md)；Task 04 已增加 [短回复、教学密度与中英顺序策略](short-replies.md)。真实体验基线仍待本地测试。
+下表保留 Task 01 起点，便于前后对比。Task 02 已增加默认慢速和正常档，详见 [语速实现与试听](speech-pace.md)；Task 03 已增加 [话轮等待、文本确认与控制串行化](turn-taking.md)；Task 04 已增加 [短回复、教学密度与中英顺序策略](short-replies.md)；Task 06 已替换固定字符节奏，详见 [播放进度渐进字幕](progressive-captions.md)。真实体验基线仍待本地测试。
 
 | 项目 | 当前行为 | 边界／后续 Task |
 | --- | --- | --- |
@@ -58,7 +58,8 @@ Web 与测试共用 `apps/realtime-gateway/public/experience-cases.json`。
 | `cancel.requested / ack` | manual、provider_speech_start、safety；active、pending_cancel、pending_context，以及请求到 ACK 的网关间隔 |
 | `user.partial / final` | 只记字符数、匿名 turn 引用；不存识别内容；final 到达未必早于回复开始 |
 | `event.dropped` | 运行时拒绝原因与匿名引用；适配器内部已过滤的 wire 事件不进入网关 |
-| `caption.received / revealed / cleared` | 到达、已显示、待显示字数；揭示进度每 250ms 抽样并保留首／末更新，实际字幕仍按原 70ms 运行 |
+| `caption.received / revealed / cleared` | 到达、已显示、待显示字数；Task 06 每次揭示一个短语，最短 320ms 间隔；短语数仅统计保留的事件 |
+| `caption.mode / playback`（Task 06） | 等待、播放、暂停、文字降级与完成；约每 250ms 及完成时记录 PCM 播放估计、收到／待播时长与时钟来源，不等于逐字同步或真人已听到 |
 | `audio.queued / drained / stopped` | WebAudio 调度队列、累计入队声音长度、自然排空与主动停止；每 250ms 抽样，scheduled_ms 另属 AudioContext 时基 |
 | `audio.capture.started / progress` | 实际音频处理布尔设置、累计采集帧数；每秒抽样，不保存 PCM；帧数不能证明供应商收到 |
 | `context.requested / applied`、`session.end` | 更新、结束和白名单错误码；不复制原始错误信息 |

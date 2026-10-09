@@ -40,7 +40,14 @@ const paceSelect=document.querySelector('#speech-pace'),paceHint=document.queryS
 let paceSupported=false;
 let mode='sports',ws,io,generation=0,config,muted=false,mission=null,safetyMessage=null;
 const interrupt=document.querySelector('#interrupt');
-const presentation=new Presentation({render:text=>{caption.textContent=text;},play:(audio,rate,id)=>io?.play(audio,rate,id),stopAudio:()=>io?.stopPlayback(),onObserve:diagnosticsEnabled?observe:undefined});
+const captionHint=document.querySelector('#caption-hint');
+const presentation=new Presentation({render:(text,parts)=>{
+  const previous=document.createElement('span'),current=document.createElement('strong');
+  previous.className=parts?.complete?'caption-complete':'caption-previous';previous.textContent=parts?.previous??text;
+  current.className='caption-current';current.textContent=parts?.current??'';caption.replaceChildren(previous,current);
+},play:(audio,rate,id)=>io?.play(audio,rate,id),getPlayback:id=>io?.playback(id),stopAudio:()=>io?.stopPlayback(),onMode:(mode,details)=>{
+  captionHint.textContent=mode==='complete'?(details.has_text?details.text_only?'本轮仅有文字回复，已显示完毕。':'本轮回复已显示。':'本轮没有收到字幕。'):({idle:'字幕会随回复逐段出现。',waiting_audio:'等待语音开始……',playing:'当前字幕短语已加深显示。',paused:'播放已暂停，字幕会随播放继续。',text_only:'本轮未收到语音，正在显示文字回复。'})[mode];
+},onObserve:diagnosticsEnabled?observe:undefined});
 function learning(packet) {
   goal.textContent=packet.goal;promptHint.textContent=packet.start_tip;
   const card=packet.cards[0];document.querySelector('.word-card').hidden=!card;
@@ -132,7 +139,8 @@ interrupt.addEventListener('click',()=> {
   const response_id=presentation.current;observe('manual.interrupt',{response_id});presentation.stop();
   if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'response.cancel',response_id:response_id ?? undefined}));
 });
-document.querySelector('#show-subtitles').addEventListener('change',event=>{caption.hidden=!event.target.checked;student.hidden=!event.target.checked;});
+document.querySelector('#show-subtitles').addEventListener('change',event=>{caption.hidden=!event.target.checked;student.hidden=!event.target.checked;captionHint.hidden=!event.target.checked;});
+document.querySelector('#subtitle-size').addEventListener('change',event=>{caption.dataset.size=event.target.value;student.dataset.size=event.target.value;});
 window.addEventListener('pagehide',()=>{void stop();});
 const memoryStatus=document.querySelector('#memory-status');
 async function loadMemory() {
