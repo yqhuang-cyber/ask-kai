@@ -22,6 +22,8 @@ const modes=[...document.querySelectorAll('[data-mode]')];
 const goal=document.querySelector('#goal'),promptTitle=document.querySelector('#prompt-title'),promptHint=document.querySelector('#prompt-hint');
 const connect=document.querySelector('#connect'),status=document.querySelector('#connection-status'),message=document.querySelector('#session-message');
 const mute=document.querySelector('#mute'),end=document.querySelector('#end'),caption=document.querySelector('#caption'),student=document.querySelector('#student-caption');
+const paceSelect=document.querySelector('#speech-pace'),paceHint=document.querySelector('#speech-pace-hint');
+let paceSupported=false;
 let mode='sports',ws,io,generation=0,config,muted=false,mission=null,safetyMessage=null;
 const interrupt=document.querySelector('#interrupt');
 const presentation=new Presentation({render:text=>{caption.textContent=text;},play:(audio,rate,id)=>io?.play(audio,rate,id),stopAudio:()=>io?.stopPlayback(),onObserve:diagnosticsEnabled?observe:undefined});
@@ -39,7 +41,17 @@ function selectMode(button) {
   promptHint.textContent=mode==='sports'?'可以从「我喜欢足球」开始。':'可以从一句简单的中文开始。';
 }
 for(const button of modes)button.addEventListener('click',()=>selectMode(button));
-function controls(active) {connect.disabled=active;caseSelect.disabled=active;for(const button of modes)button.disabled=active || (button.dataset.mode==='mission' && !mission);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
+function controls(active) {connect.disabled=active;caseSelect.disabled=active;paceSelect.disabled=active || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active || (button.dataset.mode==='mission' && !mission);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
+async function loadSpeechPaces() {
+  try {
+    const response=await fetch('/api/speech-paces');if(!response.ok)throw new Error('PACE_UNAVAILABLE');
+    const result=await response.json();paceSupported=result.supported===true;
+    if(paceSupported){paceSelect.replaceChildren();for(const item of result.options){const option=document.createElement('option');option.value=item.id;option.textContent=item.label;paceSelect.append(option);}paceSelect.value=result.default;}
+    paceSelect.disabled=connect.disabled || !paceSupported;
+    paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';
+  }catch{paceSelect.disabled=true;paceHint.textContent='语速选项暂不可用。';}
+}
+void loadSpeechPaces();
 async function stop(text='对话已结束。') {
   const stopped=++generation;presentation.reset();const previous=ws;ws=null;previous?.close();
   const audio=io;io=null;await audio?.close();
@@ -52,6 +64,7 @@ async function stop(text='对话已结束。') {
 connect.addEventListener('click',async()=> {
   trace?.reset();diagnosticCase=caseSelect.value;outcomeSelect.value='not_run';refreshDiagnostics();
   const current=++generation;controls(true);status.textContent='检查连接';message.textContent='正在检查实时服务……';
+  const selectedPace=paceSupported?paceSelect.value:undefined;
   safetyMessage=null;
   document.querySelector('#learning-attempts').textContent='本轮尚无对话记录。';
   try {
@@ -59,7 +72,7 @@ connect.addEventListener('click',async()=> {
       if(ws?.readyState===WebSocket.OPEN){if(ws.bufferedAmount>65536){void stop('网络上传拥塞，请重新开始。');return;}ws.send(bytes);}
     },onFailure:text=>{observe('browser.failed',{code:'other'});void stop(text);},onObserve:diagnosticsEnabled?observe:undefined});
     await io.prepare();
-    const response=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(mode==='mission'?{mission_id:mission.id}:{})}),signal:AbortSignal.timeout(8000)});
+    const response=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{})}),signal:AbortSignal.timeout(8000)});
     const result=await response.json();if(current!==generation)return;
     if(!response.ok){await stop(response.status===501?'实时语音尚未开通。需完成豆包协议和服务端连接验证。':'会话无法创建，请检查授权或服务容量。');return;}
     config=null;status.textContent='连接中';
@@ -70,7 +83,7 @@ connect.addEventListener('click',async()=> {
       try {
         const packet=JSON.parse(event.data);
         if(packet.type==='diagnostics.event'){trace?.gateway(packet.row);refreshDiagnostics();return;}
-        if(packet.type==='session.config'){config=packet.audio;return;}
+        if(packet.type==='session.config'){config=packet.audio;paceHint.textContent=packet.speech?.supported && ['slow','normal'].includes(packet.speech.pace)?`本次语速：${packet.speech.pace==='slow'?'慢速':'正常'}；结束后可切换。`:'本次使用服务默认语速。';return;}
         if(packet.type==='teaching.state' || packet.type==='teaching.summary'){learning(packet);return;}
         if(packet.type==='session.failed'){observe('browser.failed',{code:packet.code});await stop(safetyMessage ?? '实时连接失败，请重试。');return;}
         if(packet.type==='safety.notice'){safetyMessage=packet.message;message.textContent=safetyMessage;presentation.stop();await io?.close();return;}

@@ -7,6 +7,7 @@ import { SCENARIOS, loadScenario, ReplayProvider } from '../../../packages/provi
 import { attachRealtime } from './realtime.js';
 import { validateMemoryRecord } from '../../../packages/hskai-bridge/identity.js';
 import { Metrics } from '../../../packages/policy/metrics.js';
+import { DEFAULT_SPEECH_PACE, isSpeechPace } from '../../../packages/agent-core/speech.js';
 
 const publicDir = new URL('../public/', import.meta.url);
 const staticFiles = new Map([
@@ -51,8 +52,9 @@ export async function readJson(req,maxBytes=4096) {
   for await(const chunk of req){size+=chunk.length;if(size>maxBytes)throw new Error('REQUEST_TOO_LARGE');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString());
 }
-export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, ...realtimeOptions } = {}) {
+export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, speechPaceSupported = false, ...realtimeOptions } = {}) {
   const metrics=realtimeOptions.metrics ?? new Metrics();
+  const speechAvailable=speechPaceSupported===true && typeof realtimeOptions.providerFactory==='function';
   const authorize=(req,scope)=> {
     if(bridge)return bridge.authorize(req,scope);
     if(realtimeOptions.providerKind==='test')return {owner_id:'test-owner',learner_id:'test-learner',market:'SG',expires:Date.now()+60000,authorization_until:Date.now()+600000,memory:[],mission:null,scopes:['session:create','memory:read','memory:write','memory:delete']};
@@ -69,6 +71,7 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, .
       const url = new URL(req.url, 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { service:'ask-kai', mode:'synthetic_replay', provider_connected:false, status:'ok' });
       if (req.method === 'GET' && url.pathname === '/api/replays') return json(res, 200, { scenarios:SCENARIOS });
+      if (req.method === 'GET' && url.pathname === '/api/speech-paces') return json(res,200,{supported:speechAvailable,default:speechAvailable?DEFAULT_SPEECH_PACE:null,options:speechAvailable?[{id:'slow',label:'慢速（默认）'},{id:'normal',label:'正常'}]:[]});
       if(req.method==='GET' && url.pathname==='/api/metrics')return json(res,200,metrics.snapshot());
       if(req.method==='GET' && url.pathname==='/api/privacy')return json(res,200,{local_audio_persistence:false,local_transcript_persistence:false,memory_truth_source:'HSKai',provider_retention:'not_verified',privacy_requests_available:!!privacyPort});
       if(req.method==='POST' && url.pathname==='/api/privacy/requests') {
@@ -118,11 +121,13 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, .
         let identity;try{identity=authorize(req,'session:create');}catch{return json(res,401,{error:'HSKAI_AUTHORIZATION_REQUIRED'});}
         let input;
         try {input=await readJson(req);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
-        if(!input || !['sports','free','mission'].includes(input.mode) || Object.keys(input).some(k=>!['mode','mission_id'].includes(k)) || (input.mode==='mission' && typeof input.mission_id!=='string'))return json(res,400,{error:'INVALID_MODE'});
+        if(!input || !['sports','free','mission'].includes(input.mode) || Object.keys(input).some(k=>!['mode','mission_id','speech_pace'].includes(k)) || (input.mode==='mission' && typeof input.mission_id!=='string'))return json(res,400,{error:'INVALID_MODE'});
+        if(input.speech_pace!==undefined && !isSpeechPace(input.speech_pace))return json(res,400,{error:'INVALID_SPEECH_PACE'});
+        if(input.speech_pace!==undefined && !speechAvailable)return json(res,400,{error:'SPEECH_PACE_UNSUPPORTED'});
         if(input.mode==='mission' && identity.mission?.id!==input.mission_id)return json(res,403,{error:'TRUSTED_MISSION_REQUIRED'});
         try{if(memoryPort)identity.memory=await memoryPort.read(identity);}catch{return json(res,503,{error:'HSKAI_MEMORY_UNAVAILABLE'});}
         try{bridge?.consume(identity);}catch{return json(res,401,{error:'LAUNCH_ALREADY_USED'});}
-        try{return json(res,201,realtime.create({origin,mode:input.mode,identity}));}catch{return json(res,429,{error:'SESSION_CAPACITY'});}
+        try{return json(res,201,realtime.create({origin,mode:input.mode,identity,speechPace:speechAvailable?(input.speech_pace??DEFAULT_SPEECH_PACE):undefined}));}catch{return json(res,429,{error:'SESSION_CAPACITY'});}
       }
       if (req.method === 'GET' && url.pathname.startsWith('/api/replays/')) {
         const id = url.pathname.slice('/api/replays/'.length);

@@ -1,9 +1,11 @@
 import { chromium } from 'playwright';
-import { once } from 'node:events';
-import { mkdir } from 'node:fs/promises';
+import { EventEmitter, once } from 'node:events';
+import { mkdir, readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { createGateway } from '../apps/realtime-gateway/src/server.js';
+import { createDoubaoProvider } from '../packages/provider-doubao/seeduplex.js';
 const server=createGateway({paceMs:1});server.listen(0,'127.0.0.1');await once(server,'listening');
+const servers=[server];
 let browser;
 try {
   browser=await chromium.launch({headless:true,executablePath:process.env.ASK_KAI_BROWSER_EXECUTABLE,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
@@ -12,6 +14,7 @@ try {
   await page.addInitScript(()=> {window.microphoneRequests=0;const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);navigator.mediaDevices.getUserMedia=async(...args)=>{window.microphoneRequests++;return original(...args);};});
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   assert.equal(await page.locator('#diagnostics').isVisible(),false);
+  await page.getByText('当前服务暂不支持选择语速。',{exact:true}).waitFor();assert.equal(await page.locator('#speech-pace').isDisabled(),true);
   await page.getByRole('button',{name:'自由聊天',exact:true}).click();assert.match(await page.locator('#goal').textContent(),/感兴趣/);
   await page.getByRole('button',{name:'运动主题',exact:true}).click();assert.match(await page.locator('#goal').textContent(),/我喜欢/);
   assert.equal(await page.locator('[data-mode=mission]').isDisabled(),true);
@@ -47,6 +50,35 @@ try {
   const audioReport=await page.evaluate(()=>window.audioTrace.snapshot());assert.equal(audioReport.kind,'synthetic');
   assert.ok(audioReport.timeline.some(r=>r.name==='audio.capture.started'));assert.ok(audioReport.timeline.some(r=>r.name==='audio.stopped'));assert.equal(audioReport.contains_audio,false);
   await page.getByRole('link',{name:'工程回放'}).click();await page.locator('#start').click();await page.waitForFunction(()=>document.querySelector('#summary').textContent.includes('attempted'));
+  // Synthetic Seeduplex transport: inspect actual Web selection -> ticket -> session.create.
+  // Withhold provider ready; never expose the synthetic peer as connected or open the microphone.
+  const profile=JSON.parse(await readFile(new URL('../docs/protocol/seeduplex-profile.template.json',import.meta.url),'utf8'));
+  profile.reviewed=true;profile.realtime.reviewed=true;profile.realtime.ordered_acks_reviewed=true;
+  const creates=[];
+  const paceServer=createGateway({providerKind:'test',speechPaceSupported:true,providerFactory:ticket=>{
+    const socket=new EventEmitter();Object.assign(socket,{readyState:1,bufferedAmount:0,send:value=>{const packet=JSON.parse(value);if(packet.type==='session.create')creates.push(packet);},terminate:()=>{}});
+    const provider=createDoubaoProvider({profile,speechPace:ticket.speech_pace,env:{DOUBAO_API_KEY:'synthetic-only'},socketFactory:()=>socket});
+    const open=provider.open.bind(provider);provider.open=options=>{open(options);socket.emit('open');};return provider;
+  }});
+  servers.push(paceServer);paceServer.listen(0,'127.0.0.1');await once(paceServer,'listening');
+  await page.goto(`http://127.0.0.1:${paceServer.address().port}/?diagnostics=1`);
+  await page.waitForFunction(()=>!document.querySelector('#speech-pace').disabled);
+  assert.equal(await page.locator('#speech-pace').inputValue(),'slow');
+  await page.locator('#connect').click();await page.getByText('本次语速：慢速；结束后可切换。',{exact:true}).waitFor();
+  assert.equal(await page.locator('#speech-pace').isDisabled(),true);assert.equal(creates[0].session.audio.output.speed,-20);
+  assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
+  await page.locator('#end').click();await page.waitForFunction(()=>!document.querySelector('#connect').disabled);
+  assert.equal(await page.locator('#speech-pace').isDisabled(),false);
+  await page.locator('#diagnostics summary').click();
+  const paceDownloaded=page.waitForEvent('download');await page.locator('#diagnostic-export').click();
+  const paceStream=await(await paceDownloaded).createReadStream(),paceChunks=[];for await(const chunk of paceStream)paceChunks.push(chunk);
+  const paceReport=JSON.parse(Buffer.concat(paceChunks).toString());assert.equal(paceReport.kind,'synthetic');
+  const paceRow=paceReport.timeline.find(r=>r.clock==='gateway' && r.name==='session.config');assert.equal(paceRow.speech_pace,'slow');assert.equal(paceRow.output_speed,-20);
+  await page.locator('#speech-pace').selectOption('normal');await page.locator('#connect').click();
+  await page.getByText('本次语速：正常；结束后可切换。',{exact:true}).waitFor();assert.equal(creates[1].session.audio.output.speed,0);
+  await page.locator('#end').click();await page.waitForFunction(()=>!document.querySelector('#connect').disabled);
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'.local/browser-check/speech-pace-mobile.png',fullPage:true});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,diagnostics_export:true,audio_metadata:true,replay:true,page_errors:0}));
-}finally{await browser?.close();server.stopRealtime();await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});}
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,replay:true,page_errors:0}));
+}finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}}

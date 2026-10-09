@@ -1,15 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { DoubaoJsonTransport, ReviewedDoubaoProvider, validateRealtimeProfile } from './realtime.js';
 import { validateProfile } from './probe.js';
+import { isSpeechPace } from '../agent-core/speech.js';
 
 export const SEEDUPLEX_PROTOCOL = 'seeduplex-1.2.6.1';
 export const SEEDUPLEX_SOURCE = 'https://docs.volcengine.com/docs/DoubaoVoice/endtoend-realtime-voice-full-duplex-version?lang=zh';
+// Supplied official PDF: session.audio.output.speed, default 0, range [-50,100].
+// -20 is our initial slow preset, pending real listening calibration.
+export const SEEDUPLEX_SPEEDS = Object.freeze({slow:-20,normal:0});
 export function validateSeeduplexProfile(profile) {
   validateProfile(profile);
   const rt = profile.realtime, session = profile.session_create.session;
   if (!profile.reviewed || !rt?.reviewed || rt.protocol !== SEEDUPLEX_PROTOCOL || profile.evidence_source !== SEEDUPLEX_SOURCE || rt.evidence_source !== SEEDUPLEX_SOURCE) throw new Error('DOUBAO_PROTOCOL_NOT_VERIFIED');
   if (profile.auth.header !== 'X-Api-Key' || profile.auth.prefix !== '' || profile.ready.type !== 'session.created' || profile.ready.session_id_path !== 'session.id') throw new Error('INVALID_SEEDUPLEX_MAPPING');
   if (session.model !== '1.2.6.1' || session.audio?.input?.format?.type !== 'pcm' || session.audio.input.format.rate !== 16000 || session.audio?.output?.format?.type !== 'pcm_s16le' || session.audio.output.format.rate !== 24000 || !/^[a-zA-Z0-9_-]{1,128}$/.test(session.audio.output.voice ?? '')) throw new Error('UNSUPPORTED_REVIEWED_AUDIO');
+  const speed=session.audio.output.speed;
+  if (speed !== undefined && (!Number.isFinite(speed) || speed < -50 || speed > 100)) throw new Error('INVALID_SEEDUPLEX_SPEED');
   if (rt.audio?.encoding !== 'pcm_s16le' || rt.audio.input_rate !== 16000 || rt.audio.output_rate !== 24000 || rt.audio.frame_ms !== 20 || rt.initial_instructions !== 'session.instructions') throw new Error('UNSUPPORTED_REVIEWED_AUDIO');
   // The PDF identifies ACK types, but does not prove their ordering/identity on an account.
   // Do not enable this policy solely because the static mapping has been reviewed.
@@ -21,7 +27,9 @@ export function validateDoubaoRealtimeProfile(profile) {
   return profile.realtime?.protocol === SEEDUPLEX_PROTOCOL ? validateSeeduplexProfile(profile) : validateRealtimeProfile(profile);
 }
 export function createDoubaoProvider(options) {
-  return options.profile.realtime?.protocol === SEEDUPLEX_PROTOCOL ? new SeeduplexProvider(options) : new ReviewedDoubaoProvider(options);
+  if (options.profile.realtime?.protocol === SEEDUPLEX_PROTOCOL) return new SeeduplexProvider(options);
+  if (options.speechPace !== undefined) throw new Error('SPEECH_PACE_UNSUPPORTED');
+  return new ReviewedDoubaoProvider(options);
 }
 
 /** Wire names/fields come from the supplied PDF and its official Go/Python demos.
@@ -30,7 +38,14 @@ export function createDoubaoProvider(options) {
 export class SeeduplexProvider extends DoubaoJsonTransport {
   constructor(options) {
     validateSeeduplexProfile(options.profile);
-    super(options);
+    let profile=options.profile;
+    if (options.speechPace !== undefined) {
+      if (!isSpeechPace(options.speechPace)) throw new Error('INVALID_SPEECH_PACE');
+      profile=structuredClone(profile); // Isolate concurrent sessions and preserve the reviewed source profile.
+      profile.session_create.session.audio.output.speed=SEEDUPLEX_SPEEDS[options.speechPace];
+    }
+    super({...options,profile});
+    this.speechPace=options.speechPace;
     this.wireSeen = new Set(); this.turns = new Map(); this.replies = new Map();
     this.activeReply = null; this.pendingControl = null; this.ready = false;
   }

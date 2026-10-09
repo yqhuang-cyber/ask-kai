@@ -25,7 +25,7 @@
       "instructions": "你是 Kai，一位友善的 AI 中文学习伙伴。请用简短中文回答。",
       "audio": {
         "input": { "format": { "type": "pcm", "rate": 16000 } },
-        "output": { "format": { "type": "pcm_s16le", "rate": 24000 }, "voice": "zh_male_xiaotian_jupiter_bigtts" }
+        "output": { "format": { "type": "pcm_s16le", "rate": 24000 }, "voice": "zh_male_xiaotian_jupiter_bigtts", "speed": -20 }
       }
     }
   },

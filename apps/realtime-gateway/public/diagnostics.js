@@ -1,7 +1,7 @@
 // Metadata-only, opt-in diagnostics. Never copy packets, text, audio, URLs or credentials.
 const names=new Set(['session.config','session.ready','session.end','user.speech.started','user.partial','user.final','response.started','response.first_text','response.first_audio','response.complete','event.dropped','cancel.requested','cancel.ack','context.requested','context.applied','caption.received','caption.revealed','caption.cleared','presentation.dropped','audio.capture.started','audio.capture.progress','audio.queued','audio.drained','audio.stopped','audio.muted','browser.failed','manual.interrupt']);
 const numeric=new Set(['chars','text_chars','text_deltas','audio_chunks','pcm_duration_ms','elapsed_ms','ack_ms','visible_chars','pending_chars','revealed_chars','queue_ms','scheduled_ms','duration_ms','input_rate','output_rate','frame_ms','caption_interval_ms','cancel_timeout_ms','context_timeout_ms','ready_timeout_ms','frames','sources','context_version']);
-const boolean=new Set(['synthetic','provider_ready','speed_explicit','echo_cancellation','noise_suppression','auto_gain_control','muted','active','pending_cancel','pending_context']);
+const boolean=new Set(['synthetic','provider_ready','speed_explicit','speech_pace_supported','echo_cancellation','noise_suppression','auto_gain_control','muted','active','pending_cancel','pending_context']);
 const enums={source:['manual','provider_speech_start','safety','session_end','new_response'],reason:['invalid_event','foreign_session','duplicate_event','event_limit','terminal_session','already_ready','session_not_ready','duplicate_final_turn','reused_response','overlapping_response','unexpected_cancel_ack','inactive_response','ownership','unknown'],state:['active','done','cancelled','cancel_pending','closed','failed'],protocol:['seeduplex-1.2.6.1','reviewed_mapping','synthetic'],code:['CANCEL_ACK_TIMEOUT','CONTEXT_ACK_TIMEOUT','PROVIDER_READY_TIMEOUT','PROVIDER_CANCEL_FAILED','PROVIDER_CONTEXT_FAILED','PROVIDER_PROTOCOL_ERROR','CLIENT_BACKPRESSURE','SESSION_DURATION_LIMIT','CLIENT_HEARTBEAT_TIMEOUT','CLIENT_TRANSPORT_ERROR','INVALID_CLIENT_MESSAGE','CONTROL_RATE_LIMIT','PROVIDER_CONFIGURATION_ERROR','AUTHORIZATION_REVOKED','SAFETY_RESTRICTED','other']};
 export function metadata(fields={}) {
   const out={};
@@ -10,7 +10,8 @@ export function metadata(fields={}) {
     if(numeric.has(key) && Number.isFinite(value) && value>=0 && value<=3600000)out[key]=Math.round(value*100)/100;
     else if(boolean.has(key) && typeof value==='boolean')out[key]=value;
     else if(Object.hasOwn(enums,key) && enums[key].includes(value))out[key]=value;
-    else if(key==='output_speed' && Number.isFinite(value) && value>=-100 && value<=100)out[key]=value;
+    else if(key==='speech_pace' && ['slow','normal'].includes(value))out[key]=value;
+    else if(key==='output_speed' && Number.isFinite(value) && value>=-50 && value<=100)out[key]=value;
     else if(['response_id','turn_id'].includes(key) && typeof value==='string' && /^[a-zA-Z0-9_.:-]{1,128}$/.test(value))out[key]=value;
   }
   return out;

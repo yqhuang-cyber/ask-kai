@@ -4,6 +4,7 @@ import { SessionRuntime } from '../../../packages/agent-core/session.js';
 import { TeachingSession } from '../../../packages/agent-core/teaching.js';
 import { SafetyPolicy,SAFETY_MESSAGE } from '../../../packages/policy/safety.js';
 import { metadata } from '../public/diagnostics.js';
+import { SEEDUPLEX_PROTOCOL } from '../../../packages/provider-doubao/seeduplex.js';
 
 export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,safeguardingPort,metrics}={}) {
   const tickets = new Map();
@@ -27,7 +28,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
     wss.handleUpgrade(req,socket,head,ws => {
       connections.add(ws);
       const runtime = new SessionRuntime(ticket.session_id,{target:null});
-      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission});
+      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission,speechPace:ticket.speech_pace});
       const policy=new SafetyPolicy();
       const started=performance.now();metrics?.count(providerKind,'sessions');
       let restricted=false,controlCount=0,controlAt=Date.now(),replyAt=null,firstAudio=false;
@@ -133,7 +134,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
               if(!diagnostics) {
                 diagnostics=true;
                 const output=provider.profile?.session_create?.session?.audio?.output;
-                diagnose('session.config',{synthetic:providerKind!=='doubao',protocol:providerKind!=='doubao'?'synthetic':provider.profile?.realtime?.protocol==='seeduplex-1.2.6.1'?'seeduplex-1.2.6.1':'reviewed_mapping',input_rate:provider.audio.input_rate,output_rate:provider.audio.output_rate,frame_ms:provider.audio.frame_ms,output_speed:output?.speed,speed_explicit:Number.isFinite(output?.speed),cancel_timeout_ms:cancelTimeoutMs,context_timeout_ms:contextTimeoutMs,ready_timeout_ms:readyTimeoutMs});
+                diagnose('session.config',{synthetic:providerKind!=='doubao',protocol:providerKind!=='doubao'?'synthetic':provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL?SEEDUPLEX_PROTOCOL:'reviewed_mapping',input_rate:provider.audio.input_rate,output_rate:provider.audio.output_rate,frame_ms:provider.audio.frame_ms,speech_pace:provider.speechPace,speech_pace_supported:provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL,output_speed:output?.speed,speed_explicit:Number.isFinite(output?.speed),cancel_timeout_ms:cancelTimeoutMs,context_timeout_ms:contextTimeoutMs,ready_timeout_ms:readyTimeoutMs});
                 if(ready)diagnose('session.ready',{provider_ready:true,elapsed_ms:performance.now()-started});
               }
             }
@@ -192,18 +193,18 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
           send({type:'event',event:packet.event,audio:packet.audio,sample_rate:packet.sample_rate,provider_connected:ready && providerKind==='doubao',synthetic:providerKind!=='doubao'});
           if(['response.done','response.cancelled'].includes(packet.event.type))flushContext();
         }});
-        send({type:'session.config',session_id:ticket.session_id,audio:provider.audio,provider_connected:false,synthetic:providerKind!=='doubao'});
+        send({type:'session.config',session_id:ticket.session_id,audio:provider.audio,speech:{supported:provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL,pace:provider.speechPace??null,output_speed:provider.profile?.session_create?.session?.audio?.output?.speed??null},provider_connected:false,synthetic:providerKind!=='doubao'});
         send({type:'teaching.state',...teaching.view()});
       } catch { finish('PROVIDER_CONFIGURATION_ERROR'); }
     });
   });
   return {
     available:!!providerFactory,
-    create({origin,mode,identity}) {
+    create({origin,mode,identity,speechPace}) {
       if (!providerFactory) return null;
       if (tickets.size+connections.size >= maxConnections) throw new Error('SESSION_CAPACITY');
       const token = randomUUID();
-      const ticket = {session_id:randomUUID(),mode,origin,identity,expires:Math.min(Date.now()+30000,identity.expires)};
+      const ticket = {session_id:randomUUID(),mode,speech_pace:speechPace,origin,identity,expires:Math.min(Date.now()+30000,identity.expires)};
       tickets.set(token,ticket);
       return {session_id:ticket.session_id,ticket:token,websocket_path:'/api/realtime',protocol:'ask-kai.v1',expires_in:30,provider_connected:false};
     },
