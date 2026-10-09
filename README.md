@@ -38,6 +38,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [Ask Kai Agent 产品需求 v1.1](docs/prd/ask-kai-agent-prd-v1.1.md)
 - [独立 POC 启动、mock 合同与范围](docs/standalone-poc.md)
 - [独立 POC 架构决策](docs/adr/0002-standalone-poc.md)
+- [三个入口当前技术时序](#当前实现三个入口的技术时序)
 - [历史工程决策与剩余协议验证](docs/adr/0001-foundation.md)
 - [内部事件与诊断接口契约](docs/contracts.md)
 - [外部 HSKai 历史参考（不属于当前 POC 依赖）](docs/integration-hskai.md)
@@ -136,6 +137,214 @@ flowchart TB
 ~~~
 
 图中 BFF 与实时网关由同一网关进程提供；mock 是由启动命令自动拉起的本地 HTTP 服务。逻辑端口和授权边界保持不变，当前端口实现指向本地 mock。评测运行器及 Langfuse 导出按需启用，不是启动 POC 的依赖。
+
+### 当前实现：三个入口的技术时序
+
+以下时序对应 **Task 01–08 的当前代码**，展示语音配置已核验时的正常路径。`Web` 包含学生操作、采音、播放、字幕与总结卡；`网关` 包含 BFF、HSKai Bridge、会话状态、安全检查和输出等待；`Agent Core` 是网关进程内的教学逻辑；`语音链路` 合并表示 Doubao Adapter 与豆包全双工服务。`mock HSKai` 是本仓库启动的本地 HTTP 服务。五条泳道表示责任边界，不代表五个独立部署服务。
+
+页面初始化时先读取 `/api/runtime` 和语速能力；mock 模式下，每次受保护请求之前，`authorizedFetch` 都先调用 `/api/poc/launch` 刷新签名授权。`/api/bootstrap` 从已验证的签名身份取出示例 Mission，`/api/memory` 读取授权偏好。三种入口开聊时都会重新刷新授权，服务端读取最新偏好、消费启动 nonce，再签发一次性 WebSocket 票据。浏览器只传入口、允许的语速和 Mission ID，不提供可信课程内容或学习者身份。
+
+| 入口 | 请求参数 | Agent Core 初始化 | 总结证据规则 |
+| --- | --- | --- | --- |
+| Mission 后对话 | `mode: mission`、`mission_id`、可选 `speech_pace` | 签名 Mission 标题和第一个目标，加上已授权偏好；当前为本地已完成课程 fixture | 仅为受支持的第一目标记录实际尝试；示例课程完成不构成学习成果；未知目标明确未评估 |
+| 运动主题 | `mode: sports`、可选 `speech_pace` | 仓库内版本化运动目标、词卡和 Start Tip，加上已授权偏好 | 支持的运动喜好表达可记录最终学生尝试；教师回复文本另记来源，不能代替学生尝试 |
+| 自由聊天 | `mode: free`、可选 `speech_pace` | 通用人设和策略、已授权偏好；不设置运动教学目标 | 普通聊天可零知识点；同回合教学请求与实际转发的完整支持表达提供来源，后续学生尝试才可关联 |
+
+**入口 1｜Mission 后对话**
+
+```mermaid
+sequenceDiagram
+    participant W as Web
+    participant G as 网关
+    participant H as mock HSKai
+    participant C as Agent Core
+    participant P as 语音链路
+    Note over W,G: 页面已刷新授权，准备读取入口信息
+    W->>G: GET /api/bootstrap
+    G->>G: 验证签名身份与课程完成字段
+    G-->>W: 示例 Mission 标题、ID 和目标
+    W->>W: 学生选择 Mission 后对话
+    W->>G: POST /api/poc/launch
+    G->>H: 签名请求本地 launch
+    H-->>G: 签名身份与示例 Mission
+    G-->>W: 设置 HttpOnly 授权 Cookie
+    W->>G: POST /api/sessions，mission 与 ID
+    G->>G: 验证授权、Mission ID 和语速
+    G->>H: 按授权身份读取最新偏好
+    H-->>G: 有来源的有效偏好
+    G->>G: 消费一次性启动 nonce
+    G-->>W: session_id 与一次性票据
+    W->>G: WebSocket /api/realtime
+    G->>G: 消费票据，核对 Origin 与有效期
+    G->>C: 初始化 Mission 第一目标与偏好
+    C-->>G: 单目标、中英短回复和话轮策略
+    G->>P: 建连并发送初始会话指令
+    G-->>W: session.config 与 teaching.state
+    P-->>G: 经适配器核验的供应商就绪
+    G-->>W: 真实 session.ready
+    W->>W: 申请麦克风，开始持续采音
+    loop 实时对话，采音在 Kai 说话时继续
+        W->>G: 连续上传 PCM
+        G->>P: 实时输入音频
+        P-->>G: 最终识别 user.final
+        G->>C: 通过归属与安全检查的最终话轮
+        C->>C: 选择动作，校验第一目标尝试
+        C-->>G: 决策、阶段与尝试计数
+        G-->>W: teaching.state
+        P-->>G: 回复文本、PCM 和完成事件
+        G->>G: 安全检查、旧事件隔离与输出等待
+        G-->>W: 允许转发的回复事件与 PCM
+        G->>C: 观察实际转发的完整回复来源
+        W->>W: 启动播放与渐进字幕
+        opt 模型回复边界且无待确认控制
+            G->>P: 更新最新教学上下文
+            P-->>G: 经核验的更新 ACK
+        end
+    end
+    W->>G: 学生点击结束，发送 session.end
+    G->>C: 冻结本轮目标、文本与尝试证据
+    C-->>G: Mission 总结与可选再练项
+    G->>P: 关闭供应商会话
+    G-->>W: teaching.summary
+    G-->>W: session.closed，随后关闭连接
+    W->>W: 关闭音频，展示本轮总结卡
+```
+
+Mission 数据由本地签名 fixture 提供。网页提交的 `mission_id` 必须匹配签名课程；当前只使用 `targets[0]`，不会因为 `completed: true` 就生成“已掌握”卡片。支持的目标如「用我喜欢……表达喜好」可以产生尝试证据，其他目标显示未评估。
+
+**入口 2｜运动主题对话**
+
+```mermaid
+sequenceDiagram
+    participant W as Web
+    participant G as 网关
+    participant H as mock HSKai
+    participant C as Agent Core
+    participant P as 语音链路
+    W->>W: 选择运动主题，显示目标与 Start Tip
+    W->>G: POST /api/poc/launch
+    G->>H: 签名请求本地 launch
+    H-->>G: 签名示例身份
+    G-->>W: 设置 HttpOnly 授权 Cookie
+    W->>G: POST /api/sessions，sports
+    G->>G: 验证授权与语速
+    G->>H: 按授权身份读取最新偏好
+    H-->>G: 有来源的有效偏好
+    G->>G: 消费一次性启动 nonce
+    G-->>W: session_id 与一次性票据
+    W->>G: WebSocket /api/realtime
+    G->>G: 消费票据，核对 Origin 与有效期
+    G->>C: 初始化版本化运动课与偏好
+    C-->>G: 一个目标、词卡、Start Tip 与策略
+    G->>P: 建连并发送初始会话指令
+    G-->>W: session.config 与 teaching.state
+    P-->>G: 经适配器核验的供应商就绪
+    G-->>W: 真实 session.ready
+    W->>W: 申请麦克风，开始持续采音
+    loop 实时对话，采音在 Kai 说话时继续
+        W->>G: 连续上传 PCM
+        G->>P: 实时输入音频
+        P-->>G: 最终识别 user.final
+        G->>C: 通过归属与安全检查的最终话轮
+        C->>C: 选择回应、澄清、示范或跟进
+        C->>C: 有效目标句只记为表达尝试
+        C-->>G: 决策、阶段与尝试计数
+        G-->>W: teaching.state 与词卡
+        P-->>G: 回复文本、PCM 和完成事件
+        G->>G: 安全检查、旧事件隔离与输出等待
+        G-->>W: 允许转发的回复事件与 PCM
+        G->>C: 观察实际转发的完整回复来源
+        W->>W: 启动播放与渐进字幕
+        opt 模型回复边界且无待确认控制
+            G->>P: 更新最新教学上下文
+            P-->>G: 经核验的更新 ACK
+        end
+    end
+    W->>G: 学生点击结束，发送 session.end
+    G->>C: 冻结本轮目标、文本与尝试证据
+    C-->>G: 运动表达总结与可选再练项
+    G->>P: 关闭供应商会话
+    G-->>W: teaching.summary
+    G-->>W: session.closed，随后关闭连接
+    W->>W: 关闭音频，展示本轮总结卡
+```
+
+运动目标和 Start Tip 来自 `SPORTS_LESSON`，不需要向外部课程仓库取课。单词回答可以触发轻量教学建议，但只有受支持的最终直接表达才记尝试；引用教师示范、否定、疑问、部分识别或重复话轮不会计作目标尝试。拒绝或换题会暂停原目标，已尝试目标句后优先跟进内容。
+
+**入口 3｜自由聊天**
+
+```mermaid
+sequenceDiagram
+    participant W as Web
+    participant G as 网关
+    participant H as mock HSKai
+    participant C as Agent Core
+    participant P as 语音链路
+    W->>W: 选择自由聊天，清理旧总结与运动词卡
+    W->>G: POST /api/poc/launch
+    G->>H: 签名请求本地 launch
+    H-->>G: 签名示例身份
+    G-->>W: 设置 HttpOnly 授权 Cookie
+    W->>G: POST /api/sessions，free
+    G->>G: 验证授权与语速
+    G->>H: 按授权身份读取最新偏好
+    H-->>G: 有来源的有效偏好
+    G->>G: 消费一次性启动 nonce
+    G-->>W: session_id 与一次性票据
+    W->>G: WebSocket /api/realtime
+    G->>G: 消费票据，核对 Origin 与有效期
+    G->>C: 初始化通用策略与偏好，无预设目标
+    C-->>G: 学生话题优先，允许零知识点
+    G->>P: 建连并发送初始会话指令
+    G-->>W: session.config 与 teaching.state
+    P-->>G: 经适配器核验的供应商就绪
+    G-->>W: 真实 session.ready
+    W->>W: 申请麦克风，开始持续采音
+    loop 实时对话，采音在 Kai 说话时继续
+        W->>G: 连续上传 PCM
+        G->>P: 实时输入音频
+        P-->>G: 最终识别 user.final
+        G->>C: 通过归属与安全检查的最终话轮
+        C->>C: 默认回应，含糊时澄清，求助时建议示范
+        opt 已有先前完整示范来源，且本轮直接尝试
+            C->>C: 关联最终话轮与先前示范，只记尝试
+        end
+        C-->>G: 决策与实际尝试计数
+        G-->>W: teaching.state，不附加运动词卡
+        P-->>G: 回复文本、PCM 和完成事件
+        G->>G: 安全检查、旧事件隔离与输出等待
+        G-->>W: 允许转发的回复事件与 PCM
+        G->>C: 观察实际转发的完整回复
+        opt 同回合教学请求匹配支持的表达
+            C->>C: 保存回复来源，供后续尝试关联
+        end
+        W->>W: 启动播放与渐进字幕
+        opt 模型回复边界且无待确认控制
+            G->>P: 更新最新教学上下文
+            P-->>G: 经核验的更新 ACK
+        end
+    end
+    W->>G: 学生点击结束，发送 session.end
+    G->>C: 冻结实际交流与可核验表达记录
+    C-->>G: 交流小结，或有来源的表达与再练项
+    G->>P: 关闭供应商会话
+    G-->>W: teaching.summary
+    G-->>W: session.closed，随后关闭连接
+    W->>W: 关闭音频，展示本轮总结卡
+```
+
+自由模式不会因为学生说了“足球”就生成运动课程成果。当前可自动关联的示范仍限于「我喜欢足球／篮球／跑步／游泳」及已支持变体；普通聊天、任意新表达或没有完整来源的回复不会被强行转成 HSK 学习点。没有可核验练习时显示交流小结，没有有效学生话轮时显示记录不足。
+
+**三个时序图共同的执行边界**
+
+- 图中的 `session.ready`、`user.final`、`teaching.state`、`teaching.summary` 等是 Ask Kai 内部协议；供应商 wire 映射与 ACK 语义由已审核的适配器配置负责。`session.config` 和 socket 打开均不代表真实语音就绪；未配置语音时 `/api/sessions` 返回 501，流程在建连之前停止。
+- 图中的循环把一次完整话轮合并展示。实际文本、音频、识别和完成事件异步交错；已审核 Seeduplex 路径会等待最终识别及短暂缓冲后放行过早回复。浏览器字幕按实际播放进度近似渐进显示，保留模型的中英顺序。
+- 动作选择是同步规则计算，语音生成仍由豆包完成；常规链路没有串行调用第二个规划模型。上下文更新只在无活动模型回复、待取消和待更新确认的边界发送，不等待浏览器播放队列清空，更新确认记录实际生效版本；当前回复可能使用较早上下文，ACK 不证明模型遵守策略。
+- 学生手动打断时 Web 立即清理当前播放和字幕，再发送 `response.cancel`；识别到新的有效语音文本时，网关按回复归属发送 `output.stop` 并请求取消。取消／更新按适配器规则串行确认，超时终止会话；持续上传麦克风不受停播影响，旧回复事件不能进入新回复。
+- 图中结束路径是按钮触发。识别到结束意图会产生 `CLOSE` 教学建议，当前不会仅凭该建议自动挂断；供应商终端事件、超时和异常也可结束会话。正常或普通异常结束时，连接可写才先发送总结、再发送结束／失败状态；网络已断时不保证总结送达，Web 显示不可用。安全限制或撤销授权会清理学习内容。
+- 总结仅保留在当前页面和授权会话内存，不自动写长期学习记录，也不自动发送到 Langfuse 或 Judge。新开一轮、切换入口或刷新会清理旧总结；真实语音内容、听感与设备表现仍待 Task 09–10 验收。
+
+时序核对代码：[Web 接收与控件](apps/realtime-gateway/public/web.js)、[HTTP 与票据入口](apps/realtime-gateway/src/server.js)、[实时状态与结束顺序](apps/realtime-gateway/src/realtime.js)、[教学会话](packages/agent-core/teaching.js)、[自然教学决策](packages/agent-core/natural-teaching.js)、[总结证据](packages/agent-core/learning-summary.js)、[本地 mock](apps/hskai-mock/src/backend.js) 和 [总结卡片](apps/realtime-gateway/public/summary-cards.js)。
 
 | 组件 | 首期实现合同 |
 | --- | --- |
