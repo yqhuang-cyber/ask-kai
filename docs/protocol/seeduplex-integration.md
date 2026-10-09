@@ -73,11 +73,11 @@ No required safety setting is inferred from an optional demo extension.
 5. Use approved operator testing plus 接入必读 to verify IDs, ACK ordering, stale
    events and terminal ownership. Only then mark `realtime.reviewed` and
    `realtime.ordered_acks_reviewed=true`.
-6. Configure `ASK_KAI_PROVIDER=doubao`, `DOUBAO_REALTIME_PROFILE` (same reviewed
-   path), `HSKAI_BRIDGE_SECRET` (server-only, >=32 chars) and
-   `HSKAI_ALLOWED_MARKETS`. Follow `../hskai-bridge.md` for a real authorized BFF
-   launch assertion. The gateway still requires trusted HSKai authorization;
-   there is no anonymous real-provider bypass.
+6. For the independent POC configure `ASK_KAI_PROVIDER=doubao`,
+   `DOUBAO_REALTIME_PROFILE` (same reviewed path) and the local key, then run
+   `npm run poc`. Local mock HSKai generates signed fixture authorization; no
+   external HSKai endpoint, account or bridge secret is needed. See
+   `../standalone-poc.md`. The ordinary signature/scope/ticket checks still apply.
 
 Defaults remain disconnected, loopback-only and internal. A key being configured
 on some other service does not make it available to this code workspace.

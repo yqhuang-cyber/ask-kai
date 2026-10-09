@@ -1,3 +1,10 @@
+# Current standalone POC runtime
+
+The Web/gateway now defaults to local mock HSKai for signed identity, an authored
+Mission fixture and preferences. See [standalone POC](standalone-poc.md). External
+HSKai deployment is not required. Real voice readiness and microphone gating
+remain independent; mock course data never proves an actual completed course.
+
 # Web realtime implementation and acceptance
 
 The first client is Web. `ws` 8.21.0 provides the RFC 6455 server/client transport,

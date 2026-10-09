@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { signAssertion } from './identity.js';
+import { bridgeEndpoint } from './endpoint.js';
 export class HskaiSafeguardingPort {
-  constructor({endpoint,secret,fetcher=fetch}) {
-    const url=new URL(endpoint);if(url.protocol!=='https:' || url.username || url.password || url.search || url.hash)throw new Error('INVALID_SAFEGUARDING_ENDPOINT');
-    Object.assign(this,{endpoint:url.href,secret,fetcher});
+  constructor({endpoint,secret,fetcher=fetch,allowLocal=false}) {
+    Object.assign(this,{endpoint:bridgeEndpoint(endpoint,{allowLocal}),secret,fetcher,allowLocal});
   }
   async request({identity,session_id,source_event_id,reason,policy_version}) {
     if(!['self_harm','abuse','adult_content','privacy'].includes(reason))throw new Error('INVALID_RISK_REASON');
@@ -14,6 +14,7 @@ export class HskaiSafeguardingPort {
     const chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;if(size>2048)throw new Error('INVALID_HANDOFF_ACK');chunks.push(chunk);}
     const result=JSON.parse(Buffer.concat(chunks).toString());
     if(result.accepted!==true || typeof result.case_id!=='string' || !/^[A-Za-z0-9_-]{1,128}$/.test(result.case_id) || typeof result.assigned_team!=='string' || !/^[A-Za-z0-9_-]{1,80}$/.test(result.assigned_team))throw new Error('INVALID_HANDOFF_ACK');
-    return {delivered:true,case_id:result.case_id};
+    if(this.allowLocal && result.mocked!==true)throw new Error('INVALID_HANDOFF_ACK');
+    return {delivered:result.mocked!==true,case_id:result.case_id,...(result.mocked===true?{mocked:true}:{})};
   }
 }

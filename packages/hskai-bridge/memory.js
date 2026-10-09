@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { signAssertion,validateMemoryRecord } from './identity.js';
+import { bridgeEndpoint } from './endpoint.js';
 const key=identity=>JSON.stringify([identity.owner_id,identity.learner_id]);
 /** Test/local development port. Not the production learner truth source. */
 export class InMemoryLearnerStore {
@@ -10,10 +11,8 @@ export class InMemoryLearnerStore {
 }
 /** New BFF contract, not an assertion that this endpoint exists in deployed HSKai. */
 export class HskaiMemoryPort {
-  constructor({endpoint,secret,fetcher=fetch}) {
-    const url=new URL(endpoint);
-    if(url.protocol!=='https:' || url.username || url.password || url.search || url.hash)throw new Error('INVALID_HSKAI_ENDPOINT');
-    Object.assign(this,{endpoint:url.href,secret,fetcher});
+  constructor({endpoint,secret,fetcher=fetch,allowLocal=false}) {
+    Object.assign(this,{endpoint:bridgeEndpoint(endpoint,{allowLocal}),secret,fetcher});
   }
   async request(identity,operation,data={}) {
     const now=Math.floor(Date.now()/1000);

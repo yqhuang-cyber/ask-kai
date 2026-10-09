@@ -52,7 +52,7 @@ export async function readJson(req,maxBytes=4096) {
   for await(const chunk of req){size+=chunk.length;if(size>maxBytes)throw new Error('REQUEST_TOO_LARGE');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString());
 }
-export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, speechPaceSupported = false, ...realtimeOptions } = {}) {
+export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, pocPort, speechPaceSupported = false, ...realtimeOptions } = {}) {
   const metrics=realtimeOptions.metrics ?? new Metrics();
   const speechAvailable=speechPaceSupported===true && typeof realtimeOptions.providerFactory==='function';
   const authorize=(req,scope)=> {
@@ -69,11 +69,23 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, s
     if (req.headers['sec-fetch-site'] === 'cross-site') return json(res, 403, { error:'CROSS_SITE_DENIED' });
     try {
       const url = new URL(req.url, 'http://localhost');
-      if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { service:'ask-kai', mode:'synthetic_replay', provider_connected:false, status:'ok' });
+      if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { service:'ask-kai', mode:pocPort?'standalone_poc':'synthetic_replay', provider_connected:false, status:'ok' });
       if (req.method === 'GET' && url.pathname === '/api/replays') return json(res, 200, { scenarios:SCENARIOS });
+      if(req.method==='GET' && url.pathname==='/api/runtime')return json(res,200,{app:'ask-kai-agent-poc',backend:pocPort?'mock_hskai':bridge?'external_hskai':'unconfigured',voice_configured:realtime.available,provider_connected:false,mock_persistence:pocPort?'process_memory':null});
+      if(req.method==='POST' && url.pathname==='/api/poc/launch') {
+        if(!pocPort)return json(res,404,{error:'NOT_FOUND'});
+        if(req.headers.origin!==`http://${req.headers.host}`)return json(res,403,{error:'ORIGIN_REQUIRED'});
+        let input;try{input=await readJson(req,128);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
+        if(!input || typeof input!=='object' || Array.isArray(input) || Object.keys(input).length)return json(res,400,{error:'INVALID_MOCK_LAUNCH'});
+        try {
+          const assertion=await pocPort.issue();bridge.verify(assertion,'session:create');
+          res.setHeader('Set-Cookie',`ask_kai_launch=${assertion}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=60`);
+          return json(res,200,{source:'mock_hskai',learner:'POC 示例学习者',persistence:'process_memory'});
+        }catch{return json(res,503,{error:'MOCK_HSKAI_UNAVAILABLE'});}
+      }
       if (req.method === 'GET' && url.pathname === '/api/speech-paces') return json(res,200,{supported:speechAvailable,default:speechAvailable?DEFAULT_SPEECH_PACE:null,options:speechAvailable?[{id:'slow',label:'慢速（默认）'},{id:'normal',label:'正常'}]:[]});
       if(req.method==='GET' && url.pathname==='/api/metrics')return json(res,200,metrics.snapshot());
-      if(req.method==='GET' && url.pathname==='/api/privacy')return json(res,200,{local_audio_persistence:false,local_transcript_persistence:false,memory_truth_source:'HSKai',provider_retention:'not_verified',privacy_requests_available:!!privacyPort});
+      if(req.method==='GET' && url.pathname==='/api/privacy')return json(res,200,{local_audio_persistence:false,local_transcript_persistence:false,memory_truth_source:pocPort?'local_mock_hskai':'HSKai',mock_persistence:pocPort?'process_memory':null,provider_retention:'not_verified',privacy_requests_available:!!privacyPort});
       if(req.method==='POST' && url.pathname==='/api/privacy/requests') {
         if(req.headers.origin!==`http://${req.headers.host}`)return json(res,403,{error:'ORIGIN_REQUIRED'});
         let input;try{input=await readJson(req,512);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
@@ -149,7 +161,7 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, s
   });
   server.requestTimeout = 10000;
   server.headersTimeout = 5000;
-  const realtime=attachRealtime(server,{...realtimeOptions,metrics});
+  const realtime=attachRealtime(server,{...realtimeOptions,metrics,businessSource:pocPort?'mock_hskai':bridge?'external_hskai':'unconfigured'});
   server.stopRealtime=()=>realtime.close();
   server.on('close',()=>realtime.close());
   return server;

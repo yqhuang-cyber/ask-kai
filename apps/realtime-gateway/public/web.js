@@ -3,6 +3,20 @@ import { Presentation } from './presentation.js';
 import { ExperienceTrace } from './diagnostics.js';
 const diagnosticsEnabled=new URLSearchParams(location.search).get('diagnostics')==='1';
 const trace=diagnosticsEnabled?new ExperienceTrace():null;
+const runtimeReady=fetch('/api/runtime').then(r=>{if(!r.ok)throw new Error('RUNTIME_UNAVAILABLE');return r.json();}).then(runtime=>{
+  if(runtime.backend==='mock_hskai') {
+    document.querySelector('#backend-note').hidden=false;
+    document.querySelector('footer').textContent='Ask Kai Agent POC · 身份、Mission 与偏好使用本地 mock；语音状态单独显示。';
+  }
+  return runtime;
+}).catch(()=>({backend:'unconfigured'}));
+async function authorizedFetch(path,options={}) {
+  if((await runtimeReady).backend==='mock_hskai') {
+    const launch=await fetch('/api/poc/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(3000)});
+    if(!launch.ok)throw new Error('MOCK_HSKAI_UNAVAILABLE');
+  }
+  return fetch(path,options);
+}
 const diagnosticPanel=document.querySelector('#diagnostics'),caseSelect=document.querySelector('#diagnostic-case'),outcomeSelect=document.querySelector('#diagnostic-outcome');
 let diagnosticCase='unselected';
 diagnosticPanel.hidden=!diagnosticsEnabled;
@@ -72,7 +86,7 @@ connect.addEventListener('click',async()=> {
       if(ws?.readyState===WebSocket.OPEN){if(ws.bufferedAmount>65536){void stop('网络上传拥塞，请重新开始。');return;}ws.send(bytes);}
     },onFailure:text=>{observe('browser.failed',{code:'other'});void stop(text);},onObserve:diagnosticsEnabled?observe:undefined});
     await io.prepare();
-    const response=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{})}),signal:AbortSignal.timeout(8000)});
+    const response=await authorizedFetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{})}),signal:AbortSignal.timeout(8000)});
     const result=await response.json();if(current!==generation)return;
     if(!response.ok){await stop(response.status===501?'实时语音尚未开通。需完成豆包协议和服务端连接验证。':'会话无法创建，请检查授权或服务容量。');return;}
     config=null;status.textContent='连接中';
@@ -87,7 +101,7 @@ connect.addEventListener('click',async()=> {
         if(packet.type==='teaching.state' || packet.type==='teaching.summary'){learning(packet);return;}
         if(packet.type==='session.failed'){observe('browser.failed',{code:packet.code});await stop(safetyMessage ?? '实时连接失败，请重试。');return;}
         if(packet.type==='safety.notice'){safetyMessage=packet.message;message.textContent=safetyMessage;presentation.stop();await io?.close();return;}
-        if(packet.type==='safety.handoff'){safetyMessage+=(packet.delivered?' 已提交给人工处理队列。':' 人工处理服务暂不可用，请直接联系可信任的大人。');message.textContent=safetyMessage;return;}
+        if(packet.type==='safety.handoff'){safetyMessage+=(packet.mocked?' POC 已记录 mock 安全事件，没有真人接手。':packet.delivered?' 已提交给人工处理队列。':' 人工处理服务暂不可用，请直接联系可信任的大人。');message.textContent=safetyMessage;return;}
         if(packet.type==='session.closed'){await stop();return;}
         if(packet.type==='output.stop'){presentation.stop(packet.response_id);return;}
         if(packet.type!=='event')return;
@@ -122,7 +136,7 @@ document.querySelector('#show-subtitles').addEventListener('change',event=>{capt
 window.addEventListener('pagehide',()=>{void stop();});
 const memoryStatus=document.querySelector('#memory-status');
 async function loadMemory() {
-  const response=await fetch('/api/memory');if(!response.ok)throw new Error('MEMORY_UNAVAILABLE');
+  const response=await authorizedFetch('/api/memory');if(!response.ok)throw new Error('MEMORY_UNAVAILABLE');
   const result=await response.json(),list=document.querySelector('#memory-list');list.replaceChildren();
   document.querySelector('#memory-save').disabled=!result.writable;document.querySelector('#memory-delete').disabled=!result.can_delete;
   const names={interest:'兴趣',correction_preference:'纠错偏好',support_language:'语言支架'};
@@ -131,20 +145,25 @@ async function loadMemory() {
 }
 async function bootstrap() {
   try {
-    const response=await fetch('/api/bootstrap');if(!response.ok){await loadMemory();return;}const result=await response.json();
+    const response=await authorizedFetch('/api/bootstrap');if(!response.ok){await loadMemory();return;}const result=await response.json();
     mission=result.mission;
-    const missionButton=document.querySelector('[data-mode="mission"]');missionButton.disabled=!mission;missionButton.textContent=mission?'Mission 后对话':'Mission 后对话 · 待授权';
+    const missionButton=document.querySelector('[data-mode="mission"]');missionButton.disabled=!mission;missionButton.textContent=mission?(await runtimeReady).backend==='mock_hskai'?'Mission 后对话 · 示例':'Mission 后对话':'Mission 后对话 · 待授权';missionButton.title=mission?'':'等待课程服务接入';
     document.querySelector('#memory-save').disabled=!result.memory_writable;document.querySelector('#memory-delete').disabled=!result.memory_writable;
     await loadMemory();
   }catch{memoryStatus.textContent='偏好服务暂不可用。';}
 }
 document.querySelector('#memory-form').addEventListener('submit',async event=> {
   event.preventDefault();
-  try{const response=await fetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field:document.querySelector('#memory-field').value,value:document.querySelector('#memory-value').value})});if(!response.ok)throw new Error('WRITE_FAILED');await loadMemory();memoryStatus.textContent='偏好已更正；后续回合将使用新偏好。';}
+  try{const response=await authorizedFetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field:document.querySelector('#memory-field').value,value:document.querySelector('#memory-value').value})});if(!response.ok)throw new Error('WRITE_FAILED');await loadMemory();memoryStatus.textContent='偏好已更正；后续回合将使用新偏好。';}
   catch{memoryStatus.textContent='更正未成功，请检查授权或偏好值。';}
 });
 document.querySelector('#memory-delete').addEventListener('click',async()=> {
-  try{const response=await fetch('/api/memory',{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('DELETE_FAILED');await loadMemory();await stop('偏好已删除，当前对话已结束。');}
+  try{const response=await authorizedFetch('/api/memory',{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('DELETE_FAILED');await loadMemory();await stop('偏好已删除，当前对话已结束。');}
   catch{memoryStatus.textContent='删除未成功，请检查授权或服务。';}
 });
 void bootstrap();
+document.querySelector('#memory-export').addEventListener('click',async event=>{
+  event.preventDefault();
+  try{const response=await authorizedFetch('/api/memory/export');if(!response.ok)throw new Error('EXPORT_FAILED');const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download='ask-kai-preferences.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  catch{memoryStatus.textContent='偏好导出失败，请检查本地服务。';}
+});

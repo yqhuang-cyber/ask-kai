@@ -14,17 +14,23 @@ export function signAssertion(claims,secret) {
   const body=Buffer.from(JSON.stringify(claims)).toString('base64url');
   return `${body}.${createHmac('sha256',secret).update(body).digest('base64url')}`;
 }
+export function verifyAssertion(token,secret,{issuer,audience,clock=()=>Date.now()}={}) {
+  if(typeof token!=='string' || token.length>8192 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))throw new Error('UNAUTHORIZED');
+  const [body,signature]=token.split('.');
+  const actual=Buffer.from(signature,'base64url'),expected=createHmac('sha256',secret).update(body).digest();
+  if(actual.length!==expected.length || !timingSafeEqual(actual,expected))throw new Error('UNAUTHORIZED');
+  let claims;try{claims=JSON.parse(Buffer.from(body,'base64url').toString());}catch{throw new Error('UNAUTHORIZED');}
+  const now=Math.floor(clock()/1000);
+  if(!claims || claims.v!==1 || claims.iss!==issuer || claims.aud!==audience || !id(claims.owner_id) || !id(claims.learner_id) || !id(claims.jti) || !Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.exp) || claims.iat>now+5 || claims.exp<=now || claims.exp-claims.iat>60)throw new Error('UNAUTHORIZED');
+  return claims;
+}
 export class HskaiBridge {
   constructor({secret,markets=[],clock=()=>Date.now()}) {
     if(typeof secret!=='string' || secret.length<32)throw new Error('HSKAI_BRIDGE_NOT_CONFIGURED');
     Object.assign(this,{secret,markets:new Set(markets),clock});this.used=new Map();
   }
   verify(token,scope) {
-    if(typeof token!=='string' || token.length>8192 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))throw new Error('UNAUTHORIZED');
-    const [body,signature]=token.split('.');
-    const actual=Buffer.from(signature,'base64url'),expected=createHmac('sha256',this.secret).update(body).digest();
-    if(actual.length!==expected.length || !timingSafeEqual(actual,expected))throw new Error('UNAUTHORIZED');
-    let claims;try{claims=JSON.parse(Buffer.from(body,'base64url').toString());}catch{throw new Error('UNAUTHORIZED');}
+    const claims=verifyAssertion(token,this.secret,{issuer:'hskai',audience:'ask-kai',clock:this.clock});
     const now=Math.floor(this.clock()/1000);
     if(!claims || claims.v!==1 || claims.iss!=='hskai' || claims.aud!=='ask-kai' || !id(claims.owner_id) || !id(claims.learner_id) || !id(claims.jti) || !Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.exp) || claims.iat>now+5 || claims.exp<=now || claims.exp-claims.iat>60 || !Array.isArray(claims.scopes) || !claims.scopes.includes(scope))throw new Error('UNAUTHORIZED');
     if(scope==='session:create' && (!this.markets.has(claims.market) || claims.consent?.voice!==true || typeof claims.minor!=='boolean' || (claims.minor && claims.consent.guardian!==true)))throw new Error('CONSENT_OR_MARKET_DENIED');

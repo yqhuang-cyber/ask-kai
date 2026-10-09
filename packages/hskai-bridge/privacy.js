@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { signAssertion } from './identity.js';
+import { bridgeEndpoint } from './endpoint.js';
 export class HskaiPrivacyPort {
-  constructor({endpoint,secret,fetcher=fetch}) {
-    const url=new URL(endpoint);if(url.protocol!=='https:' || url.username || url.password || url.search || url.hash)throw new Error('INVALID_PRIVACY_ENDPOINT');
-    Object.assign(this,{endpoint:url.href,secret,fetcher});
+  constructor({endpoint,secret,fetcher=fetch,allowLocal=false}) {
+    Object.assign(this,{endpoint:bridgeEndpoint(endpoint,{allowLocal}),secret,fetcher,allowLocal});
   }
   async request(identity,operation,requestId) {
     if(!['export','erase','status'].includes(operation) || (operation==='status' && !/^[A-Za-z0-9_-]{1,128}$/.test(requestId ?? '')))throw new Error('INVALID_PRIVACY_REQUEST');
@@ -14,6 +14,7 @@ export class HskaiPrivacyPort {
     const chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;if(size>2048)throw new Error('INVALID_PRIVACY_ACK');chunks.push(chunk);}
     const result=JSON.parse(Buffer.concat(chunks).toString());
     if(!/^[A-Za-z0-9_-]{1,128}$/.test(result.request_id ?? '') || !['pending','processing','completed','failed'].includes(result.status) || (operation!=='status' && result.status!=='pending'))throw new Error('INVALID_PRIVACY_ACK');
-    return {request_id:result.request_id,status:result.status};
+    if(this.allowLocal && result.mocked!==true)throw new Error('INVALID_PRIVACY_ACK');
+    return {request_id:result.request_id,status:result.status,...(result.mocked===true?{mocked:true,scope:'local_mock_preferences_only'}:{})};
   }
 }

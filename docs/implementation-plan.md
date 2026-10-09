@@ -1,5 +1,17 @@
 # Incremental delivery
 
+## Independent POC scope (2026-10-09)
+
+The user clarified that this is an independent Ask Kai Agent POC. Default
+business interfaces now use the repository's local mock HSKai HTTP service;
+no `wohuipteltd/HSKai` checkout, BFF deployment or business database is needed.
+The same ports, signed authorization and runtime ownership remain in use.
+See [standalone POC](standalone-poc.md) and [ADR 0002](adr/0002-standalone-poc.md).
+Tasks 05–10 use this backend; real voice still requires the local Doubao key
+and a reviewed supplier profile. Mock safety/privacy records are not real
+human delivery or vendor deletion evidence. This support task is separate
+from Task 05, which remains pending.
+
 ## Current P0: conversation experience (2026-10-09)
 
 Only the reported speed, turn-taking, length/density, natural HSK association,
@@ -39,12 +51,13 @@ original steps below describe the foundation, not the current priority order.
 | 3 | Web presentation, browser capture/playback and real gateway | Continuous upload and stable real bidirectional speech | Implemented: AudioWorklet, PCM/playback, ticketed WebSocket, reviewed-profile adapter; native Chromium synthetic-device checks pass; real account/device acceptance pending |
 | 4 | Interruption, late-event isolation and subtitles | Real recordings/measurements confirm behavior across devices | Implemented: manual/provider speech-start cancellation, ACK timeout, reply fences and paced subtitles; real-device timing pending |
 | 5 | One sports teaching loop | Goal, word card and evidence have traceable sources | Implemented: authored versioned goal/cards, persona, stages, sourced attempts, boundary context updates with ACK; real model teaching quality pending |
-| 6 | HSKai authorization, three modes and minimal learner memory | Trusted course input, owner-scoped data and corrected preferences | Implemented: signed BFF bridge, scope/consent/market checks, trusted Mission, owner memory port/UI, correction/deletion/revocation; HSKai endpoint deployment pending |
+| 6 | HSKai contract boundary, three modes and minimal learner memory | Signed course input, owner-scoped data and corrected preferences | Implemented: signed bridge, three modes and memory port/UI; standalone POC now includes local mock identity/Mission/preferences. External deployment is outside POC scope |
 | 7 | Safety, privacy, content eval and controlled release | P0 regression, critical-failure gates, human handling and separate real-time metrics | Implemented: safety floor/handoff and privacy ports, aggregate metrics, LangChain Judge, Langfuse scores, release checker and browser CI; live services/calibration/original P0/market approvals pending |
 
 The first client is Web only. No iOS SDK or native app is required. The homepage
 defaults to a disconnected preview. Real audio requires a reviewed supplier
-profile, server credential and authenticated HSKai BFF contract. Test providers
+profile, server credential and signed identity from the local mock HSKai contract.
+External HSKai integration is optional future work, not a POC prerequisite. Test providers
 have no UI activation switch. Engineering replay lives at /dev/replay. Steps
 3–7 are code implementations with separate acceptance gates, not a released
 student service. See release-and-eval.md and the release checker for open gates.

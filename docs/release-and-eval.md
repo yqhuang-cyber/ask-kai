@@ -1,3 +1,11 @@
+# POC scope note
+
+The local POC runs with mock business services; starting it does not require any
+external HSKai integration. Mock safety ACKs return `delivered: false` and do not
+increment human-delivered metrics; local mock privacy completion is explicitly
+scoped to preferences. The production release gates below remain separate from
+POC execution. See [standalone POC](standalone-poc.md).
+
 # Safety, evaluation and release acceptance
 
 The code in steps 3–7 is implemented; this does not close the real-provider,

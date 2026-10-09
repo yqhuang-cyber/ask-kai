@@ -4,8 +4,10 @@ import { mkdir, readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { createGateway } from '../apps/realtime-gateway/src/server.js';
 import { createDoubaoProvider } from '../packages/provider-doubao/seeduplex.js';
+import { startMockBackend } from '../apps/hskai-mock/src/backend.js';
 const server=createGateway({paceMs:1});server.listen(0,'127.0.0.1');await once(server,'listening');
 const servers=[server];
+const backends=[];
 let browser;
 try {
   browser=await chromium.launch({headless:true,executablePath:process.env.ASK_KAI_BROWSER_EXECUTABLE,args:['--no-sandbox','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required']});
@@ -79,6 +81,25 @@ try {
   await page.locator('#end').click();await page.waitForFunction(()=>!document.querySelector('#connect').disabled);
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:'.local/browser-check/speech-pace-mobile.png',fullPage:true});
+  // Real local mock HTTP service and signed cookies; the voice provider is absent.
+  const backend=await startMockBackend();backends.push(backend);
+  const pocServer=createGateway({...backend});servers.push(pocServer);pocServer.listen(0,'127.0.0.1');await once(pocServer,'listening');
+  const pocOrigin=`http://127.0.0.1:${pocServer.address().port}`;
+  await page.goto(pocOrigin);await page.waitForFunction(()=>!document.querySelector('[data-mode=mission]').disabled && !document.querySelector('#memory-save').disabled);
+  assert.equal(await page.locator('#backend-note').isVisible(),true);assert.match(await page.locator('#backend-note').textContent(),/mock HSKai/);
+  assert.equal(await page.evaluate(()=>document.cookie.includes('ask_kai_launch')),false);
+  await page.locator('[data-mode=mission]').click();assert.match(await page.locator('#prompt-title').textContent(),/示例 Mission/);
+  await page.locator('.memory').first().locator('summary').click();
+  // Expire the launch cookie without waiting 60 seconds. Each protected action refreshes it.
+  await page.context().clearCookies();await page.locator('#memory-value').fill('篮球');await page.locator('#memory-save').click();
+  await page.getByText('偏好已更正；后续回合将使用新偏好。',{exact:true}).waitFor();assert.match(await page.locator('#memory-list').textContent(),/篮球/);
+  await page.context().clearCookies();const memoryDownload=page.waitForEvent('download');await page.locator('#memory-export').click();
+  const memoryStream=await(await memoryDownload).createReadStream(),memoryChunks=[];for await(const chunk of memoryStream)memoryChunks.push(chunk);
+  assert.equal(JSON.parse(Buffer.concat(memoryChunks).toString()).records[0].value,'篮球');
+  await page.locator('#connect').click();await page.getByText('实时语音尚未开通。需完成豆包协议和服务端连接验证。',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.microphoneRequests),0);assert.equal(await page.locator('#connection-status').textContent(),'未连接');
+  await page.locator('#memory-delete').click();await page.getByText('偏好已删除，当前对话已结束。',{exact:true}).waitFor();assert.equal(await page.locator('#memory-list li').count(),0);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'.local/browser-check/poc-mobile.png',fullPage:true});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,replay:true,page_errors:0}));
-}finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}}
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,replay:true,page_errors:0}));
+}finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}for(const backend of backends)await backend.close();}

@@ -2,6 +2,10 @@
 
 Status: accepted for step 1, 2026-10-03.
 
+Historical foundation decision. [ADR 0002](0002-standalone-poc.md) supersedes its
+external HSKai/framework prerequisites: current execution is an independent POC
+with local mock business contracts and a separately configured real voice adapter.
+
 ## Decision
 
 Use Node >=22.18, ESM JavaScript and Node's built-in test runner. This step has

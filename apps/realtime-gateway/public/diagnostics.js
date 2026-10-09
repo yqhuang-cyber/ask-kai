@@ -9,6 +9,7 @@ boolean.add('final_received');
 enums.source.push('asr_start','asr_confirmed');enums.reason.push('duplicate','completed','replaced','stopped');
 enums.code.push('TURN_LIMIT','TURN_FINAL_TIMEOUT','OUTPUT_HOLD_LIMIT');
 names.add('reply.audit');
+names.add('backend.config');enums.business_source=['mock_hskai','external_hskai','unconfigured'];
 for(const key of ['chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs'])numeric.add(key);
 for(const key of ['audit_complete','audit_truncated','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'])boolean.add(key);
 enums.reply_policy_version=['kai-reply-v1'];
@@ -28,10 +29,11 @@ export function metadata(fields={}) {
 export function safeObserve(observer,name,fields) {try{observer?.(name,fields);}catch{/* Diagnostics must never change voice behavior. */}}
 export class ExperienceTrace {
   constructor({now=()=>performance.now(),limit=2048}={}) {this.now=now;this.limit=Number.isSafeInteger(limit)?Math.max(1,Math.min(4096,limit)):2048;this.reset();}
-  reset() {this.started=this.now();this.rows=[];this.aliases={response_id:new Map(),turn_id:new Map()};this.discarded=0;this.providerReady=false;this.kind='not_connected';}
+  reset() {this.started=this.now();this.rows=[];this.aliases={response_id:new Map(),turn_id:new Map()};this.discarded=0;this.providerReady=false;this.kind='not_connected';this.businessSource='unconfigured';}
   record(name,fields={},clock='browser',atMs=this.now()-this.started) {
     if(!names.has(name) || !['browser','gateway'].includes(clock) || !Number.isFinite(atMs) || atMs<0 || atMs>3600000)return;
     const clean=metadata(fields);
+    if(clock==='gateway' && name==='backend.config' && clean.business_source)this.businessSource=clean.business_source;
     for(const key of ['response_id','turn_id'])if(clean[key]) {
       const map=this.aliases[key],id=clean[key];delete clean[key];
       if(!map.has(id) && map.size<10000)map.set(id,`${key==='response_id'?'r':'t'}${map.size+1}`);
@@ -61,6 +63,6 @@ export class ExperienceTrace {
         if(row.name==='reply.audit')reply.reply_audit=Object.fromEntries(Object.entries(row).filter(([key])=>['reply_policy_version','audit_complete','audit_truncated','chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'].includes(key)));
       }
     }
-    return {version:1,kind:this.kind,provider_ready_observed:this.providerReady,real_experience_accepted:false,case_id:/^E0[1-9]$/.test(caseId)?caseId:'unselected',operator_outcome:['not_run','pass','fail','uncertain'].includes(outcome)?outcome:'not_run',contains_text:false,contains_audio:false,clock_policy:'browser and gateway have independent monotonic origins; compare intervals within one clock only',truncated:this.discarded>0,discarded_rows:this.discarded,summary:{responses:[...responses.values()],interruptions_by_source:interruptions,max_audio_queue_ms:maxQueue,max_caption_pending_chars:maxPending,gateway_dropped_events:this.rows.filter(r=>r.name==='event.dropped').length},timeline:this.rows.map(r=>({...r}))};
+    return {version:1,business_source:this.businessSource,kind:this.kind,provider_ready_observed:this.providerReady,real_experience_accepted:false,case_id:/^E0[1-9]$/.test(caseId)?caseId:'unselected',operator_outcome:['not_run','pass','fail','uncertain'].includes(outcome)?outcome:'not_run',contains_text:false,contains_audio:false,clock_policy:'browser and gateway have independent monotonic origins; compare intervals within one clock only',truncated:this.discarded>0,discarded_rows:this.discarded,summary:{responses:[...responses.values()],interruptions_by_source:interruptions,max_audio_queue_ms:maxQueue,max_caption_pending_chars:maxPending,gateway_dropped_events:this.rows.filter(r=>r.name==='event.dropped').length},timeline:this.rows.map(r=>({...r}))};
   }
 }

@@ -1,3 +1,9 @@
+# Historical external integration inventory
+
+This inventory is historical reference, not a current POC dependency or action
+plan. The independent POC runs against [local mock HSKai](standalone-poc.md).
+External repository/service work is outside the current scope.
+
 # HSKai integration inventory (partial F02)
 
 Read-only static inspection on 2026-10-03 of `wohuipteltd/HSKai` main at

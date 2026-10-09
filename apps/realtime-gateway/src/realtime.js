@@ -9,7 +9,7 @@ import { hasSpeechText } from '../../../packages/agent-core/turn-taking.js';
 import { TurnOutputGate } from './output-gate.js';
 import { ReplyAudit,REPLY_POLICY_VERSION } from '../../../packages/agent-core/reply-policy.js';
 
-export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,replyGraceMs=350,turnWaitMs=5000,safeguardingPort,metrics}={}) {
+export function attachRealtime(server,{providerFactory,providerKind='doubao',businessSource='unconfigured',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,replyGraceMs=350,turnWaitMs=5000,safeguardingPort,metrics}={}) {
   const tickets = new Map();
   const connections = new Set();
   const sessions=new Map();
@@ -133,6 +133,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
         const delivery=safeguardingPort ? Promise.resolve().then(()=>safeguardingPort.request(request)):Promise.reject(new Error('NO_HANDOFF_PORT'));
         let timer;
         Promise.race([delivery,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('HANDOFF_TIMEOUT')),1800);})]).then(result=> {
+          if(result?.mocked===true){send({type:'safety.handoff',delivered:false,mocked:true});return;}
           if(result?.delivered!==true)throw new Error('HANDOFF_NOT_CONFIRMED');
           metrics?.count(providerKind,'handoffs_delivered');send({type:'safety.handoff',delivered:true});
         }).catch(()=>send({type:'safety.handoff',delivered:false})).finally(()=>{clearTimeout(timer);finish('SAFETY_RESTRICTED');});
@@ -156,6 +157,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
             else if(value?.type==='diagnostics.enable' && Object.keys(value).length===1) {
               if(!diagnostics) {
                 diagnostics=true;
+                diagnose('backend.config',{business_source:businessSource});
                 const output=provider.profile?.session_create?.session?.audio?.output;
                 diagnose('session.config',{synthetic:providerKind!=='doubao',protocol:providerKind!=='doubao'?'synthetic':provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL?SEEDUPLEX_PROTOCOL:'reviewed_mapping',reply_policy_version:REPLY_POLICY_VERSION,input_rate:provider.audio.input_rate,output_rate:provider.audio.output_rate,frame_ms:provider.audio.frame_ms,speech_pace:provider.speechPace,speech_pace_supported:provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL,output_speed:output?.speed,speed_explicit:Number.isFinite(output?.speed),cancel_timeout_ms:cancelTimeoutMs,context_timeout_ms:contextTimeoutMs,ready_timeout_ms:readyTimeoutMs,grace_ms:outputGate?replyGraceMs:0,turn_wait_ms:outputGate?turnWaitMs:0});
                 if(ready)diagnose('session.ready',{provider_ready:true,elapsed_ms:performance.now()-started});

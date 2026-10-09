@@ -1,5 +1,10 @@
 # HSKai BFF integration contract (new, not deployed)
 
+Current runtime: [standalone POC](standalone-poc.md). The local mock implements
+this contract and signs fixture assertions; the external deployment described
+below is optional future work. No changes in `wohuipteltd/HSKai` are required.
+The mock does not certify real account/course/guardian information.
+
 HSKai remains the identity/course/learner-memory truth source. No existing HSKai
 repository, database or production service was modified. The historical inventory
 does not prove these new endpoints are available. Real integration requires its
