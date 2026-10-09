@@ -57,16 +57,21 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       };
       let byteWindow = 0; let windowAt = Date.now();
       const send = data => {
-        if (ws.readyState !== ws.OPEN) return;
+        if (ended || ws.readyState !== ws.OPEN) return false;
         if (ws.bufferedAmount > 262144) return finish('CLIENT_BACKPRESSURE');
         ws.send(JSON.stringify(data));
+        teaching.forward(data); // Only forwarded packets, after safety/output hold.
+        return true;
       };
-      const finish = code => {
+      const finish = (code,endReason) => {
         if (ended) return;
         for(const id of replyStats.keys())completeStats(id,code?'failed':'closed');
         diagnose('session.end',{state:code?'failed':'closed',code:code??undefined});
         ended = true;
         outputGate?.close();speechCandidates.clear();
+        const reason=endReason??(code==='AUTHORIZATION_REVOKED'?'authorization_revoked':code==='SAFETY_RESTRICTED'?'safety_restricted':code==='SESSION_DURATION_LIMIT'?'session_limit':code?'service_failure':'student_end');
+        const summary=teaching.finalize({outcome:code?'failed':'ended',endReason:reason,businessSource,providerKind,ready});
+        diagnose('summary.finalized',{summary_policy_version:summary.policy_version,summary_focus:summary.focus,summary_outcome:summary.outcome,summary_partial:summary.partial,summary_attempts:summary.counts.attempts,summary_items:summary.learning_items.length});
         clearTimeout(readyTimer); clearTimeout(lifetime);
         clearInterval(heartbeat);
         if(code)metrics?.count(providerKind,'failures');
@@ -75,7 +80,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
         if(pendingContext)clearTimeout(pendingContext.timer);
         try { provider?.close(); } catch {}
         if (ws.readyState === ws.OPEN) {
-          ws.send(JSON.stringify({type:'teaching.summary',...teaching.view()}));
+          const view=summary.focus==='unavailable'?{mode:ticket.mode,goal:'',start_tip:'',cards:[],attempts:[],attempt_count:0,attempts_truncated:false,notice:'本轮总结不可用。'}:teaching.view();
+          ws.send(JSON.stringify({type:'teaching.summary',session_id:ticket.session_id,...view,summary}));
           ws.send(JSON.stringify({type:code ? 'session.failed':'session.closed',code:code ?? undefined,provider_connected:false}));
         }
         ws.close(code ? 1011:1000,'session ended');
@@ -139,7 +145,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           metrics?.count(providerKind,'handoffs_delivered');send({type:'safety.handoff',delivered:true});
         }).catch(()=>send({type:'safety.handoff',delivered:false})).finally(()=>{clearTimeout(timer);finish('SAFETY_RESTRICTED');});
       };
-      ws.on('close',()=>finish()); ws.on('error',()=>finish('CLIENT_TRANSPORT_ERROR'));
+      ws.on('close',()=>finish(undefined,'transport_closed')); ws.on('error',()=>finish('CLIENT_TRANSPORT_ERROR'));
       ws.on('message',(bytes,binary) => {
         if(ended || restricted)return;
         try {
@@ -201,6 +207,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           }
           if (packet.event.type === 'session.ready') {ready=true;clearTimeout(readyTimer);metrics?.count(providerKind,'ready');metrics?.observe(providerKind,'ready_ms',performance.now()-started);}
           if(packet.event.type==='session.ready')diagnose('session.ready',{provider_ready:true,elapsed_ms:performance.now()-started});
+          if(packet.event.type==='session.closed'){finish(undefined,'provider_closed');return;}
+          if(packet.event.type==='session.failed'){finish('PROVIDER_SESSION_FAILED');return;}
           if (packet.event.type==='response.started'){lastResponse={id:packet.event.response_id,turn:packet.event.turn_id};policy.newResponse();replyAt=performance.now();firstAudio=false;}
           const event=packet.event,ids={response_id:event.response_id,turn_id:event.turn_id};
           if(event.type==='response.started') {

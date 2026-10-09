@@ -27,10 +27,12 @@ const unclearInput=/^(?:那个|这个|那个什么|不知道|我不知道|不确
 const questionInput=/[?？]|(?:为什么|什么时候|怎么|什么|如何|哪里|哪儿|吗[。！!\s]*$)|^(?:what|why|when|where|who|how|can|do|does|is|are|will|would|could)\b/iu;
 const sportsWord=/(?:足球|篮球|跑步|游泳)|\b(?:football|soccer|basketball|running|swimming)\b/iu;
 const preferenceCue=/^(?:(?:我)?(?:很)?喜欢)?(?:足球|篮球|跑步|游泳)[。.!！\s]*$|^(?:(?:i (?:really )?like|i love)(?: playing)? )?(?:football|soccer|basketball|running|swimming)[。.!！\s]*$/iu;
-export function sportsAttempt(text) {
+export function sportsExpression(text) {
   // Only a direct affirmative first-person statement; no quoted/teacher examples.
-  return /(?:^|[。！!，,；;\n])\s*我(?:很)?喜欢(?:踢足球|打篮球|足球|篮球|跑步|游泳)(?:[。！!，,；;]|$)/u.test(controlText(text));
+  const match=/(?:^|[。！!，,；;\n])\s*我(?:很)?喜欢(踢足球|打篮球|足球|篮球|跑步|游泳)(?:[。！!，,；;]|$)/u.exec(controlText(text));
+  return match?`我喜欢${match[1].replace(/^踢|^打/u,'')}`:null;
 }
+export function sportsAttempt(text) {return sportsExpression(text)!==null;}
 
 export class NaturalTeaching {
   constructor({mode,mission}) {

@@ -65,7 +65,8 @@ answers do not imply poor ability. Real semantic quality requires reviewed runs.
 affirmative variants such as `我喜欢足球` / `我很喜欢踢足球`.
 Negation, questions, teacher reports and quoted examples do not count. Legitimate
 longer variants can be missed; this conservative match is not a language score.
-Mission/free structured learning evidence remains Task 07. A chosen TEACH_TARGET,
+Mission/free structured learning evidence is now implemented within the bounded
+[Task 07 summary rules](session-summary.md). A chosen TEACH_TARGET,
 an ACK or `new_points: 1` is never a presented/practiced learning fact.
 
 ## Context timing and traceability

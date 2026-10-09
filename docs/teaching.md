@@ -21,10 +21,13 @@ validated final student event can add an attempted expression with session, turn
 source event, lesson/rule version and available scaffold provenance. Partials,
 teacher text, duplicate final turns and free-chat keywords cannot award progress.
 The conservative `sports-expression-attempt-v2` excludes quoted/third-person,
-negated and questioned examples. Mission/free evidence is still Task 07;
-choosing a teaching action never creates a learning fact.
+negated and questioned examples. [Task 07](session-summary.md) now adds supported
+first-target Mission evidence and free-chat attempts following a sourced,
+completed forwarded target reply; ordinary free chat still has zero forced goals.
+Choosing a teaching action never creates a learning fact.
 No raw transcript is included in stored evidence; no pronunciation score exists.
-The browser shows current attempts and a summary when ending normally.
+The browser shows current attempt counts; structured summary data is sent at
+ending. Visible summary cards remain Task 08.
 
 Persona/goal context starts with provider session creation. Subsequent changes
 are sent at response boundaries and require the exact reviewed version ACK.

@@ -60,8 +60,11 @@ test('deletion and consent revocation end only the authorized learner connection
   const bridge=new HskaiBridge({secret,markets:['SG']}),memoryPort=new InMemoryLearnerStore();const {origin,create,open}=await setup(t,{bridge,memoryPort});
   const a=await open(await(await create({mode:'sports'},headers())).json());
   const b=await open(await(await create({mode:'sports'},headers({owner_id:'owner-b',learner_id:'learner-b'}))).json());
+  a.provider.emit('session.ready');a.provider.emit('user.final',{text:'我喜欢足球'},{turn_id:'t1'});
   const closed=once(a.ws,'close');const response=await fetch(origin+'/api/authorization/revoke',{method:'POST',headers:{Origin:origin,...headers({consent:{voice:false,guardian:false}})}});
   assert.equal(response.status,200);await closed;assert.equal(a.provider.closed,true);assert.notEqual(b.provider.closed,true);
+  const summary=a.packets.find(p=>p.type==='teaching.summary');assert.equal(summary.summary.focus,'unavailable');assert.equal(summary.summary.end_reason,'authorization_revoked');
+  assert.deepEqual(summary.attempts,[]);assert.deepEqual(summary.summary.learning_items,[]);assert.equal(summary.goal,'');assert.ok(!b.packets.some(p=>p.type==='teaching.summary'));
   b.provider.emit('session.ready');await until(()=>b.packets.some(p=>p.event?.type==='session.ready'));
 });
 test('HSKai memory port requires HTTPS, bounded data and signed owner scope; no redirects',async()=> {

@@ -35,7 +35,7 @@ Existing authorization and safety invariants remain in force.
 | 04 | Short reply and teaching-density budgets; Chinese first, corresponding English next | Engineering implemented: versioned bilingual/density policy, shared budgets, metadata audits and scoring criteria. Real model compliance/listening pending. See [short replies](short-replies.md) |
 | 05 | Natural teaching decisions | Engineering implemented: single-goal/action selection, refusal/topic pause, clarification limit, teaching cooldown and sourced ACK snapshots. Real semantics/model teaching quality pending. See [natural teaching](natural-teaching.md) |
 | 06 | Playback-aware progressive subtitles, preserving Chinese/English order | Engineering implemented: phrase buffering, PCM clock, pause/cancel fences, labeled text fallback and Web size/highlight controls. Real device synchronization pending. See [progressive captions](progressive-captions.md) |
-| 07 | Per-session structured summary data | Pending |
+| 07 | Per-session structured summary data | Engineering implemented: three entries, sourced target text/attempts, bounded refs, optional review and honest empty/partial/suppressed states. Bounded vocabulary and actual ASR/model semantics need acceptance. See [session summary](session-summary.md) |
 | 08 | Web summary cards | Pending |
 | 09 | P0 regression and content evaluation, including language order and bilingual length | Pending |
 | 10 | Real speech/device acceptance and fixes, including bilingual listening/captions | Pending |

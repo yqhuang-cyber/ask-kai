@@ -48,7 +48,7 @@ test('a direct target attempt reduces scaffolding and suppresses repeated unsoli
     const {session,say}=learner(mode);const d=say('我喜欢足球');
     assert.equal(d.action,'FOLLOW_UP');assert.equal(d.reason,'goal_attempt_observed');assert.equal(d.support_level,'none');
     assert.equal(d.goal_attempt_observed,true);assert.equal(say('basketball').new_points,0);
-    assert.equal(session.evidence.length,mode==='sports'?1:0); // Mission evidence is Task 07.
+    assert.equal(session.evidence.length,1); // Task 07 adds supported Mission attempt evidence.
     assert.ok(!JSON.stringify(session.view()).includes('mastered'));
   }
 });

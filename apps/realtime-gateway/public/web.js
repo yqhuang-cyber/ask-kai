@@ -52,7 +52,8 @@ function learning(packet) {
   goal.textContent=packet.goal;promptHint.textContent=packet.start_tip;
   const card=packet.cards[0];document.querySelector('.word-card').hidden=!card;
   if(card)for(const [key,id] of Object.entries({word:'word-chinese',pinyin:'word-pinyin',english:'word-english',example:'word-example'}))document.getElementById(id).textContent=card[key];
-  document.querySelector('#learning-attempts').textContent=packet.attempts.length ? `本轮记录 ${packet.attempts.length} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
+  const count=packet.attempt_count??packet.attempts.length;
+  document.querySelector('#learning-attempts').textContent=count ? `本轮记录 ${count} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
 }
 function selectMode(button) {
   mode=button.dataset.mode;

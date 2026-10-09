@@ -99,4 +99,5 @@ renderer. Task 09 expands regression. Task 10 must use real-account E01/E07/E08
 listening on target desktop/mobile devices: compare perceived speech/caption
 progress, late final text, pauses, backgrounding and cancellation, then calibrate
 the provisional values. Chinese typography also needs a device with CJK fonts.
-Task 07 is the next development item: sourced per-session structured summary data.
+Task 07 now provides [sourced structured summary data](session-summary.md).
+Task 08 next renders the Web summary cards.

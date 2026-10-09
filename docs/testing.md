@@ -17,6 +17,12 @@ cooldown, refusal/topic pause, clarification limits, quoted controls, direct
 attempts, privacy and response/ACK snapshot races. Synthetic provider checks
 verify policy transport, not semantic accuracy or real audible teaching.
 
+Task 07 adds 18 [summary](session-summary.md) regressions covering all entry
+modes through signed local mock HTTP, actual WebSocket forwarding/holds,
+source/scaffold provenance, unsupported/absent evidence, cancellation,
+sampling/copies, partial failures and once-only finalization. Authorization
+revocation tests also verify learning suppression and owner isolation.
+
 Protocol-probe tests additionally cover profile/credential preflight, real Node
 WebSocket headers against a loopback peer, historical readiness versus active
 connection state, payload-value masking, within-run identity aliases, malformed

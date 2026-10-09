@@ -46,6 +46,16 @@ ACK/source-turn snapshot at an accepted response-start notice. Context ACKs and
 local decisions are separate; later ACKs never rewrite earlier response metadata.
 See [natural teaching](natural-teaching.md) for field semantics and limitations.
 
+Task 07 adds `session_id` and `summary` to `teaching.summary`, sent once before
+the gateway terminal packet when the connection is writable. Its versioned
+schema separates planned goals, completed forwarded target text, unique final
+student attempts and optional review, with source refs and coverage limits.
+Live `attempt_count` is complete within the supported rule; `attempts` retains
+at most 20 copied refs with `attempts_truncated`. Safety/revocation suppress
+learning fields; transport loss cannot assert summary delivery. See
+[summary contract and retention](session-summary.md). No transcript store,
+mastery/pronunciation assessment or synthetic readiness is added.
+
 This SSE contract is diagnostic and is not the learner-facing UI protocol. A
 synthetic session.ready event must never be interpreted as real connectivity.
 Client disconnect stops the fixture generator. Reconnect starts a new replay;
