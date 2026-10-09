@@ -1,0 +1,52 @@
+// Metadata-only, opt-in diagnostics. Never copy packets, text, audio, URLs or credentials.
+const names=new Set(['session.config','session.ready','session.end','user.speech.started','user.partial','user.final','response.started','response.first_text','response.first_audio','response.complete','event.dropped','cancel.requested','cancel.ack','context.requested','context.applied','caption.received','caption.revealed','caption.cleared','presentation.dropped','audio.capture.started','audio.capture.progress','audio.queued','audio.drained','audio.stopped','audio.muted','browser.failed','manual.interrupt']);
+const numeric=new Set(['chars','text_chars','text_deltas','audio_chunks','pcm_duration_ms','elapsed_ms','ack_ms','visible_chars','pending_chars','revealed_chars','queue_ms','scheduled_ms','duration_ms','input_rate','output_rate','frame_ms','caption_interval_ms','cancel_timeout_ms','context_timeout_ms','ready_timeout_ms','frames','sources','context_version']);
+const boolean=new Set(['synthetic','provider_ready','speed_explicit','echo_cancellation','noise_suppression','auto_gain_control','muted','active','pending_cancel','pending_context']);
+const enums={source:['manual','provider_speech_start','safety','session_end','new_response'],reason:['invalid_event','foreign_session','duplicate_event','event_limit','terminal_session','already_ready','session_not_ready','duplicate_final_turn','reused_response','overlapping_response','unexpected_cancel_ack','inactive_response','ownership','unknown'],state:['active','done','cancelled','cancel_pending','closed','failed'],protocol:['seeduplex-1.2.6.1','reviewed_mapping','synthetic'],code:['CANCEL_ACK_TIMEOUT','CONTEXT_ACK_TIMEOUT','PROVIDER_READY_TIMEOUT','PROVIDER_CANCEL_FAILED','PROVIDER_CONTEXT_FAILED','PROVIDER_PROTOCOL_ERROR','CLIENT_BACKPRESSURE','SESSION_DURATION_LIMIT','CLIENT_HEARTBEAT_TIMEOUT','CLIENT_TRANSPORT_ERROR','INVALID_CLIENT_MESSAGE','CONTROL_RATE_LIMIT','PROVIDER_CONFIGURATION_ERROR','AUTHORIZATION_REVOKED','SAFETY_RESTRICTED','other']};
+export function metadata(fields={}) {
+  const out={};
+  if(!fields || typeof fields!=='object' || Array.isArray(fields))return out;
+  for(const [key,value] of Object.entries(fields)) {
+    if(numeric.has(key) && Number.isFinite(value) && value>=0 && value<=3600000)out[key]=Math.round(value*100)/100;
+    else if(boolean.has(key) && typeof value==='boolean')out[key]=value;
+    else if(Object.hasOwn(enums,key) && enums[key].includes(value))out[key]=value;
+    else if(key==='output_speed' && Number.isFinite(value) && value>=-100 && value<=100)out[key]=value;
+    else if(['response_id','turn_id'].includes(key) && typeof value==='string' && /^[a-zA-Z0-9_.:-]{1,128}$/.test(value))out[key]=value;
+  }
+  return out;
+}
+export function safeObserve(observer,name,fields) {try{observer?.(name,fields);}catch{/* Diagnostics must never change voice behavior. */}}
+export class ExperienceTrace {
+  constructor({now=()=>performance.now(),limit=2048}={}) {this.now=now;this.limit=Number.isSafeInteger(limit)?Math.max(1,Math.min(4096,limit)):2048;this.reset();}
+  reset() {this.started=this.now();this.rows=[];this.aliases={response_id:new Map(),turn_id:new Map()};this.discarded=0;this.providerReady=false;this.kind='not_connected';}
+  record(name,fields={},clock='browser',atMs=this.now()-this.started) {
+    if(!names.has(name) || !['browser','gateway'].includes(clock) || !Number.isFinite(atMs) || atMs<0 || atMs>3600000)return;
+    const clean=metadata(fields);
+    for(const key of ['response_id','turn_id'])if(clean[key]) {
+      const map=this.aliases[key],id=clean[key];delete clean[key];
+      if(!map.has(id) && map.size<10000)map.set(id,`${key==='response_id'?'r':'t'}${map.size+1}`);
+      if(map.has(id))clean[key==='response_id'?'response_ref':'turn_ref']=map.get(id);
+    }
+    if(clock==='gateway' && name==='session.config' && typeof clean.synthetic==='boolean')this.kind=clean.synthetic?'synthetic':'real_provider_pending';
+    if(clock==='gateway' && name==='session.ready' && clean.provider_ready===true){this.providerReady=true;if(this.kind==='real_provider_pending')this.kind='real_provider';}
+    if(this.rows.length===this.limit){this.rows.shift();this.discarded++;}
+    this.rows.push({seq:(this.rows.at(-1)?.seq??this.discarded)+1,clock,at_ms:Math.round(atMs*100)/100,name,...clean});
+  }
+  gateway(row) {if(row && typeof row==='object' && Number.isFinite(row.at_ms))this.record(row.name,row.fields,'gateway',row.at_ms);}
+  snapshot({caseId='unselected',outcome='not_run'}={}) {
+    const interruptions={},responses=new Map();let maxQueue=0,maxPending=0;
+    for(const row of this.rows) {
+      if(row.name==='cancel.requested')interruptions[row.source]=(interruptions[row.source]??0)+1;
+      maxQueue=Math.max(maxQueue,row.queue_ms??0);maxPending=Math.max(maxPending,row.pending_chars??0);
+      if(row.response_ref) {
+        const reply=responses.get(row.response_ref)??{response_ref:row.response_ref};responses.set(row.response_ref,reply);
+        if(row.name==='response.complete')Object.assign(reply,{state:row.state,text_chars:row.text_chars,text_deltas:row.text_deltas,audio_chunks:row.audio_chunks,received_pcm_ms:row.pcm_duration_ms,gateway_span_ms:row.elapsed_ms});
+        if(row.name==='cancel.ack')reply.cancel_ack_ms=row.ack_ms;
+        if(row.name==='cancel.requested')reply.cancel_source=row.source;
+        if(row.name==='response.first_text')reply.first_text_ms=row.elapsed_ms;
+        if(row.name==='response.first_audio')reply.first_audio_ms=row.elapsed_ms;
+      }
+    }
+    return {version:1,kind:this.kind,provider_ready_observed:this.providerReady,real_experience_accepted:false,case_id:/^E0[1-9]$/.test(caseId)?caseId:'unselected',operator_outcome:['not_run','pass','fail','uncertain'].includes(outcome)?outcome:'not_run',contains_text:false,contains_audio:false,clock_policy:'browser and gateway have independent monotonic origins; compare intervals within one clock only',truncated:this.discarded>0,discarded_rows:this.discarded,summary:{responses:[...responses.values()],interruptions_by_source:interruptions,max_audio_queue_ms:maxQueue,max_caption_pending_chars:maxPending,gateway_dropped_events:this.rows.filter(r=>r.name==='event.dropped').length},timeline:this.rows.map(r=>({...r}))};
+  }
+}

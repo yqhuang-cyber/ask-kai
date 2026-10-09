@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws';
 import { SessionRuntime } from '../../../packages/agent-core/session.js';
 import { TeachingSession } from '../../../packages/agent-core/teaching.js';
 import { SafetyPolicy,SAFETY_MESSAGE } from '../../../packages/policy/safety.js';
+import { metadata } from '../public/diagnostics.js';
 
 export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,safeguardingPort,metrics}={}) {
   const tickets = new Map();
@@ -36,6 +37,17 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       let lastResponse = null;
       const pendingCancel = new Map();
       let appliedVersion=1,pendingContext=null;
+      let diagnostics=false;
+      const replyStats=new Map();
+      const diagnose=(name,fields={})=>{
+        if(!diagnostics || ws.readyState!==ws.OPEN || ws.bufferedAmount>131072)return;
+        try{ws.send(JSON.stringify({type:'diagnostics.event',row:{name,at_ms:performance.now()-started,fields:metadata(fields)}}));}catch{/* Diagnostics do not control the session. */}
+      };
+      const completeStats=(id,state)=>{
+        const s=replyStats.get(id);if(!s)return;
+        diagnose('response.complete',{response_id:id,turn_id:s.turn,state,text_chars:s.chars,text_deltas:s.deltas,audio_chunks:s.chunks,pcm_duration_ms:s.pcmMs,elapsed_ms:performance.now()-s.at});
+        replyStats.delete(id);
+      };
       let byteWindow = 0; let windowAt = Date.now();
       const send = data => {
         if (ws.readyState !== ws.OPEN) return;
@@ -44,6 +56,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       };
       const finish = code => {
         if (ended) return;
+        for(const id of replyStats.keys())completeStats(id,code?'failed':'closed');
+        diagnose('session.end',{state:code?'failed':'closed',code:code??undefined});
         ended = true;
         clearTimeout(readyTimer); clearTimeout(lifetime);
         clearInterval(heartbeat);
@@ -67,16 +81,19 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       const flushContext = () => {
         if(ended || !ready || runtime.active || pendingCancel.size || pendingContext || appliedVersion===teaching.version)return;
         const version=teaching.version;
+        diagnose('context.requested',{context_version:version});
         pendingContext={version,timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
         try{provider.updateContext({version,instructions:teaching.instructions()});}catch{finish('PROVIDER_CONTEXT_FAILED');}
       };
-      const interrupt = responseId => {
+      const interrupt = (responseId,source='manual') => {
         const active = runtime.active;
         const id=responseId ?? active?.id ?? lastResponse?.id;
         if (!id) return;
+        diagnose('cancel.requested',{response_id:id,source,active:!!active && active.id===id,pending_context:!!pendingContext,pending_cancel:pendingCancel.size>0});
         send({type:'output.stop',response_id:id});
         metrics?.count(providerKind,'interruptions');
         if (!active || active.id!==id) return;
+        const stats=replyStats.get(id);if(stats)stats.cancelAt=performance.now();
         runtime.ingest({version:1,event_id:randomUUID(),session_id:ticket.session_id,seq:0,at_ms:0,type:'response.cancel.requested',turn_id:active.turn,response_id:id,payload:{}});
         pendingCancel.set(id,setTimeout(()=>finish('CANCEL_ACK_TIMEOUT'),cancelTimeoutMs));
         try {provider.cancel(id);}catch{finish('PROVIDER_CANCEL_FAILED');}
@@ -84,6 +101,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       sessions.set(ws,{identity:ticket.identity,teaching,finish,flushContext});
       const restrict = (risk,event) => {
         restricted=true;metrics?.count(providerKind,'restricted');
+        diagnose('cancel.requested',{response_id:runtime.active?.id??lastResponse?.id,source:'safety',active:!!runtime.active,pending_context:!!pendingContext});
         send({type:'output.stop',response_id:runtime.active?.id ?? lastResponse?.id});
         try{if(runtime.active)provider.cancel(runtime.active.id);}catch{}
         send({type:'safety.notice',message:SAFETY_MESSAGE,handoff:'pending',policy_version:risk.policy_version});
@@ -111,6 +129,14 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
             if (bytes.length > 1024) throw new Error('CONTROL_TOO_LARGE');
             const value = JSON.parse(bytes.toString());
             if (value?.type === 'session.end' && Object.keys(value).length === 1) finish();
+            else if(value?.type==='diagnostics.enable' && Object.keys(value).length===1) {
+              if(!diagnostics) {
+                diagnostics=true;
+                const output=provider.profile?.session_create?.session?.audio?.output;
+                diagnose('session.config',{synthetic:providerKind!=='doubao',protocol:providerKind!=='doubao'?'synthetic':provider.profile?.realtime?.protocol==='seeduplex-1.2.6.1'?'seeduplex-1.2.6.1':'reviewed_mapping',input_rate:provider.audio.input_rate,output_rate:provider.audio.output_rate,frame_ms:provider.audio.frame_ms,output_speed:output?.speed,speed_explicit:Number.isFinite(output?.speed),cancel_timeout_ms:cancelTimeoutMs,context_timeout_ms:contextTimeoutMs,ready_timeout_ms:readyTimeoutMs});
+                if(ready)diagnose('session.ready',{provider_ready:true,elapsed_ms:performance.now()-started});
+              }
+            }
             else if (value?.type==='response.cancel' && ready && Object.keys(value).every(k=>['type','response_id'].includes(k)) && (value.response_id===undefined || /^[a-zA-Z0-9_.:-]{1,128}$/.test(value.response_id))) interrupt(value.response_id);
             else throw new Error('INVALID_CONTROL');
           }
@@ -120,20 +146,42 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
         provider = providerFactory(ticket);
         provider.open({sessionId:ticket.session_id,instructions:teaching.instructions(),onFailure:code=>finish(code),onEvent:packet=> {
           if (ended || restricted) return;
-          if (packet.control==='user.speech.started') {if(ready)interrupt();return;}
+          if (packet.control==='user.speech.started') {diagnose('user.speech.started',{turn_id:packet.turn_id,source:'provider_speech_start',active:!!runtime.active});if(ready)interrupt(undefined,'provider_speech_start');return;}
           if(packet.control==='context.updated') {
-            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;pendingContext=null;send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
+            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;pendingContext=null;diagnose('context.applied',{context_version:appliedVersion});send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
             return;
           }
           if (!packet.event) return;
           const result = runtime.ingest(packet.event);
           if (!result.accepted) {
+            diagnose('event.dropped',{response_id:packet.event.response_id,turn_id:packet.event.turn_id,reason:result.reason});
             metrics?.count(providerKind,'dropped_events');
             if (result.reason === 'event_limit' || result.reason === 'invalid_event') finish('PROVIDER_PROTOCOL_ERROR');
             return;
           }
           if (packet.event.type === 'session.ready') {ready=true;clearTimeout(readyTimer);metrics?.count(providerKind,'ready');metrics?.observe(providerKind,'ready_ms',performance.now()-started);}
+          if(packet.event.type==='session.ready')diagnose('session.ready',{provider_ready:true,elapsed_ms:performance.now()-started});
           if (packet.event.type==='response.started'){lastResponse={id:packet.event.response_id,turn:packet.event.turn_id};policy.newResponse();replyAt=performance.now();firstAudio=false;}
+          const event=packet.event,ids={response_id:event.response_id,turn_id:event.turn_id};
+          if(event.type==='response.started') {
+            replyStats.set(event.response_id,{at:performance.now(),turn:event.turn_id,chars:0,deltas:0,chunks:0,pcmMs:0});
+            diagnose('response.started',{...ids,pending_context:!!pendingContext,pending_cancel:pendingCancel.size>0});
+          }
+          if(['user.partial','user.final'].includes(event.type))diagnose(event.type,{...ids,chars:Array.from(event.payload.text).length});
+          const stats=replyStats.get(event.response_id);
+          if(stats && event.type==='response.text.delta') {
+            stats.chars+=Array.from(event.payload.text).length;stats.deltas++;
+            if(stats.deltas===1)diagnose('response.first_text',{...ids,elapsed_ms:performance.now()-stats.at});
+          }
+          if(stats && event.type==='response.audio.chunk') {
+            stats.chunks++;stats.pcmMs+=event.payload.byte_length/(packet.sample_rate??provider.audio.output_rate)/2*1000;
+            if(stats.chunks===1)diagnose('response.first_audio',{...ids,elapsed_ms:performance.now()-stats.at});
+          }
+          if(event.type==='response.cancelled') {
+            if(stats?.cancelAt!==undefined)diagnose('cancel.ack',{...ids,ack_ms:performance.now()-stats.cancelAt});
+            completeStats(event.response_id,'cancelled');
+          }
+          if(event.type==='response.done')completeStats(event.response_id,'done');
           if(['user.partial','user.final','response.text.delta'].includes(packet.event.type)) {
             const risk=policy.inspect(packet.event.payload.text,{output:packet.event.type==='response.text.delta'});
             if(risk.restricted){restrict(risk,packet.event);return;}

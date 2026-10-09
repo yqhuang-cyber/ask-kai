@@ -12,6 +12,7 @@
     "check": "node scripts/check.js",
     "verify": "npm run check && npm test",
     "replay": "node apps/eval-runner/src/replay.js",
+    "baseline:demo": "node scripts/experience-baseline.js",
     "probe:preflight": "node --env-file-if-exists=.env scripts/duplex-probe.js",
     "probe:live": "node --env-file-if-exists=.env scripts/duplex-probe.js --live",
     "eval:content": "node --env-file-if-exists=.env scripts/content-eval.js",

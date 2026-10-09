@@ -1,5 +1,33 @@
 # Incremental delivery
 
+## Current P0: conversation experience (2026-10-09)
+
+Only the reported speed, turn-taking, length/density, natural HSK association,
+progressive subtitles and visual summary issues are P0 for the next iteration.
+Full persona/bilingual formatting, age-based duration, complete profiles/target
+selection/scaffolding and correction branches are P1; cross-session continuity,
+complex long-term memory and professional pronunciation evaluation are P2.
+Existing authorization and safety invariants remain in force.
+
+| Task | Deliverable | Status |
+| --- | --- | --- |
+| 01 | Current behavior inventory, opt-in metadata timeline/export, fixed cases | Engineering implemented; real-account/device baseline pending. See [experience baseline](experience-baseline.md) |
+| 02 | Speech speed configuration and slow mode | Pending |
+| 03 | Turn-taking and false interruption fixes | Pending |
+| 04 | Short reply and teaching-density budgets | Pending |
+| 05 | Natural teaching decisions | Pending |
+| 06 | Playback-aware progressive subtitles | Pending |
+| 07 | Per-session structured summary data | Pending |
+| 08 | Web summary cards | Pending |
+| 09 | P0 regression and content evaluation | Pending |
+| 10 | Real speech/device acceptance and fixes | Pending |
+
+Each development task is tested and committed separately on main. Engineering
+implementation and real-experience acceptance are tracked separately. The
+original steps below describe the foundation, not the current priority order.
+
+## Foundation delivery
+
 | Step | Deliverable | Gate | State |
 | --- | --- | --- | --- |
 | 1 | Local foundation, event contracts, synthetic replay, CI | Local verification passes; true provider readiness is never simulated | Merged to main (PR #1) |

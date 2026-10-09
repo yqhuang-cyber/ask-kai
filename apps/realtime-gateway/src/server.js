@@ -13,6 +13,7 @@ const staticFiles = new Map([
   ['/', ['index.html','text/html']], ['/web.js', ['web.js','text/javascript']], ['/web.css', ['web.css','text/css']],
   ['/audio.js',['audio.js','text/javascript']], ['/capture-worklet.js',['capture-worklet.js','text/javascript']],
   ['/presentation.js',['presentation.js','text/javascript']],
+  ['/diagnostics.js',['diagnostics.js','text/javascript']], ['/experience-cases.json',['experience-cases.json','application/json']],
   ['/dev/replay', ['replay.html','text/html']], ['/app.js',['app.js','text/javascript']], ['/style.css',['style.css','text/css']]
 ]);
 function json(res, status, body) {

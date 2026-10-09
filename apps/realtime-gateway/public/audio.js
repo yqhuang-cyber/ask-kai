@@ -1,4 +1,5 @@
 // Internal Web audio contract: mono PCM s16le, 20ms frames. Provider rates are reviewed server-side.
+import { safeObserve } from './diagnostics.js';
 export class PCMResampler {
   constructor(sourceRate,targetRate) {this.ratio=sourceRate/targetRate;this.position=0;this.pending=[];}
   push(input) {
@@ -18,7 +19,7 @@ export class PCMResampler {
   }
 }
 export class AudioIO {
-  constructor({onFrame,onFailure}) {this.onFrame=onFrame;this.onFailure=onFailure;this.sources=new Set();this.generation=0;this.pending=new Uint8Array(0);}
+  constructor({onFrame,onFailure,onObserve}) {this.onFrame=onFrame;this.onFailure=onFailure;this.onObserve=onObserve;this.sources=new Set();this.generation=0;this.pending=new Uint8Array(0);this.queuedStats=new Map();}
   async prepare() {
     if (!window.isSecureContext) throw new Error('MICROPHONE_REQUIRES_SECURE_CONTEXT');
     this.context=new AudioContext();this.gain=this.context.createGain();this.gain.connect(this.context.destination);
@@ -29,6 +30,9 @@ export class AudioIO {
     const stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
     if (generation!==this.generation) {stream.getTracks().forEach(t=>t.stop());return;}
     this.stream=stream;
+    const settings=stream.getAudioTracks()[0].getSettings();
+    safeObserve(this.onObserve,'audio.capture.started',{input_rate:audio.input_rate,echo_cancellation:settings.echoCancellation,noise_suppression:settings.noiseSuppression,auto_gain_control:settings.autoGainControl});
+    this.captureFrames=0;this.captureObservedAt=performance.now();
     stream.getAudioTracks()[0].addEventListener('ended',()=>this.onFailure('麦克风已断开，请重新开始。'));
     this.resampler=new PCMResampler(this.context.sampleRate,audio.input_rate);this.frameSize=audio.input_rate*2/50;
     await this.context.audioWorklet.addModule('/capture-worklet.js');
@@ -42,12 +46,13 @@ export class AudioIO {
       const bytes=this.resampler.push(event.data);
       const combined=new Uint8Array(this.pending.length+bytes.length);combined.set(this.pending);combined.set(bytes,this.pending.length);
       let offset=0;
-      while(offset+this.frameSize<=combined.length) {this.onFrame(combined.slice(offset,offset+this.frameSize));offset+=this.frameSize;}
+      while(offset+this.frameSize<=combined.length) {this.onFrame(combined.slice(offset,offset+this.frameSize));this.captureFrames++;offset+=this.frameSize;}
       this.pending=combined.slice(offset);
+      if(performance.now()-this.captureObservedAt>=1000){safeObserve(this.onObserve,'audio.capture.progress',{frames:this.captureFrames,input_rate:audio.input_rate});this.captureObservedAt=performance.now();}
     };
     await this.context.resume();
   }
-  play(base64,rate) {
+  play(base64,rate,responseId) {
     const raw=atob(base64),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
     if (!bytes.length || bytes.length%2 || bytes.length>65536) throw new Error('INVALID_AUDIO');
     const buffer=this.context.createBuffer(1,bytes.length/2,rate),channel=buffer.getChannelData(0),view=new DataView(bytes.buffer);
@@ -55,10 +60,14 @@ export class AudioIO {
     const at=Math.max(this.context.currentTime+0.03,this.nextAt ?? 0);
     if(at-this.context.currentTime>3)throw new Error('PLAYBACK_BACKLOG');
     const source=this.context.createBufferSource();source.buffer=buffer;source.connect(this.gain);this.sources.add(source);
-    source.onended=()=>this.sources.delete(source);source.start(at);this.nextAt=at+buffer.duration;
+    source.onended=()=>{if(this.sources.delete(source) && !this.sources.size)safeObserve(this.onObserve,'audio.drained',{response_id:responseId,scheduled_ms:this.context?.currentTime*1000});};source.start(at);this.nextAt=at+buffer.duration;
+    const stats=this.queuedStats.get(responseId)??{duration:0,observedAt:null};stats.duration+=buffer.duration*1000;this.queuedStats.set(responseId,stats);
+    if(stats.observedAt===null || performance.now()-stats.observedAt>=250) {
+      stats.observedAt=performance.now();safeObserve(this.onObserve,'audio.queued',{response_id:responseId,queue_ms:(this.nextAt-this.context.currentTime)*1000,scheduled_ms:at*1000,duration_ms:stats.duration,output_rate:rate,sources:this.sources.size});
+    }
   }
-  mute(value) {if(this.gain)this.gain.gain.value=value?0:1;}
-  stopPlayback() {for(const source of this.sources){try{source.stop();}catch{}}this.sources.clear();this.nextAt=0;}
+  mute(value) {if(this.gain)this.gain.gain.value=value?0:1;safeObserve(this.onObserve,'audio.muted',{muted:value});}
+  stopPlayback() {if(this.sources.size)safeObserve(this.onObserve,'audio.stopped',{sources:this.sources.size,queue_ms:Math.max(0,(this.nextAt-(this.context?.currentTime??0))*1000)});for(const source of this.sources){try{source.stop();}catch{}}this.sources.clear();this.queuedStats.clear();this.nextAt=0;}
   async close() {
     this.generation++;this.stopPlayback();this.capture?.disconnect();this.input?.disconnect();this.stream?.getTracks().forEach(t=>t.stop());
     this.pending=new Uint8Array(0);const context=this.context;this.context=null;if(context && context.state!=='closed')await context.close();
