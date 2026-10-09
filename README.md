@@ -35,6 +35,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 
 ### 文档入口
 
+- [Ask Kai Agent 产品需求 v1.1](docs/prd/ask-kai-agent-prd-v1.1.md)
 - [独立 POC 启动、mock 合同与范围](docs/standalone-poc.md)
 - [独立 POC 架构决策](docs/adr/0002-standalone-poc.md)
 - [历史工程决策与剩余协议验证](docs/adr/0001-foundation.md)
