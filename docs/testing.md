@@ -3,6 +3,12 @@
 Run `npm ci --ignore-scripts`, `npm run verify` and `npm run replay` on Node
 >=22.18. No provider credentials or network are required. CI runs Node 22 and 24.
 
+`npm run verify:p0` now combines these checks with the 16-case scoped content
+suite and 10 authored negative controls. See [Task 09](p0-regression.md) and its
+runtime/content/manual coverage matrix. Native browser checks remain a separate
+`npm run test:browser` command/CI job. This does not claim the original 58-case
+workbook has been executed or that real content/device acceptance passed.
+
 Current tests cover runtime contract rejection, ready/failed/closed lifecycle,
 duplicate and cross-session events, final-only attempted evidence with provenance,
 wrong-turn and reused reply IDs, interruption with late audio/text/done/ack events,
@@ -30,6 +36,13 @@ Chromium also exercises real DOM cards, pinyin/English/counts, optional review,
 unsupported goals, missing receipts, literal HTML-like text, mobile/desktop
 layout and the actual WebSocket End/new-start path. These summaries are authored
 synthetic data; provider readiness is withheld and does not open the microphone.
+
+Task 09 adds 12 focused evaluator regressions: high-score surface violations,
+all semantic failure gates, uncertain/partial review, safety/handoff preservation,
+N/A/applicability rejection, missing coverage, privacy/revision validation before
+Judge calls, full multi-turn audits, metadata-only reports, copied observations,
+structured P0 LangChain contract and CLI failure exits. Semantic negative labels
+are authored expectations, not a live Judge result. All 199 Node tests pass.
 
 Protocol-probe tests additionally cover profile/credential preflight, real Node
 WebSocket headers against a loopback peer, historical readiness versus active

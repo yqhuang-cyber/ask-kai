@@ -2,7 +2,7 @@
 
 这是一个独立运行的 Web POC，面向 HSK 1 初学者提供实时中文对话。身份、课程和偏好沿用 HSKai 接口边界，由本仓库的本地 mock 服务提供；无需对接 `wohuipteltd/HSKai`。学生可以自由聊天、围绕主题练习，或在完成 Mission 后继续对话。Kai 的语音由豆包实时全双工模型生成；Ask Kai 服务负责教学目标、会话状态、个性化、安全策略和学习证据。
 
-> **当前状态：独立 POC 的本地业务链路已可运行。** 基础工程第 1–7 步及当前体验 P0 的 Task 01–08 已实现；Task 09–10 尚待实施／验收，详见下方进度表。身份、Mission 和偏好由本地 mock 提供；真实对话仍需豆包密钥与已核验的协议配置。工程测试通过不代表真实语音体验已验收。
+> **当前状态：独立 POC 的本地业务链路已可运行。** 基础工程第 1–7 步及当前体验 P0 的 Task 01–09 已完成工程实现；Task 10 真实语音／设备验收和真实内容观察仍待完成，详见下方进度表。身份、Mission 和偏好由本地 mock 提供；真实对话仍需豆包密钥与已核验的协议配置。工程测试通过不代表真实语音体验已验收。
 
 ## 本地运行
 
@@ -52,6 +52,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [当前体验 P0：Task 06 按播放进度渐进的短语字幕](docs/progressive-captions.md)
 - [当前体验 P0：Task 07 有来源的会话结构化总结数据](docs/session-summary.md)
 - [当前体验 P0：Task 08 Web 本轮小结、表达卡片与可再练项](docs/web-summary-cards.md)
+- [当前体验 P0：Task 09 用例矩阵、内容审核、负向对照与 CI](docs/p0-regression.md)
 - [全双工协议核对与连接探针](docs/protocol/duplex-spike.md)
 - [Seeduplex 官方 PDF／Demo 映射与接入步骤](docs/protocol/seeduplex-integration.md)
 - [Web 音频、网关和打断验收](docs/web-realtime.md)
@@ -59,11 +60,24 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [HSKai 接口边界与本地 mock 合同](docs/hskai-bridge.md)
 - [安全、隐私、评测与发布门槛实现](docs/release-and-eval.md)
 
-本地测试需要完成豆包连接探针、事件时序和语音验收；后续从 Task 09 的 P0 回归与内容评测继续。Seeduplex 专用模板为 `docs/protocol/seeduplex-profile.template.json`；通用配置式适配器仍兼容已有审核配置。两者仅实现 JSON/base64 PCM，不把内部事件名当成供应商协议。合成回放通过不能证明真实语音、取消／更新确认或字幕体验。
+Task 09 的独立 P0 回归与内容评测工具已接入；下一步是 Task 10 的豆包连接探针、真实内容观察、事件时序和语音／设备验收。Seeduplex 专用模板为 `docs/protocol/seeduplex-profile.template.json`；通用配置式适配器仍兼容已有审核配置。两者仅实现 JSON/base64 PCM，不把内部事件名当成供应商协议。合成回放通过不能证明真实语音、取消／更新确认或字幕体验。
 
 `npm run probe:preflight` 可以检查第 2 步配置，不发网络请求。真实探针需要先根据完整官方 API 核对协议配置，并在服务端配置测试密钥；提交的模板保持未核验状态，`npm run probe:live` 默认会拒绝连接。详见上方协议说明。探针与 Web 会话接口隔离，现有回放页面继续使用合成数据。
 
 `npm run eval:demo` 只展示评分计算；`npm run eval:content -- cases.json judgements.json` 评分经批准的观测，`--live-judge` 可显式调用配置好的 LangChain Judge。`npm run release:status` 列出缺口，`npm run release:check` 在缺少真实验收时退出失败。Chromium 安装后，`npm run test:browser` 使用测试音源检查原生音频 API 与页面；不能替代真实供应商／真机验收。
+
+### 当前 P0 回归与内容评测（Task 09）
+
+```bash
+npm run verify:p0
+npm run test:browser
+```
+
+`verify:p0` 执行全部 Node 检查、三个合成回放，以及 16 个覆盖三个入口的内容样例和 10 个负向对照。检查矩阵只覆盖本轮 P0：语速、插话／等待、短回复、中英顺序、自然教学、渐进字幕和总结；真人噪声、回声与听感仍单独观察。它不是原始 58 条工作簿的验收结果。
+
+内容评测保留十维评分，并单独检查中英顺序、共享长度、翻译对应、单点教学、一个主要问题／任务、尊重选择、减少支架、澄清上限和学习结论。明确失败不能被高平均分抵消，不确定项需审核，缺少规定场景标为覆盖不完整。合成语义标签只验证评分门槛，不证明 Judge 或豆包的真实表现。
+
+真实完整回复可按 [Task 09 输入与人工评分模板](docs/p0-regression.md) 评测；人工评分不需要额外 API Key，可选 LangChain Judge 仅显式调用。Web 诊断导出只有元数据，不会自动收集逐字稿、录音或上传 Langfuse。评测独立于实时语音链路，仍不在每轮生成前串行调用第二个规划模型。真实模型内容和设备体验尚待实际观察与验收。
 
 ## 1. 产品目标与首期边界
 
@@ -140,7 +154,7 @@ flowchart TB
 
 ### 当前实现：三个入口的技术时序
 
-以下时序对应 **Task 01–08 的当前代码**，展示语音配置已核验时的正常路径。`Web` 包含学生操作、采音、播放、字幕与总结卡；`网关` 包含 BFF、HSKai Bridge、会话状态、安全检查和输出等待；`Agent Core` 是网关进程内的教学逻辑；`语音链路` 合并表示 Doubao Adapter 与豆包全双工服务。`mock HSKai` 是本仓库启动的本地 HTTP 服务。五条泳道表示责任边界，不代表五个独立部署服务。
+以下时序对应 **Task 01–09 的当前代码**，展示语音配置已核验时的正常路径。`Web` 包含学生操作、采音、播放、字幕与总结卡；`网关` 包含 BFF、HSKai Bridge、会话状态、安全检查和输出等待；`Agent Core` 是网关进程内的教学逻辑；`语音链路` 合并表示 Doubao Adapter 与豆包全双工服务。`mock HSKai` 是本仓库启动的本地 HTTP 服务。五条泳道表示责任边界，不代表五个独立部署服务。
 
 页面初始化时先读取 `/api/runtime` 和语速能力；mock 模式下，每次受保护请求之前，`authorizedFetch` 都先调用 `/api/poc/launch` 刷新签名授权。`/api/bootstrap` 从已验证的签名身份取出示例 Mission，`/api/memory` 读取授权偏好。三种入口开聊时都会重新刷新授权，服务端读取最新偏好、消费启动 nonce，再签发一次性 WebSocket 票据。浏览器只传入口、允许的语速和 Mission ID，不提供可信课程内容或学习者身份。
 
@@ -433,10 +447,10 @@ flowchart TB
 | 06 | 与播放进度近似对齐的渐进字幕，保留中英顺序 | 工程已实现：短语缓冲、PCM 时钟、打断清理、文字降级、字号与强调；真实同步体验待验收 |
 | 07 | 会话内结构化总结数据 | 工程已实现：三个入口、目标文本／尝试来源、可再练项、空数据与异常状态；规则范围内的数据真实性待真实评测 |
 | 08 | Web 总结卡片 | 工程已实现：中英小结、表达／拼音／英文、尝试次数、一个自愿再练项；空／部分／不可用状态及会话隔离；真实内容待验收 |
-| 09 | P0 回归与内容评测 | 待实施 |
+| 09 | P0 回归与内容评测 | 工程已实现：覆盖矩阵、16 个跨入口内容场景、10 个负向对照、逐项失败／待审核门槛、可选 Judge 与 CI；真实内容运行待验收 |
 | 10 | 真实语音／设备验收与修正 | 待实施 |
 
-独立 mock 支持与 Task 01–08 已完成工程实现。后续任务继续使用本地 mock 业务服务；真实听说使用配置好的豆包。完整状态见 [实施计划](docs/implementation-plan.md)。
+独立 mock 支持与 Task 01–09 已完成工程实现。后续任务继续使用本地 mock 业务服务；真实听说使用配置好的豆包。完整状态见 [实施计划](docs/implementation-plan.md)。
 
 ### 后续产品化设计参考
 
@@ -557,7 +571,7 @@ docs/
   test-fixtures/           # 脱敏、合成的事件样本
 ~~~
 
-后续按当前 Task 09–10 的顺序实施，每项在 main 上单独校验、提交并 push；进度以 [实施计划](docs/implementation-plan.md) 为准。
+下一步实施 Task 10，使用本地真实语音和设备观察，并用 Task 09 工具复核内容；每项在 main 上单独校验、提交并 push；进度以 [实施计划](docs/implementation-plan.md) 为准。
 
 PRD v1.1 已归档到 [产品需求文档](docs/prd/ask-kai-agent-prd-v1.1.md)。技术 ERD v1.0、测试与 Evaluation v1.0 及配套用例工作簿也是本路线图的设计依据，其源文件仍待归档。实施时在每个 Issue / PR 关联需求与测试 ID。
 

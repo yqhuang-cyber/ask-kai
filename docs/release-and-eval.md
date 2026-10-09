@@ -81,7 +81,10 @@ for human_review_evidence. Reports contain scores/versions, not source dialogue.
 The kai-content-v2 rubric uses the [Task 04 shared bilingual budget](short-replies.md)
 and counts translated questions once. Surface language-order/length flags are
 reported separately. Translation equivalence, task intent and teaching density
-require semantic/human review; full P0 regression remains Task 09.
+require semantic/human review. [Task 09](p0-regression.md) now adds a separate
+scoped POC P0 runner with fixed content criteria, surface failure gates and
+coverage/review blocking. Its authored controls test scoring behavior, not real
+model quality; the original full-PRD workbook remains a separate release gate.
 
 Optional `npm run eval:content -- cases.json --live-judge` uses the pinned LangChain
 Runnable/ChatOpenAI structured Judge. Configure EVAL_JUDGE_BASE_URL (HTTPS),

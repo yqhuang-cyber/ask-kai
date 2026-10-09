@@ -17,8 +17,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts
-      - run: npm run verify
-      - run: npm run replay
+      - run: npm run verify:p0
       - run: npm run probe:preflight
       - run: npm run eval:demo
       - run: npm run release:status
