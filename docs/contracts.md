@@ -38,6 +38,14 @@ on the configured Doubao path. output.stop targets one reply; client controls
 are session.end and response.cancel. Teaching/context/safety packets are explicit
 separate types. No synthetic replay route activates microphone capture.
 
+Task 05 adds `teaching_policy_version` and a copied `decision` to teaching-state
+views. The decision is sourced to a validated final student event and represents
+an advisory action, not delivered teaching or learning evidence. Opt-in
+`teaching.decision` / `teaching.response` diagnostics report metadata and the
+ACK/source-turn snapshot at an accepted response-start notice. Context ACKs and
+local decisions are separate; later ACKs never rewrite earlier response metadata.
+See [natural teaching](natural-teaching.md) for field semantics and limitations.
+
 This SSE contract is diagnostic and is not the learner-facing UI protocol. A
 synthetic session.ready event must never be interpreted as real connectivity.
 Client disconnect stops the fixture generator. Reconnect starts a new replay;

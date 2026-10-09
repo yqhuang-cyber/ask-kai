@@ -41,7 +41,7 @@ Examples:
 - `可以说：我喜欢足球。 You can say: I like football.`
 
 The full persona's word-by-word target-sentence breakdown remains P1 under the
-agreed scope. Task 05 adds natural teaching decisions; Task 06 handles playback
+agreed scope. [Task 05](natural-teaching.md) now adds natural teaching decisions; Task 06 handles playback
 and bilingual captions; Tasks 09/10 expand regression and real acceptance.
 
 ## Metadata and evaluation

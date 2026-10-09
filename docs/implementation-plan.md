@@ -10,7 +10,8 @@ See [standalone POC](standalone-poc.md) and [ADR 0002](adr/0002-standalone-poc.m
 Tasks 05–10 use this backend; real voice still requires the local Doubao key
 and a reviewed supplier profile. Mock safety/privacy records are not real
 human delivery or vendor deletion evidence. This support task is separate
-from Task 05, which remains pending.
+from Task 05, whose engineering rules are now implemented; real teaching quality
+is still pending acceptance.
 
 ## Current P0: conversation experience (2026-10-09)
 
@@ -31,7 +32,7 @@ Existing authorization and safety invariants remain in force.
 | 02 | Speech speed configuration and slow mode | Engineering implemented: slow default, normal option, session-isolated native speed and diagnostics. Real listening calibration pending. See [speech pace](speech-pace.md) |
 | 03 | Turn-taking and false interruption fixes | Engineering implemented: ASR text confirmation, owner-bound output wait, serialized controls and duplicate/obsolete cancel handling. Real pause/echo/noise calibration pending. See [turn taking](turn-taking.md) |
 | 04 | Short reply and teaching-density budgets; Chinese first, corresponding English next | Engineering implemented: versioned bilingual/density policy, shared budgets, metadata audits and scoring criteria. Real model compliance/listening pending. See [short replies](short-replies.md) |
-| 05 | Natural teaching decisions | Pending |
+| 05 | Natural teaching decisions | Engineering implemented: single-goal/action selection, refusal/topic pause, clarification limit, teaching cooldown and sourced ACK snapshots. Real semantics/model teaching quality pending. See [natural teaching](natural-teaching.md) |
 | 06 | Playback-aware progressive subtitles, preserving Chinese/English order | Pending |
 | 07 | Per-session structured summary data | Pending |
 | 08 | Web summary cards | Pending |

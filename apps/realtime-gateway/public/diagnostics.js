@@ -13,6 +13,10 @@ names.add('backend.config');enums.business_source=['mock_hskai','external_hskai'
 for(const key of ['chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs'])numeric.add(key);
 for(const key of ['audit_complete','audit_truncated','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'])boolean.add(key);
 enums.reply_policy_version=['kai-reply-v1'];
+names.add('teaching.decision');names.add('teaching.response');
+for(const key of ['applied_context_version','decision_context_version','new_points','turn_count','teaching_cooldown'])numeric.add(key);
+for(const key of ['decision_context_matched','goal_attempt_observed','teaching_paused','clarification_pending'])boolean.add(key);
+Object.assign(enums,{teaching_policy_version:['kai-teaching-v1'],action:['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE'],decision_reason:['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first'],mode:['sports','mission','free'],interaction:['chat','teach'],support_level:['none','choice','model']});
 export function metadata(fields={}) {
   const out={};
   if(!fields || typeof fields!=='object' || Array.isArray(fields))return out;
@@ -60,6 +64,7 @@ export class ExperienceTrace {
         if(row.name==='response.released')reply.presentation_hold_ms=row.held_ms;
         if(row.name==='response.first_text')reply.first_text_ms=row.elapsed_ms;
         if(row.name==='response.first_audio')reply.first_audio_ms=row.elapsed_ms;
+        if(row.name==='teaching.response')reply.teaching_context=Object.fromEntries(Object.entries(row).filter(([key])=>['applied_context_version','decision_context_version','decision_context_matched','pending_context'].includes(key)));
         if(row.name==='reply.audit')reply.reply_audit=Object.fromEntries(Object.entries(row).filter(([key])=>['reply_policy_version','audit_complete','audit_truncated','chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'].includes(key)));
       }
     }

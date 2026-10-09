@@ -11,6 +11,12 @@ HTTP/SSE end-to-end projections, WebSocket rejection and cross-site/Host checks.
 All committed dialogue is authored/synthetic. WebSocket tests additionally contain
 generated PCM bytes; browser checks use a Chromium synthetic microphone device.
 
+Task 05 adds focused [natural teaching](natural-teaching.md) regressions for
+single-goal selection, zero-point ordinary chat, one-time invitations, final-turn
+cooldown, refusal/topic pause, clarification limits, quoted controls, direct
+attempts, privacy and response/ACK snapshot races. Synthetic provider checks
+verify policy transport, not semantic accuracy or real audible teaching.
+
 Protocol-probe tests additionally cover profile/credential preflight, real Node
 WebSocket headers against a loopback peer, historical readiness versus active
 connection state, payload-value masking, within-run identity aliases, malformed

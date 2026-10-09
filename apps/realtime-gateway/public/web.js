@@ -50,7 +50,7 @@ function learning(packet) {
 function selectMode(button) {
   mode=button.dataset.mode;
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
-  goal.textContent=mode==='sports'?'用「我喜欢……」说说喜欢的运动。':mode==='mission'?mission.targets.join('、'):'从感兴趣的话题开始，用中文表达自己。';
+  goal.textContent=mode==='sports'?'用「我喜欢……」说说喜欢的运动。':mode==='mission'?mission.targets[0]:'从感兴趣的话题开始，用中文表达自己。';
   promptTitle.textContent=mode==='sports'?'你喜欢什么运动？':mode==='mission'?mission.title:'今天想聊什么？';
   promptHint.textContent=mode==='sports'?'可以从「我喜欢足球」开始。':'可以从一句简单的中文开始。';
 }

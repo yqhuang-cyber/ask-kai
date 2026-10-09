@@ -8,10 +8,21 @@ or task, at most one new teaching point/example, AI identity honesty, student to
 choice and no mastery claims. See [Task 04 policy](short-replies.md).
 These are model instructions; compliance still requires content evaluation.
 
-Server stages advance from warmup to conversation and then practice. Only a
+Task 05 adds the `kai-teaching-v1` rule selector: one main action per validated
+final student turn, a two-turn teaching cooldown, one clarification before
+waiting, and goal suspension after refusal/topic change. Sports and the sample
+Mission share a single main likes-expression goal; free chat has no forced
+sports target. New-topic expression help does not resume the original goal.
+See [natural teaching decisions](natural-teaching.md) for rules and limitations.
+
+Server stages advance from warmup to conversation and then practice, with a
+separate closing recommendation and independent paused/clarification state. Only a
 validated final student event can add an attempted expression with session, turn,
 source event, lesson/rule version and available scaffold provenance. Partials,
 teacher text, duplicate final turns and free-chat keywords cannot award progress.
+The conservative `sports-expression-attempt-v2` excludes quoted/third-person,
+negated and questioned examples. Mission/free evidence is still Task 07;
+choosing a teaching action never creates a learning fact.
 No raw transcript is included in stored evidence; no pronunciation score exists.
 The browser shows current attempts and a summary when ending normally.
 
@@ -20,6 +31,9 @@ are sent at response boundaries and require the exact reviewed version ACK.
 An ACK timeout closes the session. The first response after a student final may
 still use the previous context; the design avoids a second model on the fast path.
 Context application is reported separately from local teaching state.
+ACK snapshots retain their own source decision; a later ACK cannot rewrite the
+metadata captured when an earlier response-start notice was received. Matching
+source turns and ACKs does not prove model compliance or audible delivery.
 
 Local WebSocket/teaching tests validate ownership and rules, not model teaching
 quality, short-pause handling or true speech. Real multi-turn account evaluation

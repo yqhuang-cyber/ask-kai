@@ -42,7 +42,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       let lastResponse = null;
       const pendingCancel = new Map();
       const speechCandidates=new Map();
-      let appliedVersion=1,pendingContext=null;
+      let appliedVersion=1,appliedDecision=null,pendingContext=null;
       let diagnostics=false;
       const replyStats=new Map();
       const diagnose=(name,fields={})=>{
@@ -90,8 +90,9 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       const flushContext = () => {
         if(ended || !ready || runtime.active || pendingCancel.size || pendingContext || appliedVersion===teaching.version)return;
         const version=teaching.version;
-        diagnose('context.requested',{context_version:version});
-        pendingContext={version,timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
+        const decision=teaching.view().decision;
+        diagnose('context.requested',{context_version:version,turn_id:decision?.turn_id});
+        pendingContext={version,decision,timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
         try{provider.updateContext({version,instructions:teaching.instructions()});}catch{finish('PROVIDER_CONTEXT_FAILED');}
       };
       const cancelSent=id=> {
@@ -187,7 +188,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           }
           if (packet.control==='user.speech.started') {diagnose('user.speech.started',{turn_id:packet.turn_id,source:'provider_speech_start',active:!!runtime.active});if(ready)interrupt(undefined,'provider_speech_start');return;}
           if(packet.control==='context.updated') {
-            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;pendingContext=null;diagnose('context.applied',{context_version:appliedVersion});send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
+            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;appliedDecision=pendingContext.decision;pendingContext=null;diagnose('context.applied',{context_version:appliedVersion,turn_id:appliedDecision?.turn_id});send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
             return;
           }
           if (!packet.event) return;
@@ -205,6 +206,10 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           if(event.type==='response.started') {
             replyStats.set(event.response_id,{at:performance.now(),turn:event.turn_id,chars:0,deltas:0,chunks:0,pcmMs:0,audit:diagnostics?new ReplyAudit():null});
             diagnose('response.started',{...ids,pending_context:!!pendingContext,pending_cancel:pendingCancel.size>0});
+            // Snapshot at the first accepted response-start notification, which
+            // can arrive after generation began. This proves ACK/turn matching,
+            // not model compliance or that already generated audio used it.
+            diagnose('teaching.response',{...ids,applied_context_version:appliedVersion,decision_context_version:appliedDecision?.context_version,decision_context_matched:appliedDecision?.turn_id===event.turn_id,pending_context:!!pendingContext});
           }
           if(['user.partial','user.final'].includes(event.type))diagnose(event.type,{...ids,chars:Array.from(event.payload.text).length});
           const stats=replyStats.get(event.response_id);
@@ -241,7 +246,11 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             }
           }
           if (packet.event.type==='response.cancelled') {clearTimeout(pendingCancel.get(packet.event.response_id)?.timer);pendingCancel.delete(packet.event.response_id);}
-          if(teaching.accept(packet.event))send({type:'teaching.state',...teaching.view()});
+          if(teaching.accept(packet.event)) {
+            const view=teaching.view(),decision=view.decision;
+            diagnose('teaching.decision',{turn_id:decision.turn_id,context_version:decision.context_version,teaching_policy_version:decision.policy_version,mode:decision.mode,action:decision.action,decision_reason:decision.reason,interaction:decision.interaction,support_level:decision.support_level,new_points:decision.new_points,turn_count:decision.turn_count,goal_attempt_observed:decision.goal_attempt_observed,teaching_paused:decision.teaching_paused,clarification_pending:decision.clarification_pending,teaching_cooldown:decision.teaching_cooldown});
+            send({type:'teaching.state',...view});
+          }
           const projected={type:'event',event:packet.event,audio:packet.audio,sample_rate:packet.sample_rate,provider_connected:ready && providerKind==='doubao',synthetic:providerKind!=='doubao'};
           if(outputGate && ['response.started','response.text.delta','response.audio.chunk','response.done'].includes(event.type))outputGate.push(projected);else send(projected);
           if(['response.done','response.cancelled'].includes(packet.event.type))flushContext();
