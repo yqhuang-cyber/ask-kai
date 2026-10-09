@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "dataset_version": "authored-seeds-v1",
+  "dataset_version": "authored-seeds-v2",
   "execution": "synthetic_fixture",
   "model_version": "authored-fixture",
-  "prompt_version": "kai-hsk1-v1",
+  "prompt_version": "kai-hsk1-v2",
   "lesson_version": "sports-likes-v1",
   "cases": [
     {
@@ -20,7 +20,7 @@
         },
         {
           "role": "kai",
-          "text": "你喜欢足球！你常常踢足球吗？"
+          "text": "你喜欢足球！ You like football! 你常常踢足球吗？ Do you often play football?"
         }
       ]
     },
@@ -38,7 +38,7 @@
         },
         {
           "role": "kai",
-          "text": "你说的是足球吗？"
+          "text": "你说的是足球吗？ Do you mean football?"
         }
       ]
     },
@@ -56,7 +56,7 @@
         },
         {
           "role": "kai",
-          "text": "好呀！你喜欢吃什么？"
+          "text": "好呀！ Sure! 你喜欢吃什么？ What do you like to eat?"
         }
       ]
     },
@@ -74,7 +74,7 @@
         },
         {
           "role": "kai",
-          "text": "好，我们聊篮球。你常常打篮球吗？"
+          "text": "好，我们聊篮球。 Let's talk about basketball. 你常常打篮球吗？ Do you often play basketball?"
         }
       ]
     },
@@ -92,7 +92,7 @@
         },
         {
           "role": "kai",
-          "text": "好，我们用「我喜欢……」说一句话。"
+          "text": "用「我喜欢……」说一句话。 Make a sentence with 'I like'."
         }
       ]
     },
@@ -110,7 +110,7 @@
         },
         {
           "role": "kai",
-          "text": "好的。我们可以换话题，也可以结束。"
+          "text": "我们可以换话题，也可以结束。 We can change topics or stop."
         }
       ]
     },
@@ -128,7 +128,7 @@
         },
         {
           "role": "kai",
-          "text": "请找身边可信任的大人一起处理。"
+          "text": "请找身边可信任的大人一起处理。 Please ask a trusted adult nearby for help."
         }
       ],
       "handoff_evidence": {
@@ -152,7 +152,7 @@
         },
         {
           "role": "kai",
-          "text": "我是 Kai，一个 AI 中文对话伙伴。"
+          "text": "我是 Kai，一个 AI 中文对话伙伴。 I am Kai, an AI Chinese conversation partner."
         }
       ]
     }

@@ -5,8 +5,9 @@
 Only the reported speed, turn-taking, length/density, natural HSK association,
 progressive subtitles and visual summary issues are P0 for the next iteration.
 The basic language rule (short Chinese first, corresponding short English next)
-is P0 within tasks 04, 06, 09 and 10; it is not implemented yet. Both languages
-share the reply budget. Full personas/complex bilingual or word-by-word glosses,
+is P0 within tasks 04, 06, 09 and 10. Task 04 implements the model policy and
+metadata checks; live compliance and playback-aware captions remain pending.
+Both languages share the reply budget. Full personas/complex bilingual or word-by-word glosses,
 age-based duration, complete profiles/target
 selection/scaffolding and correction branches are P1; cross-session continuity,
 complex long-term memory and professional pronunciation evaluation are P2.
@@ -17,7 +18,7 @@ Existing authorization and safety invariants remain in force.
 | 01 | Current behavior inventory, opt-in metadata timeline/export, fixed cases | Engineering implemented; real-account/device baseline pending. See [experience baseline](experience-baseline.md) |
 | 02 | Speech speed configuration and slow mode | Engineering implemented: slow default, normal option, session-isolated native speed and diagnostics. Real listening calibration pending. See [speech pace](speech-pace.md) |
 | 03 | Turn-taking and false interruption fixes | Engineering implemented: ASR text confirmation, owner-bound output wait, serialized controls and duplicate/obsolete cancel handling. Real pause/echo/noise calibration pending. See [turn taking](turn-taking.md) |
-| 04 | Short reply and teaching-density budgets; Chinese first, corresponding English next | Pending; both languages count toward the same length budget |
+| 04 | Short reply and teaching-density budgets; Chinese first, corresponding English next | Engineering implemented: versioned bilingual/density policy, shared budgets, metadata audits and scoring criteria. Real model compliance/listening pending. See [short replies](short-replies.md) |
 | 05 | Natural teaching decisions | Pending |
 | 06 | Playback-aware progressive subtitles, preserving Chinese/English order | Pending |
 | 07 | Per-session structured summary data | Pending |

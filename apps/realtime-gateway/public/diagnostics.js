@@ -8,6 +8,10 @@ for(const key of ['grace_ms','turn_wait_ms','held_ms'])numeric.add(key);
 boolean.add('final_received');
 enums.source.push('asr_start','asr_confirmed');enums.reason.push('duplicate','completed','replaced','stopped');
 enums.code.push('TURN_LIMIT','TURN_FINAL_TIMEOUT','OUTPUT_HOLD_LIMIT');
+names.add('reply.audit');
+for(const key of ['chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs'])numeric.add(key);
+for(const key of ['audit_complete','audit_truncated','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'])boolean.add(key);
+enums.reply_policy_version=['kai-reply-v1'];
 export function metadata(fields={}) {
   const out={};
   if(!fields || typeof fields!=='object' || Array.isArray(fields))return out;
@@ -54,6 +58,7 @@ export class ExperienceTrace {
         if(row.name==='response.released')reply.presentation_hold_ms=row.held_ms;
         if(row.name==='response.first_text')reply.first_text_ms=row.elapsed_ms;
         if(row.name==='response.first_audio')reply.first_audio_ms=row.elapsed_ms;
+        if(row.name==='reply.audit')reply.reply_audit=Object.fromEntries(Object.entries(row).filter(([key])=>['reply_policy_version','audit_complete','audit_truncated','chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'].includes(key)));
       }
     }
     return {version:1,kind:this.kind,provider_ready_observed:this.providerReady,real_experience_accepted:false,case_id:/^E0[1-9]$/.test(caseId)?caseId:'unselected',operator_outcome:['not_run','pass','fail','uncertain'].includes(outcome)?outcome:'not_run',contains_text:false,contains_audio:false,clock_policy:'browser and gateway have independent monotonic origins; compare intervals within one clock only',truncated:this.discarded>0,discarded_rows:this.discarded,summary:{responses:[...responses.values()],interruptions_by_source:interruptions,max_audio_queue_ms:maxQueue,max_caption_pending_chars:maxPending,gateway_dropped_events:this.rows.filter(r=>r.name==='event.dropped').length},timeline:this.rows.map(r=>({...r}))};

@@ -4,7 +4,7 @@
 
 ## Task 01 时的代码基线
 
-下表保留 Task 01 起点，便于前后对比。Task 02 已增加默认慢速和正常档，详见 [语速实现与试听](speech-pace.md)；Task 03 已增加 [话轮等待、文本确认与控制串行化](turn-taking.md)。真实体验基线仍待本地测试。
+下表保留 Task 01 起点，便于前后对比。Task 02 已增加默认慢速和正常档，详见 [语速实现与试听](speech-pace.md)；Task 03 已增加 [话轮等待、文本确认与控制串行化](turn-taking.md)；Task 04 已增加 [短回复、教学密度与中英顺序策略](short-replies.md)。真实体验基线仍待本地测试。
 
 | 项目 | 当前行为 | 边界／后续 Task |
 | --- | --- | --- |
@@ -66,6 +66,7 @@ Web 与测试共用 `apps/realtime-gateway/public/experience-cases.json`。
 | `speech.candidate / confirmed`（Task 03） | ASR 首字候选与本地文本确认；不是实际 VAD 起点，也不能证明说话来自学生而非回声 |
 | `response.held / released / hold.discarded`（Task 03） | 本地呈现等待／释放／丢弃，held_ms 是网关等待，不是人耳听到的延迟 |
 | `cancel.sent / skipped / ignored`（Task 03） | 实际派发、完成／替换后跳过、重复请求；ACK 时间改为实际派发到 ACK，不含排队；skipped 不是供应商确认 |
+| `reply.audit`（Task 04） | 中英共享长度、句对及问题计数、完整性与表面顺序提示；打断／缺失／截断文本不判顺序违规，翻译与密度仍需语义审核；不含文本 |
 
 浏览器与网关 at_ms 各自从自己的起点计时，只能在同一 clock 内求间隔，不能跨 clock 相减计算网络或真实插话延迟。WebAudio scheduled_ms 也不能与事件时间相减。导出将回复／话轮 ID 映射为 r1、t1 等，跨 clock 用同一匿名引用关联，不导出原始 ID。
 

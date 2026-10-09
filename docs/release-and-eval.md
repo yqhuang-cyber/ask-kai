@@ -58,7 +58,8 @@ heartbeats, ACK timeouts and shutdown cleanup are enforced.
 
 `npm run eval:demo` is an offline scoring demonstration using eight authored
 dialogues and explicitly synthetic example judgements, not a model-quality result.
-It is not the original 58-case workbook or its 53 P0 cases. Its illustrative
+The authored-seeds-v2 examples use short Chinese/English pairs. It is not the
+original 58-case workbook or its 53 P0 cases. Its illustrative
 scores and synthetic handoff evidence cannot pass release acceptance.
 
 `npm run eval:content -- cases.json judgements.json` scores approved observations.
@@ -69,6 +70,10 @@ Critical failures/safety=0 block regardless of average; safety=1 requires human
 review. A Judge saying "handoff delivered" is insufficient: the case needs an
 independently reviewed handoff_evidence record. Model approval cannot substitute
 for human_review_evidence. Reports contain scores/versions, not source dialogue.
+The kai-content-v2 rubric uses the [Task 04 shared bilingual budget](short-replies.md)
+and counts translated questions once. Surface language-order/length flags are
+reported separately. Translation equivalence, task intent and teaching density
+require semantic/human review; full P0 regression remains Task 09.
 
 Optional `npm run eval:content -- cases.json --live-judge` uses the pinned LangChain
 Runnable/ChatOpenAI structured Judge. Configure EVAL_JUDGE_BASE_URL (HTTPS),

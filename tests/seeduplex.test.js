@@ -6,6 +6,7 @@ import WebSocket from 'ws';
 import { SeeduplexProvider, createDoubaoProvider, validateSeeduplexProfile } from '../packages/provider-doubao/seeduplex.js';
 import { createGateway } from '../apps/realtime-gateway/src/server.js';
 import { SessionRuntime } from '../packages/agent-core/session.js';
+import { REPLY_INSTRUCTIONS } from '../packages/agent-core/reply-policy.js';
 import { until } from './helpers/realtime.js';
 const template = JSON.parse(await readFile(new URL('../docs/protocol/seeduplex-profile.template.json',import.meta.url),'utf8'));
 function profile() {
@@ -130,10 +131,12 @@ test('Seeduplex wire events integrate through browser WSS and teaching context A
   assert.equal(res.status,201); const ticket = await res.json();
   const ws = new WebSocket(origin.replace('http:','ws:')+'/api/realtime',['ask-kai.v1',`ticket.${ticket.ticket}`],{origin}), packets = [];
   ws.on('message',b=>packets.push(JSON.parse(b.toString()))); await once(ws,'open');
+  assert.ok(sent.find(e=>e.type==='session.create').session.instructions.includes(REPLY_INSTRUCTIONS));
   wire({type:'session.created',session:{id:'private-session'}});
   wire({type:'conversation.item.input_audio_transcription.completed',item_id:'private-q1',transcript:'我喜欢足球'});
   wire(output('response.output_text.delta',undefined,undefined,{delta:'很好！'})); wire(output('response.done'));
   await until(()=>sent.some(e=>e.type==='session.update'));
+  assert.ok(sent.find(e=>e.type==='session.update').session.instructions.includes(REPLY_INSTRUCTIONS));
   wire({type:'session.updated',session:{id:'private-session'}});
   await until(()=>packets.some(e=>e.type==='teaching.context.applied'));
   assert.equal(packets.filter(e=>e.type==='teaching.state').at(-1).attempts[0].kind,'attempted');

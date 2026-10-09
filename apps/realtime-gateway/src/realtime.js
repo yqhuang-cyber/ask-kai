@@ -7,6 +7,7 @@ import { metadata } from '../public/diagnostics.js';
 import { SEEDUPLEX_PROTOCOL } from '../../../packages/provider-doubao/seeduplex.js';
 import { hasSpeechText } from '../../../packages/agent-core/turn-taking.js';
 import { TurnOutputGate } from './output-gate.js';
+import { ReplyAudit,REPLY_POLICY_VERSION } from '../../../packages/agent-core/reply-policy.js';
 
 export function attachRealtime(server,{providerFactory,providerKind='doubao',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,replyGraceMs=350,turnWaitMs=5000,safeguardingPort,metrics}={}) {
   const tickets = new Map();
@@ -50,6 +51,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
       };
       const completeStats=(id,state)=>{
         const s=replyStats.get(id);if(!s)return;
+        if(s.audit)diagnose('reply.audit',{response_id:id,turn_id:s.turn,state,...s.audit.finish(state)});
         diagnose('response.complete',{response_id:id,turn_id:s.turn,state,text_chars:s.chars,text_deltas:s.deltas,audio_chunks:s.chunks,pcm_duration_ms:s.pcmMs,elapsed_ms:performance.now()-s.at});
         replyStats.delete(id);
       };
@@ -155,7 +157,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
               if(!diagnostics) {
                 diagnostics=true;
                 const output=provider.profile?.session_create?.session?.audio?.output;
-                diagnose('session.config',{synthetic:providerKind!=='doubao',protocol:providerKind!=='doubao'?'synthetic':provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL?SEEDUPLEX_PROTOCOL:'reviewed_mapping',input_rate:provider.audio.input_rate,output_rate:provider.audio.output_rate,frame_ms:provider.audio.frame_ms,speech_pace:provider.speechPace,speech_pace_supported:provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL,output_speed:output?.speed,speed_explicit:Number.isFinite(output?.speed),cancel_timeout_ms:cancelTimeoutMs,context_timeout_ms:contextTimeoutMs,ready_timeout_ms:readyTimeoutMs,grace_ms:outputGate?replyGraceMs:0,turn_wait_ms:outputGate?turnWaitMs:0});
+                diagnose('session.config',{synthetic:providerKind!=='doubao',protocol:providerKind!=='doubao'?'synthetic':provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL?SEEDUPLEX_PROTOCOL:'reviewed_mapping',reply_policy_version:REPLY_POLICY_VERSION,input_rate:provider.audio.input_rate,output_rate:provider.audio.output_rate,frame_ms:provider.audio.frame_ms,speech_pace:provider.speechPace,speech_pace_supported:provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL,output_speed:output?.speed,speed_explicit:Number.isFinite(output?.speed),cancel_timeout_ms:cancelTimeoutMs,context_timeout_ms:contextTimeoutMs,ready_timeout_ms:readyTimeoutMs,grace_ms:outputGate?replyGraceMs:0,turn_wait_ms:outputGate?turnWaitMs:0});
                 if(ready)diagnose('session.ready',{provider_ready:true,elapsed_ms:performance.now()-started});
               }
             }
@@ -199,13 +201,14 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',max
           if (packet.event.type==='response.started'){lastResponse={id:packet.event.response_id,turn:packet.event.turn_id};policy.newResponse();replyAt=performance.now();firstAudio=false;}
           const event=packet.event,ids={response_id:event.response_id,turn_id:event.turn_id};
           if(event.type==='response.started') {
-            replyStats.set(event.response_id,{at:performance.now(),turn:event.turn_id,chars:0,deltas:0,chunks:0,pcmMs:0});
+            replyStats.set(event.response_id,{at:performance.now(),turn:event.turn_id,chars:0,deltas:0,chunks:0,pcmMs:0,audit:diagnostics?new ReplyAudit():null});
             diagnose('response.started',{...ids,pending_context:!!pendingContext,pending_cancel:pendingCancel.size>0});
           }
           if(['user.partial','user.final'].includes(event.type))diagnose(event.type,{...ids,chars:Array.from(event.payload.text).length});
           const stats=replyStats.get(event.response_id);
           if(stats && event.type==='response.text.delta') {
             stats.chars+=Array.from(event.payload.text).length;stats.deltas++;
+            stats.audit?.append(event.payload.text);
             if(stats.deltas===1)diagnose('response.first_text',{...ids,elapsed_ms:performance.now()-stats.at});
           }
           if(stats && event.type==='response.audio.chunk') {
