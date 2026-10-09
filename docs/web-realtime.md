@@ -14,8 +14,17 @@ the AudioContext/provider. HTTPS/localhost is required for microphone access.
 
 Interruption stops client playback immediately without pausing capture. A reviewed
 provider speech-start mapping or manual button cancels the active response. The
-runtime fences late text/audio/done; an old cancellation ACK never clears a new
-reply. Missing ACK closes the connection after 1.5s and asks the user to restart.
+dedicated Seeduplex adapter treats ASR first-character started as a candidate:
+new-turn recognized speech text confirms the captured old reply; punctuation
+and isolated hesitation sounds do not automatically cancel. Same-turn/late
+confirmation never retargets a newer reply. See [Task 03](turn-taking.md).
+An owner-bound output gate waits for a known student's final ASR and a provisional
+350ms continuation window. This is presentation policy, not physical VAD.
+The runtime fences late text/audio/done; an old cancellation ACK never clears a new
+reply. Seeduplex cancel/update controls are serialized while local stop/fencing
+happen immediately. Obsolete queued cancels never target a newer response.
+Missing ACK closes the connection 1.5s after actual wire dispatch and asks the
+user to restart; a queued cancel waiting on context retains the context deadline.
 The browser independently checks reply ownership and reveals text progressively;
 timers/queued text are cleared on interruption/end. Subtitles are paced display,
 not proven phoneme or playback synchronization. No local amplitude-based VAD

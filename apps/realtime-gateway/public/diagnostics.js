@@ -3,6 +3,11 @@ const names=new Set(['session.config','session.ready','session.end','user.speech
 const numeric=new Set(['chars','text_chars','text_deltas','audio_chunks','pcm_duration_ms','elapsed_ms','ack_ms','visible_chars','pending_chars','revealed_chars','queue_ms','scheduled_ms','duration_ms','input_rate','output_rate','frame_ms','caption_interval_ms','cancel_timeout_ms','context_timeout_ms','ready_timeout_ms','frames','sources','context_version']);
 const boolean=new Set(['synthetic','provider_ready','speed_explicit','speech_pace_supported','echo_cancellation','noise_suppression','auto_gain_control','muted','active','pending_cancel','pending_context']);
 const enums={source:['manual','provider_speech_start','safety','session_end','new_response'],reason:['invalid_event','foreign_session','duplicate_event','event_limit','terminal_session','already_ready','session_not_ready','duplicate_final_turn','reused_response','overlapping_response','unexpected_cancel_ack','inactive_response','ownership','unknown'],state:['active','done','cancelled','cancel_pending','closed','failed'],protocol:['seeduplex-1.2.6.1','reviewed_mapping','synthetic'],code:['CANCEL_ACK_TIMEOUT','CONTEXT_ACK_TIMEOUT','PROVIDER_READY_TIMEOUT','PROVIDER_CANCEL_FAILED','PROVIDER_CONTEXT_FAILED','PROVIDER_PROTOCOL_ERROR','CLIENT_BACKPRESSURE','SESSION_DURATION_LIMIT','CLIENT_HEARTBEAT_TIMEOUT','CLIENT_TRANSPORT_ERROR','INVALID_CLIENT_MESSAGE','CONTROL_RATE_LIMIT','PROVIDER_CONFIGURATION_ERROR','AUTHORIZATION_REVOKED','SAFETY_RESTRICTED','other']};
+for(const name of ['speech.candidate','speech.confirmed','response.held','response.released','response.hold.discarded','cancel.sent','cancel.skipped','cancel.ignored'])names.add(name);
+for(const key of ['grace_ms','turn_wait_ms','held_ms'])numeric.add(key);
+boolean.add('final_received');
+enums.source.push('asr_start','asr_confirmed');enums.reason.push('duplicate','completed','replaced','stopped');
+enums.code.push('TURN_LIMIT','TURN_FINAL_TIMEOUT','OUTPUT_HOLD_LIMIT');
 export function metadata(fields={}) {
   const out={};
   if(!fields || typeof fields!=='object' || Array.isArray(fields))return out;
@@ -44,6 +49,9 @@ export class ExperienceTrace {
         if(row.name==='response.complete')Object.assign(reply,{state:row.state,text_chars:row.text_chars,text_deltas:row.text_deltas,audio_chunks:row.audio_chunks,received_pcm_ms:row.pcm_duration_ms,gateway_span_ms:row.elapsed_ms});
         if(row.name==='cancel.ack')reply.cancel_ack_ms=row.ack_ms;
         if(row.name==='cancel.requested')reply.cancel_source=row.source;
+        if(row.name==='cancel.sent')reply.cancel_dispatch_wait_ms=row.elapsed_ms;
+        if(row.name==='cancel.skipped')reply.cancel_skipped_reason=row.reason;
+        if(row.name==='response.released')reply.presentation_hold_ms=row.held_ms;
         if(row.name==='response.first_text')reply.first_text_ms=row.elapsed_ms;
         if(row.name==='response.first_audio')reply.first_audio_ms=row.elapsed_ms;
       }

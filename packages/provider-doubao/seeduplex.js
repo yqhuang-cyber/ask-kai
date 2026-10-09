@@ -36,6 +36,7 @@ export function createDoubaoProvider(options) {
  * All tests use authored synthetic payloads; unsupported/ambiguous ownership fails closed.
  */
 export class SeeduplexProvider extends DoubaoJsonTransport {
+  speechStartKind='asr_candidate';
   constructor(options) {
     validateSeeduplexProfile(options.profile);
     let profile=options.profile;
@@ -48,6 +49,7 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
     this.speechPace=options.speechPace;
     this.wireSeen = new Set(); this.turns = new Map(); this.replies = new Map();
     this.activeReply = null; this.pendingControl = null; this.ready = false;
+    this.queuedCancels=[];this.latestReply=null;
   }
   text(value) {
     if (typeof value !== 'string' || !value.length || value.length > 2000) throw new Error('INVALID_PROVIDER_TEXT');
@@ -71,7 +73,7 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
       if (this.activeReply) throw new Error('OVERLAPPING_PROVIDER_RESPONSE');
       const turn = this.turn(raw.question_id);
       reply = {id,rawId,turn:turn.id,status:'active',text:''};
-      this.replies.set(id,reply); this.activeReply = reply;
+      this.replies.set(id,reply); this.activeReply = reply;this.latestReply=reply;
       this.onEvent({event:this.event('response.started',{},this.replyIds(reply))});
     } else if (raw.question_id !== undefined && this.turn(raw.question_id).id !== reply.turn) throw new Error('FOREIGN_PROVIDER_TURN');
     return reply;
@@ -100,13 +102,15 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
       const pending = this.pendingControl;
       if (!pending || pending.kind !== 'context' || raw.session?.id !== this.rawSessionId || raw.event_id === undefined) throw new Error('UNBOUND_CONTEXT_ACK');
       this.pendingControl = null;
-      return this.onEvent({control:'context.updated',version:pending.version});
+      this.onEvent({control:'context.updated',version:pending.version});
+      return this.drainCancels();
     }
     if (raw.type === 'response.canceled') {
       const pending = this.pendingControl;
       if (!pending || pending.kind !== 'cancel' || raw.event_id === undefined || (raw.response_id !== undefined && raw.response_id !== pending.reply.rawId)) throw new Error('UNBOUND_CANCEL_ACK');
       this.pendingControl = null; pending.reply.status = 'cancelled';
-      return this.emitReply('response.cancelled',pending.reply);
+      this.emitReply('response.cancelled',pending.reply);
+      return this.drainCancels();
     }
     if (raw.type.startsWith('conversation.item.input_audio_transcription.')) {
       if (!['started','delta','completed','failed'].some(s=>raw.type.endsWith(`.${s}`))) return;
@@ -115,7 +119,8 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
       if (raw.type.endsWith('.started')) {
         if (turn.started) return;
         turn.started = true;
-        return this.onEvent({control:'user.speech.started',turn_id:turn.id});
+        // Official started means the first recognized character, not verified VAD onset.
+        return this.onEvent({control:'user.speech.candidate',turn_id:turn.id});
       }
       if (raw.type.endsWith('.failed')) throw new Error('PROVIDER_ASR_FAILED');
       if (raw.type.endsWith('.delta')) {
@@ -127,6 +132,7 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
     }
     if (['response.output_text.delta','response.output_text.done','response.output_audio.started','response.output_audio.delta','response.output_audio.done','response.done'].includes(raw.type)) {
       const reply = this.reply(raw,raw.type !== 'response.done');
+      if(raw.type==='response.done')reply.wireDone=true;
       if (reply.status !== 'active') return; // cancelled/completed IDs cannot reopen
       if (raw.type === 'response.output_text.delta') {
         const text = this.text(raw.delta);
@@ -162,20 +168,39 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
     this.send({type:'input_audio_buffer.append',audio:Buffer.from(bytes).toString('base64')});
   }
   cancel(responseId) {
-    if (this.pendingControl) throw new Error('PROVIDER_CONTROL_PENDING');
     const reply = this.replies.get(responseId);
+    if(reply?.status==='cancel_pending')return 'queued';
     if (!reply || reply.status !== 'active' || this.activeReply !== reply) throw new Error('UNKNOWN_RESPONSE');
-    this.pendingControl = {kind:'cancel',reply}; reply.status = 'cancel_pending'; this.activeReply = null;
-    this.send({type:'response.cancel',event_id:randomUUID()});
+    if(this.queuedCancels.length>=32)throw new Error('PROVIDER_CONTROL_LIMIT');
+    reply.status = 'cancel_pending'; this.activeReply = null;
+    this.queuedCancels.push(reply);this.drainCancels();
+    return this.pendingControl?.kind==='cancel' && this.pendingControl.reply===reply?'sent':'queued';
+  }
+  drainCancels() {
+    if(this.closed || this.pendingControl)return;
+    while(this.queuedCancels.length) {
+      const reply=this.queuedCancels.shift();
+      // Simple response.cancel has no target ID. Never let a queued stop cancel a newer reply.
+      if(reply.wireDone || this.latestReply!==reply) {
+        reply.status='cancelled';reply.text='';
+        this.onEvent({control:'cancel.skipped',response_id:reply.id,turn_id:reply.turn,reason:reply.wireDone?'completed':'replaced'});
+        if(this.closed || this.pendingControl)return;
+        continue;
+      }
+      this.pendingControl={kind:'cancel',reply};
+      this.send({type:'response.cancel',event_id:randomUUID()});
+      this.onEvent({control:'cancel.sent',response_id:reply.id,turn_id:reply.turn});
+      return;
+    }
   }
   updateContext({instructions,version}) {
-    if (!this.ready || this.pendingControl || this.activeReply || typeof instructions !== 'string' || instructions.length > 16000 || !Number.isSafeInteger(version) || version < 1) throw new Error('PROVIDER_CONTROL_PENDING');
+    if (!this.ready || this.pendingControl || this.queuedCancels.length || this.activeReply || typeof instructions !== 'string' || instructions.length > 16000 || !Number.isSafeInteger(version) || version < 1) throw new Error('PROVIDER_CONTROL_PENDING');
     this.pendingControl = {kind:'context',version};
     this.send({type:'session.update',event_id:randomUUID(),session:{id:this.rawSessionId,instructions}});
   }
   close() {
     if (this.closed) return;
     try { if (this.ready) this.send({type:'session.close',event_id:randomUUID()}); } catch {}
-    super.close(); this.turns.clear(); this.replies.clear(); this.wireSeen.clear(); this.pendingControl = null;
+    super.close(); this.turns.clear(); this.replies.clear(); this.wireSeen.clear(); this.pendingControl = null;this.queuedCancels.length=0;this.latestReply=null;
   }
 }

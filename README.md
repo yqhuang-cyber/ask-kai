@@ -29,6 +29,7 @@ npm start
 - [逐步实施与当前进度](docs/implementation-plan.md)
 - [当前体验 P0：Task 01 基线、诊断入口及测试场景](docs/experience-baseline.md)
 - [当前体验 P0：Task 02 慢速默认、Web 语速选择与本地试听](docs/speech-pace.md)
+- [当前体验 P0：Task 03 等待学生、打断确认与取消竞态](docs/turn-taking.md)
 - [全双工协议核对与连接探针](docs/protocol/duplex-spike.md)
 - [Seeduplex 官方 PDF／Demo 映射与接入步骤](docs/protocol/seeduplex-integration.md)
 - [Web 音频、网关和打断验收](docs/web-realtime.md)

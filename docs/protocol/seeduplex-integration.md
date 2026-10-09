@@ -3,8 +3,10 @@
 Reviewed static evidence on 2026-10-04 (Asia/Shanghai): the user-supplied 14-page
 official API PDF and the Go 1.24, Python 3.7 and Web demos linked inside it.
 No demo code was executed, no demo transcripts/keys were copied into this repo,
-and no real supplier call has been made. The separate **接入必读** page could
-not be retrieved; its event-ordering/error-code guidance remains required.
+and no real supplier call has been made. The separate **接入必读** page was
+initially unavailable. Its [current official page](https://docs.volcengine.com/docs/DoubaoVoice/access-mustread?lang=zh)
+was retrieved on 2026-10-09; it describes migration and control events, but does
+not replace actual account validation of ACK ordering and terminal ownership.
 
 ## Source provenance
 
@@ -28,7 +30,7 @@ account's permissions, payload ordering, audio quality, retention or availabilit
 | input `pcm`, 16000 Hz; output `pcm_s16le`, 24000 Hz | Reuse mono 20ms/640-byte browser capture and signed-int16 playback | PDF body p. 2; `config.py` |
 | output `pcm` means **32-bit** PCM | Reject this format instead of misplaying it as int16 | PDF body p. 2 |
 | `session.created`, `session.id` | Normalize readiness only after the event | PDF body p. 10; Go `SessionCreatedEvent` |
-| ASR `started/delta/completed`, `item_id`, `delta`, `transcript` | Speech-start control; accumulate bounded partial text; only final text is evidence | Go `TranscriptionEvent`; Python `main.py` |
+| ASR `started/delta/completed`, `item_id`, `delta`, `transcript` | Candidate on first recognized character; new-turn text confirmation, bounded partial text; only final text is evidence | PDF event table; Go `TranscriptionEvent`; Python `main.py`; Task 03 local policy |
 | text/audio delta `question_id`, `response_id`, `delta` | Alias separate turn/reply namespaces; start reply on first text or audio, not only on audio start | Go `ResponseTextEvent` / `ResponseAudioEvent` |
 | `response.cancel` is type/event_id; `response.canceled` is ACK | One outstanding control; fence cancelled output; ACK attaches only to captured pending reply | PDF body pp. 9, 11; Go `SimpleEvent` / `baseEvent` |
 | `session.update` sends session instructions; `session.updated` ACK exposes session ID | One outstanding update; verify session ID, deduplicate ACK, map to local pending version | PDF body pp. 1, 10; Go `SessionCreatedEvent`; Python client |
@@ -41,9 +43,11 @@ The implemented ACK policy instead requires unique server event IDs and a single
 pending control on an ordered connection. `realtime.ordered_acks_reviewed` must
 be explicitly attested only after reading 接入必读 and approved account testing.
 Duplicate ACK event IDs are ignored; wrong-session, unsolicited and overlapping
-controls fail closed. A new cancellation during a pending context update fails
-and requires restart. This is a deliberate current limitation, not a guarantee
-of seamless interruption in that race.
+controls fail closed. Task 03 now fences/stops locally during a pending update
+and queues the captured cancellation. Only one cancel/update goes over the wire
+at a time. A queued stop is skipped if that reply has already completed or been
+replaced, because simple response.cancel has no target ID; this is not a fake
+cancel ACK. The cancellation timeout starts at actual send. See [Task 03](../turn-taking.md).
 
 `response.done` currently requires a known `response_id`; it does not infer an
 owner for an ID-less terminal message. If the real account omits this ID, capture
