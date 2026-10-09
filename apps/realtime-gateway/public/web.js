@@ -1,6 +1,7 @@
 import { AudioIO } from './audio.js';
 import { Presentation } from './presentation.js';
 import { ExperienceTrace } from './diagnostics.js';
+import { SummaryCards } from './summary-cards.js';
 const diagnosticsEnabled=new URLSearchParams(location.search).get('diagnostics')==='1';
 const trace=diagnosticsEnabled?new ExperienceTrace():null;
 const runtimeReady=fetch('/api/runtime').then(r=>{if(!r.ok)throw new Error('RUNTIME_UNAVAILABLE');return r.json();}).then(runtime=>{
@@ -35,6 +36,7 @@ if(diagnosticsEnabled) {
 const modes=[...document.querySelectorAll('[data-mode]')];
 const goal=document.querySelector('#goal'),promptTitle=document.querySelector('#prompt-title'),promptHint=document.querySelector('#prompt-hint');
 const connect=document.querySelector('#connect'),status=document.querySelector('#connection-status'),message=document.querySelector('#session-message');
+const summaryCards=new SummaryCards({root:document.querySelector('#session-summary'),link:document.querySelector('#summary-jump'),onRestart:()=>connect.click()});
 const mute=document.querySelector('#mute'),end=document.querySelector('#end'),caption=document.querySelector('#caption'),student=document.querySelector('#student-caption');
 const paceSelect=document.querySelector('#speech-pace'),paceHint=document.querySelector('#speech-pace-hint');
 let paceSupported=false;
@@ -55,7 +57,9 @@ function learning(packet) {
   const count=packet.attempt_count??packet.attempts.length;
   document.querySelector('#learning-attempts').textContent=count ? `本轮记录 ${count} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
 }
+function suppressLearning(reason){summaryCards.suppress(reason);goal.textContent='';promptHint.textContent='';document.querySelector('.word-card').hidden=true;document.querySelector('#learning-attempts').textContent='本轮没有可展示的学习记录。';}
 function selectMode(button) {
+  summaryCards.reset();document.querySelector('#learning-attempts').textContent='尚无对话记录。';document.querySelector('.word-card').hidden=button.dataset.mode!=='sports';
   mode=button.dataset.mode;
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
   goal.textContent=mode==='sports'?'用「我喜欢……」说说喜欢的运动。':mode==='mission'?mission.targets[0]:'从感兴趣的话题开始，用中文表达自己。';
@@ -75,6 +79,7 @@ async function loadSpeechPaces() {
 }
 void loadSpeechPaces();
 async function stop(text='对话已结束。') {
+  summaryCards.finish();
   const stopped=++generation;presentation.reset();const previous=ws;ws=null;previous?.close();
   const audio=io;io=null;await audio?.close();
   observe('session.end',{state:'closed'});
@@ -84,6 +89,7 @@ async function stop(text='对话已结束。') {
   muted=false;mute.setAttribute('aria-pressed','false');mute.textContent='静音';
 }
 connect.addEventListener('click',async()=> {
+  summaryCards.reset();
   trace?.reset();diagnosticCase=caseSelect.value;outcomeSelect.value='not_run';refreshDiagnostics();
   const current=++generation;controls(true);status.textContent='检查连接';message.textContent='正在检查实时服务……';
   const selectedPace=paceSupported?paceSelect.value:undefined;
@@ -97,6 +103,7 @@ connect.addEventListener('click',async()=> {
     const response=await authorizedFetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{})}),signal:AbortSignal.timeout(8000)});
     const result=await response.json();if(current!==generation)return;
     if(!response.ok){await stop(response.status===501?'实时语音尚未开通。需完成豆包协议和服务端连接验证。':'会话无法创建，请检查授权或服务容量。');return;}
+    summaryCards.begin(result.session_id,mode);
     config=null;status.textContent='连接中';
     ws=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${result.websocket_path}`,[result.protocol,`ticket.${result.ticket}`]);
     ws.onopen=()=>{if(current===generation && diagnosticsEnabled)ws.send(JSON.stringify({type:'diagnostics.enable'}));};
@@ -106,9 +113,10 @@ connect.addEventListener('click',async()=> {
         const packet=JSON.parse(event.data);
         if(packet.type==='diagnostics.event'){trace?.gateway(packet.row);refreshDiagnostics();return;}
         if(packet.type==='session.config'){config=packet.audio;paceHint.textContent=packet.speech?.supported && ['slow','normal'].includes(packet.speech.pace)?`本次语速：${packet.speech.pace==='slow'?'慢速':'正常'}；结束后可切换。`:'本次使用服务默认语速。';return;}
-        if(packet.type==='teaching.state' || packet.type==='teaching.summary'){learning(packet);return;}
-        if(packet.type==='session.failed'){observe('browser.failed',{code:packet.code});await stop(safetyMessage ?? '实时连接失败，请重试。');return;}
-        if(packet.type==='safety.notice'){safetyMessage=packet.message;message.textContent=safetyMessage;presentation.stop();await io?.close();return;}
+        if(packet.type==='teaching.state'){if(!summaryCards.state.suppressed)learning(packet);return;}
+        if(packet.type==='teaching.summary'){if(summaryCards.accept(packet))learning(packet);return;}
+        if(packet.type==='session.failed'){if(['AUTHORIZATION_REVOKED','SAFETY_RESTRICTED'].includes(packet.code))suppressLearning(packet.code);observe('browser.failed',{code:packet.code});await stop(safetyMessage ?? '实时连接失败，请重试。');return;}
+        if(packet.type==='safety.notice'){suppressLearning('safety');safetyMessage=packet.message;message.textContent=safetyMessage;presentation.stop();await io?.close();return;}
         if(packet.type==='safety.handoff'){safetyMessage+=(packet.mocked?' POC 已记录 mock 安全事件，没有真人接手。':packet.delivered?' 已提交给人工处理队列。':' 人工处理服务暂不可用，请直接联系可信任的大人。');message.textContent=safetyMessage;return;}
         if(packet.type==='session.closed'){await stop();return;}
         if(packet.type==='output.stop'){presentation.stop(packet.response_id);return;}
@@ -167,7 +175,7 @@ document.querySelector('#memory-form').addEventListener('submit',async event=> {
   catch{memoryStatus.textContent='更正未成功，请检查授权或偏好值。';}
 });
 document.querySelector('#memory-delete').addEventListener('click',async()=> {
-  try{const response=await authorizedFetch('/api/memory',{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('DELETE_FAILED');await loadMemory();await stop('偏好已删除，当前对话已结束。');}
+  try{const response=await authorizedFetch('/api/memory',{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('DELETE_FAILED');suppressLearning('authorization');await loadMemory();await stop('偏好已删除，当前对话已结束。');}
   catch{memoryStatus.textContent='删除未成功，请检查授权或服务。';}
 });
 void bootstrap();

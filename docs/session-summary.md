@@ -3,7 +3,8 @@
 2026-10-09. Engineering implemented for all three Web POC entries. Agent Core
 builds a deterministic `kai-summary-v1` snapshot; the authorized session's gateway
 sends it before its terminal message. No second model, database, external HSKai
-service or transcript export is added. Task 08 owns the visible summary cards.
+service or transcript export is added. [Task 08](web-summary-cards.md) now renders
+the visible summary cards.
 Real model/ASR semantics and device listening remain Tasks 09/10.
 
 ## Facts and limits
@@ -91,8 +92,8 @@ Safety restriction and authorization revocation suppress goals, items, refs,
 suggestions and learning counts in both the nested summary and compatibility
 view. Revocation affects only the authorized owner/learner session. If the
 WebSocket is already closed, the gateway cannot deliver a summary; there is no
-invented delivery receipt, HTTP recovery route or durable history. Task 08 must
-show an honest unavailable state when no summary arrives.
+invented delivery receipt, HTTP recovery route or durable history. Task 08 shows
+an honest unavailable state when no valid summary arrives.
 
 Summary data stays in session memory/on the authorized WebSocket. No raw learner
 or model text, audio, personal preferences or owner/learner IDs are added to the
@@ -113,9 +114,10 @@ immutability, failure/readiness timeout, authorization suppression and duplicate
 terminal/reentrant close handling. Three synthetic replays pass. Native Chromium
 regression passes with a synthetic microphone and zero page errors, including
 continuous capture, progressive captions and existing POC controls. Browser
-summary cards are not yet implemented or tested.
+summary cards were outside Task 07; their implementation and verification are
+now recorded in [Task 08](web-summary-cards.md).
 
 Run `npm run verify`, `npm run replay` and `npm run test:browser`. No real Doubao,
-actual learner transcript/audio, live Judge or external HSKai was used. Next:
-Task 08 renders these fields as short Web summary cards; Tasks 09/10 evaluate
+actual learner transcript/audio, live Judge or external HSKai was used.
+Task 08 now renders these fields as short Web summary cards; Tasks 09/10 evaluate
 whether the actual model/ASR observations faithfully represent the conversation.

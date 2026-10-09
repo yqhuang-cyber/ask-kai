@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createGateway } from '../apps/realtime-gateway/src/server.js';
 import { createDoubaoProvider } from '../packages/provider-doubao/seeduplex.js';
 import { startMockBackend } from '../apps/hskai-mock/src/backend.js';
+import { summaryFixture } from '../tests/helpers/summary.js';
 const server=createGateway({paceMs:1});server.listen(0,'127.0.0.1');await once(server,'listening');
 const servers=[server];
 const backends=[];
@@ -16,6 +17,7 @@ try {
   await page.addInitScript(()=> {window.microphoneRequests=0;const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);navigator.mediaDevices.getUserMedia=async(...args)=>{window.microphoneRequests++;return original(...args);};});
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   assert.equal(await page.locator('#diagnostics').isVisible(),false);
+  assert.equal(await page.locator('#session-summary').isVisible(),false);
   await page.getByText('当前服务暂不支持选择语速。',{exact:true}).waitFor();assert.equal(await page.locator('#speech-pace').isDisabled(),true);
   await page.getByRole('button',{name:'自由聊天',exact:true}).click();assert.match(await page.locator('#goal').textContent(),/感兴趣/);
   await page.getByRole('button',{name:'运动主题',exact:true}).click();assert.match(await page.locator('#goal').textContent(),/我喜欢/);
@@ -91,6 +93,55 @@ try {
   assert.ok(audioReport.timeline.some(r=>r.name==='audio.capture.started'));assert.ok(audioReport.timeline.some(r=>r.name==='audio.stopped'));assert.equal(audioReport.contains_audio,false);
   assert.ok(audioReport.timeline.some(r=>r.name==='caption.playback' && r.played_pcm_ms>0));
   assert.equal(JSON.stringify(audioReport).includes('我喜欢足球'),false);
+  // Real summary builder and production DOM renderer, authored synthetic data.
+  // This fixture does not activate the app's provider or microphone path.
+  await page.evaluate(async()=> {
+    const {SummaryCards}=await import('/summary-cards.js');window.summaryRestarts=0;
+    window.summaryFixture=new SummaryCards({root:document.querySelector('#session-summary'),link:document.querySelector('#summary-jump'),onRestart:()=>window.summaryRestarts++});
+  });
+  const showSummary=async packet=>page.evaluate(packet=> {
+    window.summaryFixture.begin(packet.session_id,packet.summary.mode);
+    if(!window.summaryFixture.accept(packet))throw new Error('SUMMARY_FIXTURE_REJECTED');
+    if(!document.querySelector('#session-summary').hidden)throw new Error('SUMMARY_RENDERED_BEFORE_END');
+    window.summaryFixture.finish();
+  },packet);
+  for(const mode of ['sports','mission','free']) {
+    const packet=summaryFixture({mode,sessionId:`browser-${mode}`});await showSummary(packet);
+    assert.equal(await page.locator('#session-summary .summary-card').count(),1);
+    assert.equal(await page.locator('#session-summary h3').first().textContent(),'我喜欢足球');
+    assert.match(await page.locator('#session-summary .pinyin').textContent(),/wǒ xǐ huān zú qiú/);
+    assert.equal(await page.locator('#session-summary .summary-card [lang=en]').textContent(),'I like football.');
+    assert.match(await page.locator('#session-summary .summary-label').textContent(),/表达尝试 · 1 次/);
+    assert.equal(await page.locator('#session-summary .summary-review').count(),1);
+    assert.match(await page.locator('#session-summary').textContent(),/工程测试数据/);
+    assert.ok(!(await page.locator('#session-summary').textContent()).includes(packet.session_id));
+    assert.equal(await page.evaluate(()=>window.summaryFixture.accept({type:'teaching.summary',session_id:'foreign'})),false);
+  }
+  await page.locator('#session-summary .summary-restart').click();assert.equal(await page.evaluate(()=>window.summaryRestarts),1);
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('#session-summary').screenshot({path:'.local/browser-check/summary-mobile.png'});
+  await page.setViewportSize({width:1280,height:900});await page.locator('#session-summary').screenshot({path:'.local/browser-check/summary-desktop.png'});
+  for(const options of [{mode:'free',practice:false},{empty:true},{mode:'mission',unsupported:true}]) {
+    const packet=summaryFixture(options);await showSummary(packet);
+    assert.equal(await page.locator('#session-summary .summary-card').count(),0);assert.equal(await page.locator('#session-summary .summary-review').count(),0);
+    if(options.unsupported)assert.match(await page.locator('#session-summary').textContent(),/当前目标暂未自动评估/);
+    if(options.mode==='free')assert.match(await page.locator('#session-summary').textContent(),/本轮以交流为主/);
+    if(options.empty)assert.equal(await page.locator('#session-summary').getAttribute('data-focus'),'insufficient');
+  }
+  await showSummary(summaryFixture({mode:'free',textOnly:true}));assert.match(await page.locator('#session-summary .summary-label').textContent(),/尚无尝试记录/);
+  await showSummary(summaryFixture({failed:true}));assert.match(await page.locator('#session-summary').textContent(),/对话提前结束/);
+  for(const reason of ['safety','authorization']) {
+    const packet=summaryFixture();await showSummary(packet);await page.evaluate(reason=>window.summaryFixture.suppress(reason),reason);
+    assert.equal(await page.locator('#session-summary').isVisible(),false);
+    assert.equal(await page.evaluate(packet=>window.summaryFixture.accept(packet),packet),false);
+    await page.evaluate(()=>window.summaryFixture.finish());assert.equal(await page.locator('#session-summary .summary-card').count(),0);
+    assert.equal(await page.locator('#session-summary').getAttribute('data-focus'),'unavailable');
+  }
+  const literal=summaryFixture();literal.summary.headline.zh='<img src=x onerror="window.summaryInjected=true">';await showSummary(literal);
+  assert.equal(await page.locator('#session-summary img').count(),0);assert.equal(await page.evaluate(()=>Boolean(window.summaryInjected)),false);
+  await page.evaluate(()=>{window.summaryFixture.begin('summary-missing','sports');window.summaryFixture.finish();});
+  assert.equal(await page.locator('#session-summary').getAttribute('data-focus'),'unavailable');
+  await page.evaluate(()=>window.summaryFixture.reset());assert.equal(await page.locator('#session-summary').isVisible(),false);assert.equal(await page.locator('#summary-jump').isVisible(),false);
   await page.getByRole('link',{name:'工程回放'}).click();await page.locator('#start').click();await page.waitForFunction(()=>document.querySelector('#summary').textContent.includes('attempted'));
   // Synthetic Seeduplex transport: inspect actual Web selection -> ticket -> session.create.
   // Withhold provider ready; never expose the synthetic peer as connected or open the microphone.
@@ -110,15 +161,19 @@ try {
   assert.equal(await page.locator('#speech-pace').isDisabled(),true);assert.equal(creates[0].session.audio.output.speed,-20);
   assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
   await page.locator('#end').click();await page.waitForFunction(()=>!document.querySelector('#connect').disabled);
+  assert.equal(await page.locator('#session-summary').isVisible(),true);assert.equal(await page.locator('#session-summary').getAttribute('data-focus'),'insufficient');
+  assert.equal(await page.locator('#summary-jump').isVisible(),true);assert.equal(await page.locator('#session-summary .summary-card').count(),0);
   assert.equal(await page.locator('#speech-pace').isDisabled(),false);
   await page.locator('#diagnostics summary').click();
   const paceDownloaded=page.waitForEvent('download');await page.locator('#diagnostic-export').click();
   const paceStream=await(await paceDownloaded).createReadStream(),paceChunks=[];for await(const chunk of paceStream)paceChunks.push(chunk);
   const paceReport=JSON.parse(Buffer.concat(paceChunks).toString());assert.equal(paceReport.kind,'synthetic');
   const paceRow=paceReport.timeline.find(r=>r.clock==='gateway' && r.name==='session.config');assert.equal(paceRow.speech_pace,'slow');assert.equal(paceRow.output_speed,-20);
-  await page.locator('#speech-pace').selectOption('normal');await page.locator('#connect').click();
+  await page.locator('#speech-pace').selectOption('normal');await page.locator('#session-summary .summary-restart').click();
+  assert.equal(await page.locator('#session-summary').isVisible(),false);
   await page.getByText('本次语速：正常；结束后可切换。',{exact:true}).waitFor();assert.equal(creates[1].session.audio.output.speed,0);
   await page.locator('#end').click();await page.waitForFunction(()=>!document.querySelector('#connect').disabled);
+  await page.locator('[data-mode=free]').click();assert.equal(await page.locator('#session-summary').isVisible(),false);assert.equal(await page.locator('#summary-jump').isVisible(),false);
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:'.local/browser-check/speech-pace-mobile.png',fullPage:true});
   // Real local mock HTTP service and signed cookies; the voice provider is absent.
@@ -141,5 +196,5 @@ try {
   await page.locator('#memory-delete').click();await page.getByText('偏好已删除，当前对话已结束。',{exact:true}).waitFor();assert.equal(await page.locator('#memory-list li').count(),0);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'.local/browser-check/poc-mobile.png',fullPage:true});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,replay:true,page_errors:0}));
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,replay:true,page_errors:0}));
 }finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}for(const backend of backends)await backend.close();}

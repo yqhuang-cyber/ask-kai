@@ -36,7 +36,7 @@ Existing authorization and safety invariants remain in force.
 | 05 | Natural teaching decisions | Engineering implemented: single-goal/action selection, refusal/topic pause, clarification limit, teaching cooldown and sourced ACK snapshots. Real semantics/model teaching quality pending. See [natural teaching](natural-teaching.md) |
 | 06 | Playback-aware progressive subtitles, preserving Chinese/English order | Engineering implemented: phrase buffering, PCM clock, pause/cancel fences, labeled text fallback and Web size/highlight controls. Real device synchronization pending. See [progressive captions](progressive-captions.md) |
 | 07 | Per-session structured summary data | Engineering implemented: three entries, sourced target text/attempts, bounded refs, optional review and honest empty/partial/suppressed states. Bounded vocabulary and actual ASR/model semantics need acceptance. See [session summary](session-summary.md) |
-| 08 | Web summary cards | Pending |
+| 08 | Web summary cards | Engineering implemented: Chinese-first headline, sourced expression/pinyin/English cards, attempt counts, one optional review, honest empty/partial/unavailable states and session/safety isolation. Real content/device acceptance pending. See [Web summary cards](web-summary-cards.md) |
 | 09 | P0 regression and content evaluation, including language order and bilingual length | Pending |
 | 10 | Real speech/device acceptance and fixes, including bilingual listening/captions | Pending |
 

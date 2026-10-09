@@ -23,6 +23,14 @@ source/scaffold provenance, unsupported/absent evidence, cancellation,
 sampling/copies, partial failures and once-only finalization. Authorization
 revocation tests also verify learning suppression and owner isolation.
 
+Task 08 adds seven [Web summary](web-summary-cards.md) projection/state tests:
+three entries, honest empty/text-only/partial views, schema/session/provenance
+rejection, immutable snapshots, restart fences and safety/revocation. Native
+Chromium also exercises real DOM cards, pinyin/English/counts, optional review,
+unsupported goals, missing receipts, literal HTML-like text, mobile/desktop
+layout and the actual WebSocket End/new-start path. These summaries are authored
+synthetic data; provider readiness is withheld and does not open the microphone.
+
 Protocol-probe tests additionally cover profile/credential preflight, real Node
 WebSocket headers against a loopback peer, historical readiness versus active
 connection state, payload-value masking, within-run identity aliases, malformed

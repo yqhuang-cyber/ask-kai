@@ -27,7 +27,8 @@ completed forwarded target reply; ordinary free chat still has zero forced goals
 Choosing a teaching action never creates a learning fact.
 No raw transcript is included in stored evidence; no pronunciation score exists.
 The browser shows current attempt counts; structured summary data is sent at
-ending. Visible summary cards remain Task 08.
+ending. [Task 08](web-summary-cards.md) renders the ended session's summary,
+supported expression cards and optional review, with honest empty/partial states.
 
 Persona/goal context starts with provider session creation. Subsequent changes
 are sent at response boundaries and require the exact reviewed version ACK.

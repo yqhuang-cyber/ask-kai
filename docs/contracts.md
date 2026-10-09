@@ -56,6 +56,13 @@ learning fields; transport loss cannot assert summary delivery. See
 [summary contract and retention](session-summary.md). No transcript store,
 mastery/pronunciation assessment or synthetic readiness is added.
 
+Task 08 binds its Web summary receiver to the current ticket session and entry
+mode, validates the versioned snapshot and source/count bounds, and renders after
+ending. Unknown/foreign/late snapshots cannot restore old content; missing valid
+receipts display unavailable. Safety/revocation/deletion clears retained learning
+content, and new start/mode selection resets it. IDs/raw refs are omitted from the
+DOM projection. See [Web summary cards](web-summary-cards.md).
+
 This SSE contract is diagnostic and is not the learner-facing UI protocol. A
 synthetic session.ready event must never be interpreted as real connectivity.
 Client disconnect stops the fixture generator. Reconnect starts a new replay;
