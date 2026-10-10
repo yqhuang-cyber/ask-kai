@@ -52,9 +52,11 @@ replaced, because simple response.cancel has no target ID; this is not a fake
 cancel ACK. The cancellation timeout starts at actual send. See [Task 03](../turn-taking.md).
 
 `response.done` currently requires a known `response_id`; it does not infer an
-owner for an ID-less terminal message. If the real account omits this ID, capture
-**redacted structural evidence** and implement a reviewed terminal policy before
-using the gateway. Late response IDs never reopen. Unknown tool requests fail;
+owner for an ID-less terminal message. The 2026-10-10 real authored TTS probe
+confirmed ID-less audio.delta and response.done containing only response.usage;
+see [actual structures and remaining adapter work](actions-connect.md). Implement
+a reviewed audio-owner/terminal policy before using the gateway. Do not simply
+assign all ID-less events to the latest reply. Late response IDs never reopen. Unknown tool requests fail;
 tools, history continuation, locations and model extension settings are disabled.
 No required safety setting is inferred from an optional demo extension.
 
