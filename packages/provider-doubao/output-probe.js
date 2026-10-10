@@ -77,7 +77,7 @@ export async function runOutputProbe({profile,request,env={},signal,durationMs=2
       if(!raw||typeof raw!=='object'||Array.isArray(raw))return beginClose('invalid_json_shape');
       const allowed=new Set([...profile.observed_event_types,'conversation.item.added']);
       const identity_refs={};
-      for(const [name,value]of Object.entries({event_id:raw.event_id,response_id:raw.response_id,question_id:raw.question_id,'session.id':raw.session?.id})){
+      for(const [name,value]of Object.entries({event_id:raw.event_id,response_id:raw.response_id,question_id:raw.question_id,'session.id':raw.session?.id,'response.id':raw.response?.id,'response.response_id':raw.response?.response_id})){
         if(typeof value==='string'&&value.length>0&&value.length<=128)identity_refs[name]=createHmac('sha256',salt).update(value).digest('hex').slice(0,24);
       }
       report.events.push({time_ms:Math.round(performance.now()-started),type:allowed.has(raw.type)?raw.type:'unmapped',
@@ -107,12 +107,13 @@ export async function runOutputProbe({profile,request,env={},signal,durationMs=2
           cancelId=randomUUID();phase='cancel_pending';send({type:'response.cancel',event_id:cancelId});
         }
       }else if(raw.type==='response.done'){
-        report.terminal_shapes.push({phase,response_id_present:typeof raw.response_id==='string',question_id_present:typeof raw.question_id==='string',event_id_present:typeof raw.event_id==='string'});
+        report.terminal_shapes.push({phase,response_id_present:typeof raw.response_id==='string',question_id_present:typeof raw.question_id==='string',event_id_present:typeof raw.event_id==='string',
+          response_keys:raw.response&&typeof raw.response==='object'&&!Array.isArray(raw.response)?Object.keys(raw.response).filter(k=>/^[a-zA-Z_][a-zA-Z0-9_]{0,39}$/.test(k)).slice(0,32):[],
+          nested_id_present:typeof raw.response?.id==='string',nested_id_matches:typeof raw.response?.id==='string'?raw.response.id===activeReply:null});
         if(phase==='complete'){
           if(!report.audio.complete.bytes)return beginClose('missing_complete_audio');
           phase='cancel';activeReply=null;
-          send({type:'speech_text_buffer.replacement.append',event_id:randomUUID(),text:OUTPUT_PROBE_TEXT.cancel});
-          send({type:'speech_text_buffer.replacement.commit',event_id:randomUUID()});
+          send({type:'speech_text_buffer.commit',event_id:randomUUID(),text:OUTPUT_PROBE_TEXT.cancel});
         }else if(phase==='cancel')return beginClose('completed_before_cancel');
       }else if(raw.type==='response.canceled'&&phase==='cancel_pending'){
         report.cancel_ack_shape={event_id_present:typeof raw.event_id==='string',client_event_id_echo:raw.event_id===cancelId,

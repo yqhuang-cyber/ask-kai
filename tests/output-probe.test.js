@@ -13,13 +13,13 @@ class Peer extends EventTarget {
     const raw=JSON.parse(value);this.sent.push(raw);
     if(raw.type==='session.create')this.message({type:'session.created',session:{id:'private-session'},event_id:'private-created'});
     if(raw.type==='session.update')this.message({type:'session.updated',session:{id:this.badUpdate?'foreign':'private-session'},event_id:raw.event_id});
-    if(raw.type==='speech_text_buffer.commit'){
+    if(raw.type==='speech_text_buffer.commit'&&raw.text===OUTPUT_PROBE_TEXT.complete){
       this.message({type:'response.output_text.delta',response_id:'private-r1',delta:'private model text'});
       this.message({type:'response.output_audio.delta',response_id:'private-r1',delta:this.badAudio?'malformed base64':pcm});
       this.message({type:'response.output_audio.done',response_id:'private-r1'});
       this.message({type:'response.done',...(this.completeId?{response_id:'private-r1'}:{})});
     }
-    if(raw.type==='speech_text_buffer.replacement.commit'){
+    if(raw.type==='speech_text_buffer.commit'&&raw.text===OUTPUT_PROBE_TEXT.cancel){
       this.message({type:'response.output_audio.delta',response_id:'private-r2',delta:pcm});
       this.message({type:'response.output_audio.delta',response_id:'private-r2',delta:pcm});
     }
@@ -42,7 +42,7 @@ test('fixed synthetic peer verifies serial update/full output/cancel/close witho
   assert.equal(report.audio.complete.bytes,4);assert.equal(report.audio.cancel.bytes,8);
   assert.equal(report.provider_connected,false);assert.equal(socket.closed,true);
   assert.deepEqual(socket.sent.map(s=>s.type),['session.create','input_audio_mute.commit','session.update','speech_text_buffer.commit',
-    'speech_text_buffer.replacement.append','speech_text_buffer.replacement.commit','response.cancel','session.close']);
+    'speech_text_buffer.commit','response.cancel','session.close']);
   assert.equal(socket.sent[3].text,OUTPUT_PROBE_TEXT.complete);
   for(const name of ['microphone_uploaded','asr_tested','model_content_quality_evaluated','real_experience_accepted','realtime_reviewed','ordered_acks_reviewed'])assert.equal(report[name],false);
   for(const value of ['private-session','private-r1','private-r2','private-created','private model text','synthetic-secret-only',pcm])assert.ok(!JSON.stringify(report).includes(value));
@@ -71,14 +71,14 @@ test('unapproved profile, missing credentials, request mismatch and abort cannot
 test('large JSON PCM envelope is bounded separately from decoded bytes; transport reasons are masked',async()=>{
   class LargePeer extends Peer{
     send(value){
-      if(JSON.parse(value).type==='speech_text_buffer.commit'){
+      if(JSON.parse(value).type==='speech_text_buffer.commit'&&JSON.parse(value).text===OUTPUT_PROBE_TEXT.complete){
         this.sent.push(JSON.parse(value));
         this.message({type:'response.output_audio.started',response_id:'private-r1'});
         this.message({type:'response.output_audio.delta',delta:Buffer.alloc(60000,1).toString('base64')});
-        this.message({type:'response.done',response_id:'private-r1'});
+        this.message({type:'response.done',response:{id:'private-r1',usage:{total_tokens:1}}});
         return;
       }
-      if(JSON.parse(value).type==='speech_text_buffer.replacement.commit'){
+      if(JSON.parse(value).type==='speech_text_buffer.commit'&&JSON.parse(value).text===OUTPUT_PROBE_TEXT.cancel){
         this.message({type:'response.output_audio.started',response_id:'private-r2'});
         this.message({type:'response.output_audio.delta',delta:pcm});
         this.message({type:'response.output_audio.delta',delta:pcm});
@@ -92,6 +92,8 @@ test('large JSON PCM envelope is bounded separately from decoded bytes; transpor
     assert.equal(options.maxPayload,131072);return socket;
   }});
   assert.equal(report.status,'passed');assert.equal(report.audio.complete.bytes,60000);
+  assert.equal(report.terminal_shapes[0].nested_id_matches,true);
+  assert.deepEqual(report.terminal_shapes[0].response_keys,['id','usage']);
   assert.equal(report.cancel_ack_shape.response_matches,true);
   const errorSocket=new Peer();
   const failed=runOutputProbe({profile,request,env:{DOUBAO_API_KEY:'synthetic-only'},durationMs:500,socketFactory:()=>errorSocket});
