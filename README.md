@@ -64,6 +64,8 @@ Task 09 的独立 P0 回归与内容评测工具已接入；下一步是 Task 10
 
 `npm run probe:preflight` 可以检查第 2 步配置，不发网络请求。真实探针需要先根据完整官方 API 核对协议配置，并在服务端配置测试密钥；提交的模板保持未核验状态，`npm run probe:live` 默认会拒绝连接。详见上方协议说明。探针与 Web 会话接口隔离，现有回放页面继续使用合成数据。
 
+也可将 `DOUBAO_API_KEY` 配置为 GitHub Actions Repository Secret，运行 [Actions 专用真实连接探针](docs/protocol/actions-connect.md)。它只使用已审核的静态连接配置，约 5 秒、不上传麦克风、不自动重试；仅 main 上的专用请求文件变更或手动启动时调用，日常 CI 不使用真实 Key。结果不等于双向语音或设备验收，不会自动打开 Web／ACK 审核开关。
+
 `npm run eval:demo` 只展示评分计算；`npm run eval:content -- cases.json judgements.json` 评分经批准的观测，`--live-judge` 可显式调用配置好的 LangChain Judge。`npm run release:status` 列出缺口，`npm run release:check` 在缺少真实验收时退出失败。Chromium 安装后，`npm run test:browser` 使用测试音源检查原生音频 API 与页面；不能替代真实供应商／真机验收。
 
 ### 当前 P0 回归与内容评测（Task 09）
