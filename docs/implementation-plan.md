@@ -48,6 +48,10 @@ original steps below describe the foundation, not the current priority order.
 
 ## Foundation delivery
 
+### Free-conversation evaluation data preparation
+
+2026-10-10: completed the uploaded 40-case / 244-turn dataset preparation and checks. Opening soft goals, explicit unknown initial fields, sourced scenario assumptions, turn requirements and reference conflicts now follow adaptive language and existing Web-summary scope. The original ten-dimensional rubric is preserved. Reference replies and future turns cannot enter tested history; 34 proactive utterance signals are not idle events. A metadata-only manifest and offline preparation checker are on main; full dialogue files are delivered separately. Real response collection, runner adaptation and Judge scoring are the next task, not completed acceptance. See [dataset preparation](freechat-eval.md).
+
 | Step | Deliverable | Gate | State |
 | --- | --- | --- | --- |
 | 1 | Local foundation, event contracts, synthetic replay, CI | Local verification passes; true provider readiness is never simulated | Merged to main (PR #1) |

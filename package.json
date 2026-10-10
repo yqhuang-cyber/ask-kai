@@ -18,6 +18,7 @@
     "probe:preflight": "node --env-file-if-exists=.env scripts/duplex-probe.js",
     "probe:live": "node --env-file-if-exists=.env scripts/duplex-probe.js --live",
     "eval:content": "node --env-file-if-exists=.env scripts/content-eval.js",
+    "eval:dataset:check": "node scripts/check-prepared-dataset.js",
     "eval:demo": "node scripts/content-eval.js --demo",
     "eval:p0": "node --env-file-if-exists=.env scripts/p0-eval.js",
     "eval:p0:demo": "node scripts/p0-eval.js --demo",
