@@ -116,6 +116,83 @@ test('request budget and input framing remain bounded; wire duplicates cannot re
   assert.equal(x.packets.filter(p=>p.event?.type==='user.final').length,1);
   x.provider.close(); const before = x.packets.length; x.wire({type:'session.created',session:{id:'late-session'}}); assert.equal(x.packets.length,before);
 });
+const usage = () => ({type:'response.done',response:{usage:{output_tokens:1}}});
+const pcm = () => ({type:'response.output_audio.delta',delta:Buffer.alloc(60000,1).toString('base64')});
+test('identified audio boundaries own ID-less PCM; usage never completes output or the next reply',()=>{
+  const x=setup();x.ready();x.wire(usage());
+  x.wire(output('response.output_audio.started'));x.wire(pcm());x.wire(usage());
+  const first=x.provider.activeReply;
+  assert.equal(x.packets.filter(p=>p.event?.type==='response.done').length,0);
+  assert.equal(x.packets.find(p=>p.audio).event.response_id,first.id);
+  assert.equal(x.packets.find(p=>p.audio).event.payload.byte_length,60000);
+  x.wire(output('response.output_audio.done'));assert.equal(x.provider.activeReply,null);
+  x.wire(output('response.output_audio.started','private-r2','private-q2'));const fresh=x.provider.activeReply;
+  x.wire(usage());x.wire(output('response.output_audio.done'));x.wire(output('response.done'));
+  x.wire(output('response.output_audio.started')); // closed boundary cannot retake the new lane
+  assert.equal(x.provider.activeReply,fresh);assert.equal(x.provider.audioLane,fresh);
+  x.wire(pcm());x.wire(output('response.output_audio.done','private-r2','private-q2'));x.wire(usage());
+  assert.deepEqual(x.packets.filter(p=>p.audio).map(p=>p.event.response_id),[first.id,fresh.id]);
+  assert.deepEqual(x.packets.filter(p=>p.event?.type==='response.done').map(p=>p.event.response_id),[first.id,fresh.id]);
+  assert.deepEqual(x.failures,[]);x.provider.close();
+});
+test('unbound audio fails before a boundary; post-completion no-ID audio stays fenced',()=>{
+  const orphan=setup();orphan.ready();orphan.wire(pcm());assert.deepEqual(orphan.failures,['PROVIDER_PROTOCOL_ERROR']);orphan.provider.close();
+  const x=setup();x.ready();x.wire(output('response.output_audio.started'));x.wire(output('response.output_audio.done'));
+  x.wire(pcm());assert.ok(!x.packets.some(p=>p.audio));assert.deepEqual(x.failures,[]);x.provider.close();
+});
+test('cancel discards ID-less in-flight PCM and late usage cannot close a new reply',()=>{
+  const x=setup();x.ready();x.wire(output('response.output_audio.started'));x.wire(pcm());
+  const old=x.provider.activeReply;x.provider.cancel(old.id);x.wire(pcm());
+  x.wire({type:'response.canceled',event_id:'same-cancel-ack'});x.wire(pcm());
+  x.wire(output('response.output_audio.started','private-r2','private-q2'));const fresh=x.provider.activeReply;
+  x.wire({type:'response.canceled',event_id:'same-cancel-ack'});x.wire(usage());
+  x.wire(output('response.output_audio.done'));x.wire(output('response.output_audio.delta',undefined,undefined,{delta:'AAAA'}));
+  x.wire(pcm());assert.equal(x.provider.activeReply,fresh);
+  assert.deepEqual(x.packets.filter(p=>p.audio).map(p=>p.event.response_id),[old.id,fresh.id]);
+  assert.equal(x.packets.filter(p=>p.event?.type==='response.cancelled').length,1);
+  assert.equal(x.packets.filter(p=>p.event?.type==='response.done').length,0);
+  assert.deepEqual(x.failures,[]);x.provider.close();
+});
+test('ambiguous audio start fails before forwarding a new owner, with or without cancel ACK pending',()=>{
+  for(const cancel of [false,true]) {
+    const x=setup();x.ready();x.wire(output('response.output_audio.started'));
+    if(cancel)x.provider.cancel(x.provider.activeReply.id);
+    x.wire(output('response.output_audio.started','private-r2','private-q2'));
+    assert.deepEqual(x.failures,['PROVIDER_PROTOCOL_ERROR']);
+    assert.equal(x.packets.filter(p=>p.event?.type==='response.started').length,1);x.provider.close();
+  }
+});
+test('text finished before audio waits for audio.done; usage does not add student evidence',()=>{
+  const x=setup();x.ready();x.wire(output('response.output_text.delta',undefined,undefined,{delta:'你好。'}));
+  x.wire(output('response.output_audio.started'));x.wire(output('response.output_text.done',undefined,undefined,{text:'你好。Hello.'}));
+  x.wire(usage());assert.equal(x.packets.filter(p=>p.event?.type==='response.done').length,0);
+  x.wire(pcm());x.wire(output('response.output_audio.done'));x.wire(usage());
+  const runtime=new SessionRuntime('local-session');for(const p of x.packets)if(p.event)assert.equal(runtime.ingest(p.event).accepted,true);
+  assert.equal(runtime.evidence.length,0);assert.equal(x.packets.filter(p=>p.event?.type==='response.done').length,1);
+  assert.deepEqual(x.failures,[]);x.provider.close();
+});
+test('graceful close fences output, awaits real ACK once and suppresses intentional transport failures',async()=>{
+  const x=setup();x.ready();x.wire(output('response.output_audio.started'));
+  const before=x.packets.length,result=x.provider.close();assert.equal(x.provider.close(),result);
+  assert.ok(!x.socket.ended);x.wire(pcm());assert.equal(x.packets.length,before);
+  x.wire({type:'session.closed'});assert.deepEqual(await result,{acknowledged:true});
+  assert.ok(x.socket.ended);assert.equal(x.sent.filter(p=>p.type==='session.close').length,1);
+  x.socket.emit('error',new Error('synthetic intentional close'));x.socket.emit('close');assert.deepEqual(x.failures,[]);
+  assert.equal(x.provider.ids.size,0);assert.equal(x.provider.activeReply,null);
+});
+test('graceful close falls back on missing ACK and a closed-before-open transport never sends create',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  const x=setup();x.ready();const result=x.provider.close();t.mock.timers.tick(2000);
+  assert.deepEqual(await result,{acknowledged:false});assert.ok(x.socket.ended);
+  const y=setup();await y.provider.close();const sent=y.sent.length;y.socket.emit('open');
+  assert.equal(y.sent.length,sent);assert.deepEqual(y.failures,[]);
+});
+test('probe-only runtime attestation cannot enable ordinary Web sessions',()=>{
+  const p=profile();p.realtime.review_scope='protocol_smoke';
+  assert.throws(()=>validateSeeduplexProfile(p),/PROBE_ONLY/);
+  assert.throws(()=>createDoubaoProvider({profile:p,env:{DOUBAO_API_KEY:'synthetic-only'}}),/PROBE_ONLY/);
+  assert.equal(validateSeeduplexProfile(p,{protocolProbe:true}),p);
+});
 test('Seeduplex wire events integrate through browser WSS and teaching context ACK (synthetic peer only)',async t=>{
   let wire, sent = [];
   const server = createGateway({providerKind:'test',providerFactory:()=>{
@@ -136,8 +213,11 @@ test('Seeduplex wire events integrate through browser WSS and teaching context A
   assert.ok(sent.find(e=>e.type==='session.create').session.instructions.includes(NATURAL_TEACHING_INSTRUCTIONS));
   wire({type:'session.created',session:{id:'private-session'}});
   wire({type:'conversation.item.input_audio_transcription.completed',item_id:'private-q1',transcript:'我喜欢足球'});
-  wire(output('response.output_text.delta',undefined,undefined,{delta:'很好！'})); wire(output('response.done'));
+  wire(output('response.output_text.delta',undefined,undefined,{delta:'很好！'}));
+  wire(output('response.output_audio.started'));wire(pcm());
+  wire(output('response.output_text.done',undefined,undefined,{text:'很好！'}));wire(output('response.output_audio.done'));
   await until(()=>sent.some(e=>e.type==='session.update'));
+  wire(usage()); // ID-less telemetry cannot affect the pending teaching context update.
   assert.ok(sent.find(e=>e.type==='session.update').session.instructions.includes(REPLY_INSTRUCTIONS));
   assert.ok(sent.find(e=>e.type==='session.update').session.instructions.includes(NATURAL_TEACHING_INSTRUCTIONS));
   wire({type:'session.updated',session:{id:'private-session'}});

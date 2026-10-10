@@ -8,10 +8,11 @@ export const SEEDUPLEX_SOURCE = 'https://docs.volcengine.com/docs/DoubaoVoice/en
 // Supplied official PDF: session.audio.output.speed, default 0, range [-50,100].
 // -20 is our initial slow preset, pending real listening calibration.
 export const SEEDUPLEX_SPEEDS = Object.freeze({slow:-20,normal:0});
-export function validateSeeduplexProfile(profile) {
+export function validateSeeduplexProfile(profile,{protocolProbe=false}={}) {
   validateProfile(profile);
   const rt = profile.realtime, session = profile.session_create.session;
   if (!profile.reviewed || !rt?.reviewed || rt.protocol !== SEEDUPLEX_PROTOCOL || profile.evidence_source !== SEEDUPLEX_SOURCE || rt.evidence_source !== SEEDUPLEX_SOURCE) throw new Error('DOUBAO_PROTOCOL_NOT_VERIFIED');
+  if(rt.review_scope==='protocol_smoke'&&!protocolProbe)throw new Error('SEEDUPLEX_PROBE_ONLY');
   if (profile.auth.header !== 'X-Api-Key' || profile.auth.prefix !== '' || profile.ready.type !== 'session.created' || profile.ready.session_id_path !== 'session.id') throw new Error('INVALID_SEEDUPLEX_MAPPING');
   if (session.model !== '1.2.6.1' || session.audio?.input?.format?.type !== 'pcm' || session.audio.input.format.rate !== 16000 || session.audio?.output?.format?.type !== 'pcm_s16le' || session.audio.output.format.rate !== 24000 || !/^[a-zA-Z0-9_-]{1,128}$/.test(session.audio.output.voice ?? '')) throw new Error('UNSUPPORTED_REVIEWED_AUDIO');
   const speed=session.audio.output.speed;
@@ -32,13 +33,13 @@ export function createDoubaoProvider(options) {
   return new ReviewedDoubaoProvider(options);
 }
 
-/** Wire names/fields come from the supplied PDF and its official Go/Python demos.
- * All tests use authored synthetic payloads; unsupported/ambiguous ownership fails closed.
+/** Wire names/fields come from the official evidence and bounded account probes.
+ * Regressions use authored structural fixtures; ambiguous ownership fails closed.
  */
 export class SeeduplexProvider extends DoubaoJsonTransport {
   speechStartKind='asr_candidate';
   constructor(options) {
-    validateSeeduplexProfile(options.profile);
+    validateSeeduplexProfile(options.profile,{protocolProbe:options.protocolProbe===true});
     let profile=options.profile;
     if (options.speechPace !== undefined) {
       if (!isSpeechPace(options.speechPace)) throw new Error('INVALID_SPEECH_PACE');
@@ -50,6 +51,9 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
     this.wireSeen = new Set(); this.turns = new Map(); this.replies = new Map();
     this.activeReply = null; this.pendingControl = null; this.ready = false;
     this.queuedCancels=[];this.latestReply=null;
+    // A PCM lane is opened only by an identified audio.started boundary, never
+    // by latestReply. It survives a cancel request as a discard-only old lane.
+    this.audioLane=null;this.audioFence=false;
   }
   text(value) {
     if (typeof value !== 'string' || !value.length || value.length > 2000) throw new Error('INVALID_PROVIDER_TEXT');
@@ -72,7 +76,7 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
       if (!create) throw new Error('UNBOUND_PROVIDER_RESPONSE');
       if (this.activeReply) throw new Error('OVERLAPPING_PROVIDER_RESPONSE');
       const turn = this.turn(raw.question_id);
-      reply = {id,rawId,turn:turn.id,status:'active',text:''};
+      reply = {id,rawId,turn:turn.id,status:'active',text:'',textStarted:false,textDone:false,audioDone:false};
       this.replies.set(id,reply); this.activeReply = reply;this.latestReply=reply;
       this.onEvent({event:this.event('response.started',{},this.replyIds(reply))});
     } else if (raw.question_id !== undefined && this.turn(raw.question_id).id !== reply.turn) throw new Error('FOREIGN_PROVIDER_TURN');
@@ -81,6 +85,25 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
   replyIds(reply) { return {turn_id:reply.turn,response_id:reply.id}; }
   emitReply(type,reply,payload={},extra={}) {
     this.onEvent({event:this.event(type,payload,this.replyIds(reply)),...extra});
+  }
+  completeReply(reply) {
+    if(reply.status!=='active')return;
+    reply.status='done';reply.wireDone=true;reply.text='';
+    if(this.activeReply===reply)this.activeReply=null;
+    if(this.audioLane===reply){this.audioLane=null;this.audioFence=true;}
+    this.emitReply('response.done',reply);
+  }
+  completeOutput(reply) {
+    // Identified output boundaries close our reply output. ID-less usage is
+    // separate telemetry and can never close a reply or create learning evidence.
+    if(reply.audioDone&&(!reply.textStarted||reply.textDone))this.completeReply(reply);
+  }
+  audioReply(raw) {
+    if(raw.response_id!==undefined)return this.reply(raw,true);
+    const reply=this.audioLane;
+    if(!reply){if(this.audioFence)return null;throw new Error('UNBOUND_AUDIO_STREAM');}
+    if(raw.question_id!==undefined&&this.turn(raw.question_id).id!==reply.turn)throw new Error('FOREIGN_PROVIDER_TURN');
+    return reply;
   }
   receive(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('INVALID_PROVIDER_EVENT');
@@ -109,6 +132,8 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
       const pending = this.pendingControl;
       if (!pending || pending.kind !== 'cancel' || raw.event_id === undefined || (raw.response_id !== undefined && raw.response_id !== pending.reply.rawId)) throw new Error('UNBOUND_CANCEL_ACK');
       this.pendingControl = null; pending.reply.status = 'cancelled';
+      pending.reply.text='';
+      if(this.audioLane===pending.reply){this.audioLane=null;this.audioFence=true;}
       this.emitReply('response.cancelled',pending.reply);
       return this.drainCancels();
     }
@@ -131,10 +156,36 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
       return this.onEvent({event:this.event('user.final',{text},{turn_id:turn.id})});
     }
     if (['response.output_text.delta','response.output_text.done','response.output_audio.started','response.output_audio.delta','response.output_audio.done','response.done'].includes(raw.type)) {
-      const reply = this.reply(raw,raw.type !== 'response.done');
-      if(raw.type==='response.done')reply.wireDone=true;
+      if(raw.type==='response.done'&&raw.response_id===undefined){
+        // Observed real shape is {type,event_id,response:{usage:{...}}}. Neither
+        // top-level nor nested reply identity exists. Do not infer an owner.
+        if(!raw.response||typeof raw.response!=='object'||Array.isArray(raw.response)||
+          !raw.response.usage||typeof raw.response.usage!=='object'||Array.isArray(raw.response.usage))throw new Error('UNBOUND_PROVIDER_RESPONSE');
+        return;
+      }
+      if(raw.type==='response.output_audio.started'){
+        const rawId=this.checkId(raw.response_id);
+        const known=this.replies.get(this.ids.get(`reply:${rawId}`));
+        if(known&&known.status!=='active')return; // a closed ID cannot reopen a lane
+        if((this.audioLane&&this.audioLane.rawId!==rawId)||this.pendingControl?.kind==='cancel'||this.queuedCancels.length)throw new Error('AMBIGUOUS_AUDIO_STREAM');
+        const reply=this.reply(raw,true);
+        this.audioLane=reply;this.audioFence=false;
+        return;
+      }
+      const reply=raw.type==='response.output_audio.delta'?this.audioReply(raw):this.reply(raw,raw.type!=='response.done'&&raw.type!=='response.output_audio.done');
+      if(!reply)return;
+      if(raw.type==='response.done'){
+        reply.wireDone=true;
+        this.completeReply(reply);return;
+      }
+      if(raw.type==='response.output_audio.done'){
+        reply.audioDone=true;reply.wireDone=true;
+        if(this.audioLane===reply){this.audioLane=null;this.audioFence=true;}
+        this.completeOutput(reply);return;
+      }
       if (reply.status !== 'active') return; // cancelled/completed IDs cannot reopen
       if (raw.type === 'response.output_text.delta') {
+        reply.textStarted=true;
         const text = this.text(raw.delta);
         if (reply.text.length + text.length > 4000) throw new Error('PROVIDER_TEXT_LIMIT');
         reply.text += text;
@@ -144,8 +195,9 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
         // Never repeat a complete transcript as a new delta. Emit only an exact suffix.
         const text = this.text(raw.text);
         if (!text.startsWith(reply.text)) throw new Error('PROVIDER_TEXT_REWRITE');
-        const suffix = text.slice(reply.text.length); reply.text = text;
-        if (suffix) return this.emitReply('response.text.delta',reply,{text:suffix});
+        const suffix = text.slice(reply.text.length); reply.text = text;reply.textDone=true;
+        if (suffix) this.emitReply('response.text.delta',reply,{text:suffix});
+        this.completeOutput(reply);
         return;
       }
       if (raw.type === 'response.output_audio.delta') {
@@ -154,11 +206,6 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
         if (!bytes.length || bytes.length > 65536 || bytes.length % 2) throw new Error('INVALID_PROVIDER_AUDIO');
         return this.emitReply('response.audio.chunk',reply,{byte_length:bytes.length,format:'pcm_s16le'},{audio:raw.delta,sample_rate:24000});
       }
-      if (raw.type === 'response.done') {
-        reply.status = 'done'; reply.text = ''; this.activeReply = null;
-        return this.emitReply('response.done',reply);
-      }
-      // audio.done is an audio boundary, not the end of the whole interaction.
       return;
     }
     if (raw.type === 'response.function_call_arguments.done') throw new Error('UNEXPECTED_PROVIDER_TOOL');
@@ -199,8 +246,30 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
     this.send({type:'session.update',event_id:randomUUID(),session:{id:this.rawSessionId,instructions}});
   }
   close() {
-    if (this.closed) return;
-    try { if (this.ready) this.send({type:'session.close',event_id:randomUUID()}); } catch {}
-    super.close(); this.turns.clear(); this.replies.clear(); this.wireSeen.clear(); this.pendingControl = null;this.queuedCancels.length=0;this.latestReply=null;
+    if(this.closed)return this.closeResult;
+    const socket=this.socket;
+    let sent=false;
+    try{if(this.ready){this.send({type:'session.close',event_id:randomUUID()});sent=true;}}catch{}
+    // Fence business events immediately, while waiting briefly for the actual
+    // session.closed ACK on this connection. No model event can reopen output.
+    this.closed=true;this.turns.clear();this.replies.clear();this.wireSeen.clear();this.pendingControl=null;
+    this.queuedCancels.length=0;this.latestReply=null;this.activeReply=null;this.audioLane=null;this.audioFence=true;
+    if(!sent){super.close();return this.closeResult=Promise.resolve({acknowledged:false});}
+    this.closeResult=new Promise(resolve=>{
+      let finished=false;
+      const finish=acknowledged=>{
+        if(finished)return;finished=true;clearTimeout(timer);
+        socket.removeListener('message',onMessage);socket.removeListener('close',onClose);socket.removeListener('error',onClose);
+        super.close();resolve({acknowledged});
+      };
+      const onClose=()=>finish(false);
+      const onMessage=(bytes,binary)=>{
+        if(binary||bytes.length>131072)return;
+        try{if(JSON.parse(bytes.toString()).type==='session.closed')finish(true);}catch{}
+      };
+      const timer=setTimeout(()=>finish(false),2000);timer.unref?.();
+      socket.on('message',onMessage);socket.once('close',onClose);socket.once('error',onClose);
+    });
+    return this.closeResult;
   }
 }

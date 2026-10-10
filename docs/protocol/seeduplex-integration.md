@@ -33,10 +33,10 @@ account's permissions, payload ordering, audio quality, retention or availabilit
 | output `pcm` means **32-bit** PCM | Reject this format instead of misplaying it as int16 | PDF body p. 2 |
 | `session.created`, `session.id` | Normalize readiness only after the event | PDF body p. 10; Go `SessionCreatedEvent` |
 | ASR `started/delta/completed`, `item_id`, `delta`, `transcript` | Candidate on first recognized character; new-turn text confirmation, bounded partial text; only final text is evidence | PDF event table; Go `TranscriptionEvent`; Python `main.py`; Task 03 local policy |
-| text/audio delta `question_id`, `response_id`, `delta` | Alias separate turn/reply namespaces; start reply on first text or audio, not only on audio start | Go `ResponseTextEvent` / `ResponseAudioEvent` |
+| text delta IDs; audio.started/audio.done IDs; ID-less audio.delta | Alias separate turn/reply namespaces; bind PCM only to the explicit exclusive audio.started lane | Go typed demo fields + 2026-10-10 actual TTS observations |
 | `response.cancel` is type/event_id; `response.canceled` is ACK | One outstanding control; fence cancelled output; ACK attaches only to captured pending reply | PDF body pp. 9, 11; Go `SimpleEvent` / `baseEvent` |
 | `session.update` sends session instructions; `session.updated` ACK exposes session ID | One outstanding update; verify session ID, deduplicate ACK, map to local pending version | PDF body pp. 1, 10; Go `SessionCreatedEvent`; Python client |
-| `response.output_audio.done` vs `response.done` | Audio completion does not end the interaction | PDF body pp. 10–11 |
+| `response.output_audio.done` vs ID-less `response.done` usage | Identified audio.done completes internal output after any started text stream is done; usage does not complete a reply | PDF body pp. 10–11 + 2026-10-10 actual TTS observations |
 | Output text final | Emit only an exact suffix of deltas; rewritten text fails rather than duplicating subtitles | PDF event types + local bounded display policy |
 
 **Unresolved wire gates:** the demos do not provide a typed `response.done`
@@ -51,12 +51,20 @@ at a time. A queued stop is skipped if that reply has already completed or been
 replaced, because simple response.cancel has no target ID; this is not a fake
 cancel ACK. The cancellation timeout starts at actual send. See [Task 03](../turn-taking.md).
 
-`response.done` currently requires a known `response_id`; it does not infer an
-owner for an ID-less terminal message. The 2026-10-10 real authored TTS probe
-confirmed ID-less audio.delta and response.done containing only response.usage;
-see [actual structures and remaining adapter work](actions-connect.md). Implement
-a reviewed audio-owner/terminal policy before using the gateway. Do not simply
-assign all ID-less events to the latest reply. Late response IDs never reopen. Unknown tool requests fail;
+The 2026-10-10 real authored TTS probe confirmed ID-less audio.delta and
+response.done containing only response.usage. The repaired adapter binds ID-less
+PCM to an identified audio.started lane, keeps cancelled output discard-only
+until ACK, and rejects a new audio boundary while an old lane or cancellation
+barrier remains unresolved. After a lane closes, orphan chunks stay fenced.
+Closed IDs cannot reopen it. This relies on ordered, exclusive audio boundaries;
+ID-less bytes cannot reveal arbitrary supplier mislabeling after a new boundary.
+
+ID-less usage is separate telemetry with no inferred reply owner. Internal
+response.done means reply **output** completed, using identified audio.done and,
+if text has started, text.done. It is not a supplier interaction/usage ACK.
+Late usage cannot clear a new reply, acknowledge a control or create an attempt.
+Explicit-ID response.done remains compatible with already reviewed fixtures.
+See [repair probe and remaining acceptance](actions-connect.md). Unknown tool requests fail;
 tools, history continuation, locations and model extension settings are disabled.
 No required safety setting is inferred from an optional demo extension.
 

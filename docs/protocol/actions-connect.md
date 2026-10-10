@@ -51,7 +51,7 @@ Task 10 的第一部分：使用 GitHub Actions Repository Secret `DOUBAO_API_KE
 
 第三轮 [运行 38016779537](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38016779537)，candidate `36b04aacd2a81f145418e43d9347061488214342`，整体 `passed`。在同一会话中顺序观察到 session.created、session.updated、第一段完整 PCM、第二段 PCM、response.canceled 和 session.closed。第一段为 6 个音频块、131992 字节、理论约 2750 ms；第二段在取消前后收到 6 个块、139264 字节，包含取消在途期间的音频，不能作为客户端实际停播时长。所有音频仅在内存解码计数，未保存／上传音频或逐字稿。
 
-| 实际结构 | 本次结论 | Web 接入剩余工作 |
+| 实际结构 | 本次结论 | 当时发现的 Web 接入缺口 |
 | --- | --- | --- |
 | audio.started／audio.done 带 question_id 与 response_id；audio.delta 仅带 type／delta／event_id | 有可观察的回复边界，不能要求所有块都带 ID | 当前 SeeduplexProvider 对每个 audio.delta 调用 reply(raw)，无 ID 时会拒绝。需设计由明确边界绑定的音频归属，并回归取消期间／新回复开始后的迟到块隔离；不能简单套用最近回复 |
 | response.done 有 response，但其中仅有 usage；无顶层或嵌套回复 ID | 它是 ID-less 用量／交互终止事件，无法靠 ID 查找已知回复 | 当前 adapter 要求顶层 response_id，实际不匹配。需明确 audio.done 与统计终止的关联及未知／迟到终止策略，避免关闭新回复或伪造学习证据 |
@@ -59,4 +59,16 @@ Task 10 的第一部分：使用 GitHub Actions Repository Secret `DOUBAO_API_KE
 | response.canceled 只有 type／服务器 event_id，无 response_id，也未回带客户端 event_id | 本次唯一 cancel 得到 ACK | 保持本地停止／旧输出 fence，以及串行控制所有权；单次成功不能证明多轮竞态已校准 |
 | session.closed 收到后再关闭 WebSocket | 本轮观察到正常关闭确认 | 与浏览器退出／异常清理策略对照验证 |
 
-本轮 Key、会话配置、选定音色的固定 TTS 生成和串行控制已取得实际观测。原始模板、Web 实时审核和 ordered ACK 审核开关没有修改。当前 Web 不能仅靠把这两个开关打开而宣称可运行，必须先修复上述归属／终止映射，并取得持续上行音频、ASR、三种入口的真实模型回复和设备 P0 观察。Task 10 仍为进行中；不需要再次提供 Key。
+本轮 Key、会话配置、选定音色的固定 TTS 生成和串行控制已取得实际观测。原始模板、Web 实时审核和 ordered ACK 审核开关没有修改。上述缺口促成下方适配器修复；持续上行音频、ASR、三种入口的真实模型回复和设备 P0 观察仍待取得。Task 10 仍为进行中；不需要再次提供 Key。
+
+## 适配器修复与专用复测
+
+`SeeduplexProvider` 现已采用明确的音频输出通道：只有带 ID 的 audio.started 才绑定无 ID PCM，取消期间旧通道只丢弃输出；收到取消 ACK 后清理通道。未结束的旧通道或取消屏障期间出现新音频边界会拒绝，关闭过的 ID 不能重新占用通道。该规则依赖连接上有序、独占的边界；没有 ID 的字节无法自行证明供应商在新边界后没有错误混入旧音频。
+
+无 ID response.done 的 response.usage 只作统计，不关闭回复、不确认控制、不形成学生尝试。内部回复输出完成由带 ID 的 audio.done 决定；若文本流已开始，还须等 text.done，保留最后字幕后再完成。内部完成可释放上下文更新，不宣称供应商统计交互已结束。session.close 会立即隔离业务输出，同时最多等 2 秒真实 session.closed，再终止传输。
+
+新增 **Doubao live adapter repair probe**，由 main 上 `.github/live/doubao-adapter-request.json` 变更或手动启动触发。直接使用上述生产适配器和它的归一化事件／updateContext／cancel／close，流程为静音 → 更新 v1 → 完整固定 TTS → 输出边界后更新 v2 → 第二段固定 TTS → 两块后取消 → 取消 ACK 及随后用量事件 → 第三段固定 TTS → 正常关闭。用量事件仅安排探针发起第三段，不被适配器用于推断回复归属。总预算 30 秒，加最多 2 秒关闭等待，不自动重试。
+
+专用探针在内存中建立 `realtime.review_scope=protocol_smoke` 的临时审核配置，仅显式 `protocolProbe:true` 可用；普通 Web 启动拒绝它。原始模板与静态连接 profile 的实时审核字段仍为 false。报告仅含计数、数值状态和固定错误代码，Artifact 保留 3 天。不会保存音频、逐字稿或真实 ID，也不标记 ASR、模型教学、真人设备或 Web 审核通过。
+
+修复的本地回归覆盖无 ID PCM、用量迟到、新旧回复隔离、文本／音频收尾、取消屏障、真实关闭 ACK／超时和 Web 配置隔离，并通过本地 WebSocket peer 验证上述完整探针流程。真实适配器结果待该专用 Actions 运行确认。

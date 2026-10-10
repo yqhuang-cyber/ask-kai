@@ -60,6 +60,7 @@ export class DoubaoJsonTransport {
     this.sessionId = sessionId; this.started = performance.now(); this.onEvent = onEvent;
     this.socket = this.socketFactory(DUPLEX_ENDPOINT,{headers:this.headers,maxPayload:131072,perMessageDeflate:false,handshakeTimeout:5000,followRedirects:false});
     this.socket.on('open',() => {
+      if(this.closed)return;
       try {
         const create = structuredClone(this.profile.session_create);
         put(create,this.profile.realtime.initial_instructions,instructions);
@@ -73,7 +74,7 @@ export class DoubaoJsonTransport {
         this.receive(JSON.parse(bytes.toString()));
       } catch { onFailure('PROVIDER_PROTOCOL_ERROR'); }
     });
-    this.socket.on('error',() => onFailure('PROVIDER_TRANSPORT_ERROR'));
+    this.socket.on('error',() => {if(!this.closed)onFailure('PROVIDER_TRANSPORT_ERROR');});
     this.socket.on('close',() => { if (!this.closed) onFailure('PROVIDER_DISCONNECTED'); });
   }
   event(type,payload={},ids={}) {
