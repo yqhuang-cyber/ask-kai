@@ -2,8 +2,10 @@
 
 Reviewed static evidence on 2026-10-04 (Asia/Shanghai): the user-supplied 14-page
 official API PDF and the Go 1.24, Python 3.7 and Web demos linked inside it.
-No demo code was executed, no demo transcripts/keys were copied into this repo,
-and no real supplier call has been made. The separate **接入必读** page was
+No demo code was executed and no demo transcripts/keys were copied into this repo.
+The initial static review did not call the supplier. On 2026-10-10 the separately
+authorized Actions connection probe observed real session readiness; see
+[live probe scope and results](actions-connect.md). The separate **接入必读** page was
 initially unavailable. Its [current official page](https://docs.volcengine.com/docs/DoubaoVoice/access-mustread?lang=zh)
 was retrieved on 2026-10-09; it describes migration and control events, but does
 not replace actual account validation of ACK ordering and terminal ownership.

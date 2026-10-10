@@ -28,3 +28,15 @@ Task 10 的第一部分：使用 GitHub Actions Repository Secret `DOUBAO_API_KE
 - `voice_behavior_tested`、`real_experience_accepted` 和实时 ACK 审核字段始终 false。
 
 本地可运行 `node scripts/actions-doubao-probe.js --preflight`，不会联网。测试使用虚构 Key 与本地 HTTP／WebSocket peer，覆盖缺密钥、profile hash、阶段边界、真实握手状态与禁止重定向；不代表真实供应商结果。
+
+## 2026-10-10 实际连接结果
+
+首轮 [Actions 运行 38015993713](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38015993713) 使用用户配置的 Repository Secret，candidate `2f488c3a1151b162715ff3495509c718938cb7a2`。观察到真实 `session.created` 和会话 ID，探针启动后约 1930 ms 就绪，达到 5 秒预算，结果 `passed`。这是单次 GitHub runner 的连接样本，不是首音频延迟、P50/P95 或用户本机网络指标。未上传输入音频或评测模型内容。204 项测试、3 个合成回放和 Foundation checks 的 Node 22／24／browser 均通过。
+
+## 后续固定文本输出与控制探针
+
+专用 **Doubao live output and controls probe** 使用同一个静态连接 profile，main 上的 `.github/live/doubao-output-request.json` 更新或手动启动时调用。最大 25 秒，加最多 2 秒关闭 ACK 等待，不自动重试。
+
+流程：创建会话 → 输入静音 → 更新 instructions 并观察 ACK → 官方 `speech_text_buffer.commit` 合成固定「你好。Hello.」 → 观察完整音频／交互终止结构 → replacement append/commit 合成较长的固定中英测试句 → 收到两个音频块后发送 cancel → 等待 ACK → session.close → 等待真实 session.closed 后关连接。
+
+只验证作者指定文本的 TTS 输出，**不是模型自由生成的教学回复**，也不上传学生音频或评测 ASR。报告仅保留事件结构、同一探针内盐处理的 ID、ACK 形状和 PCM 块数／字节数／非零样本数／理论时长，不保存文本内容或音频。PCM 非零不证明音色、发音或实际听感通过。记录 response.done 是否携带 reply ID，更新／取消 ACK 是否带 event ID、是否回带客户端 event ID；单次观测不会自动授权 Web 或证明所有竞态已通过。
