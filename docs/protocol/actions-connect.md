@@ -71,4 +71,18 @@ Task 10 的第一部分：使用 GitHub Actions Repository Secret `DOUBAO_API_KE
 
 专用探针在内存中建立 `realtime.review_scope=protocol_smoke` 的临时审核配置，仅显式 `protocolProbe:true` 可用；普通 Web 启动拒绝它。原始模板与静态连接 profile 的实时审核字段仍为 false。报告仅含计数、数值状态和固定错误代码，Artifact 保留 3 天。不会保存音频、逐字稿或真实 ID，也不标记 ASR、模型教学、真人设备或 Web 审核通过。
 
-修复的本地回归覆盖无 ID PCM、用量迟到、新旧回复隔离、文本／音频收尾、取消屏障、真实关闭 ACK／超时和 Web 配置隔离，并通过本地 WebSocket peer 验证上述完整探针流程。真实适配器结果待该专用 Actions 运行确认。
+修复的本地回归覆盖无 ID PCM、用量迟到、新旧回复隔离、文本／音频收尾、取消屏障、真实关闭 ACK／超时和 Web 配置隔离，并通过本地 WebSocket peer 验证上述完整探针流程。全部 220 项测试、3 个合成回放和 P0 的 16 个正向／10 个负向场景通过。
+
+## 2026-10-10 修复后实际适配器结果
+
+[Actions 运行 38018674072](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38018674072)，candidate `3e8f0f874783c47d51b4460fdabf315fe9c71cea`，request `adapter-2026-10-10-01`，结果 `passed`。调用经过修复后的 `SeeduplexProvider`；观察到真实 session.ready、上下文 v1／v2 确认、三次不同回复启动、两次输出完成、一次取消确认和 session.closed。
+
+| 归一化输出 | 转发 PCM 块 | 字节数 | 理论 PCM 时长 |
+| --- | --- | --- | --- |
+| 第一段完整播放 | 5 | 118804 | 2475 ms |
+| 第二段取消前输出 | 2 | 43008 | 896 ms |
+| 取消后的第三段完整输出 | 6 | 132730 | 2765 ms |
+
+共观察 35 个 wire 帧、23 个无 ID 音频块和 2 个无 ID 用量事件。取消请求发出后又到达 10 个在途音频块，适配器向业务层转发的取消后旧音频为 **0**。随后第三段正常输出，证明本次序列里取消后的输出没有卡死。第一段输出边界后可成功发送第二次上下文更新，无 ID 统计没有造成归属错误；最终关闭获得真实 ACK。
+
+这一次真实样本支持当前固定 TTS／串行控制映射，不能证明所有供应商乱序情况。理论时长不是浏览器播放时长或打断到设备停播延迟。本地缺少 Chromium，浏览器合成检查由对应 [Foundation checks](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38018674069) 执行。ASR、持续学生上行音频、三种入口的模型教学内容、字幕同步、回声／噪声与真人停顿体验尚未验收。实时审核开关保持关闭，Task 10 继续进行。
