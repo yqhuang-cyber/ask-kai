@@ -34,7 +34,7 @@ export function evaluateP0(dataset,judgements) {
       semantic[name]=applicable?['fail','review','pass'][v]:'na';
       if(v===0)failures.push(name);if(v===1)reviews.push(name);
     }
-    const deterministic={bilingual_order:row.checks.language_order_issues?'fail':'pass',shared_reply_budget:row.checks.long_replies?'fail':'pass',question_surface:row.checks.multiple_questions?'fail':'pass'};
+    const deterministic={bilingual_order:row.checks.language_order_issues?'fail':'pass',english_support:row.checks.english_support_issues?'fail':'pass',shared_reply_budget:row.checks.long_replies?'fail':'pass',question_surface:row.checks.multiple_questions?'fail':'pass'};
     for(const [name,status] of Object.entries(deterministic))if(status==='fail')failures.push(name);
     for(const name of ['intent','correctness','instructions','level','expression','continuity','progress']) {
       if(row.scores[name]===0)failures.push(`rubric_${name}`);

@@ -17,11 +17,13 @@ is still pending acceptance.
 
 Only the reported speed, turn-taking, length/density, natural HSK association,
 progressive subtitles and visual summary issues are P0 for the next iteration.
-The basic language rule (short Chinese first, corresponding short English next)
+The language rule (Chinese first, short English support when needed)
 is P0 within tasks 04, 06, 09 and 10. Task 04 implements the model policy and
 metadata checks; Task 06 now implements approximate playback-aware captions.
 Live model compliance and actual caption listening quality remain pending.
-Both languages share the reply budget. Full personas/complex bilingual or word-by-word glosses,
+Both languages share the reply budget. The 2026-10-10 language adjustment adds only bounded support preferences, reported
+comprehension and known expressions to P0; see [language support](language-support.md).
+Full personas/complex bilingual or word-by-word glosses,
 age-based duration, complete profiles/target
 selection/scaffolding and correction branches are P1; cross-session continuity,
 complex long-term memory and professional pronunciation evaluation are P2.
@@ -32,7 +34,7 @@ Existing authorization and safety invariants remain in force.
 | 01 | Current behavior inventory, opt-in metadata timeline/export, fixed cases | Engineering implemented; real-account/device baseline pending. See [experience baseline](experience-baseline.md) |
 | 02 | Speech speed configuration and slow mode | Engineering implemented: slow default, normal option, session-isolated native speed and diagnostics. Real listening calibration pending. See [speech pace](speech-pace.md) |
 | 03 | Turn-taking and false interruption fixes | Engineering implemented: ASR text confirmation, owner-bound output wait, serialized controls and duplicate/obsolete cancel handling. Real pause/echo/noise calibration pending. See [turn taking](turn-taking.md) |
-| 04 | Short reply and teaching-density budgets; Chinese first, corresponding English next | Engineering implemented: versioned bilingual/density policy, shared budgets, metadata audits and scoring criteria. Real model compliance/listening pending. See [short replies](short-replies.md) |
+| 04 | Short reply/density budgets; Chinese first, adaptive English support | Engineering implemented: versioned adaptive language/density policy, bounded sourced profile and current requests, shared budgets, ACK-safe audits and scoring criteria. Real model compliance/listening pending. See [short replies](short-replies.md) |
 | 05 | Natural teaching decisions | Engineering implemented: single-goal/action selection, refusal/topic pause, clarification limit, teaching cooldown and sourced ACK snapshots. Real semantics/model teaching quality pending. See [natural teaching](natural-teaching.md) |
 | 06 | Playback-aware progressive subtitles, preserving Chinese/English order | Engineering implemented: phrase buffering, PCM clock, pause/cancel fences, labeled text fallback and Web size/highlight controls. Real device synchronization pending. See [progressive captions](progressive-captions.md) |
 | 07 | Per-session structured summary data | Engineering implemented: three entries, sourced target text/attempts, bounded refs, optional review and honest empty/partial/suppressed states. Bounded vocabulary and actual ASR/model semantics need acceptance. See [session summary](session-summary.md) |

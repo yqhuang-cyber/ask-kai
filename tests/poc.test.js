@@ -50,7 +50,7 @@ test('POC Mission tickets retain one-use authorization, course provenance and pr
   assert.equal((await create({mode:'mission',mission_id:'foreign'},{Cookie:cookie})).status,403);
   const response=await create({mode:'mission',mission_id:MOCK_MISSION.id},{Cookie:cookie});assert.equal(response.status,201);
   assert.equal((await create({mode:'sports'},{Cookie:cookie})).status,401);
-  const {provider,packets,ws}=await open(await response.json());assert.match(provider.input.instructions,/示例 Mission/);assert.match(provider.input.instructions,/kai-reply-v1/);
+  const {provider,packets,ws}=await open(await response.json());assert.match(provider.input.instructions,/示例 Mission/);assert.match(provider.input.instructions,/kai-reply-v2/);
   assert.ok(!packets.some(p=>p.event?.type==='session.ready'));provider.emit('session.ready');await until(()=>packets.some(p=>p.event?.type==='session.ready'));
   assert.equal(packets.find(p=>p.event?.type==='session.ready').synthetic,true);
   ws.send(JSON.stringify({type:'diagnostics.enable'}));await until(()=>packets.some(p=>p.row?.name==='backend.config'));

@@ -1,12 +1,17 @@
 import { createHmac,timingSafeEqual } from 'node:crypto';
 const id=value=>typeof value==='string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
-const fields=new Set(['interest','correction_preference','support_language']);
+export const MEMORY_FIELDS=Object.freeze(['interest','correction_preference','support_language','chinese_comprehension','known_expressions']);
+const fields=new Set(MEMORY_FIELDS);
 export function validateMemoryRecord(record,now=Date.now()) {
-  if(!record || !fields.has(record.field) || typeof record.value!=='string' || record.value.length<1 || record.value.length>80 || /[\r\n]/.test(record.value))throw new Error('INVALID_MEMORY');
+  if(!record || !fields.has(record.field))throw new Error('INVALID_MEMORY');
+  if(record.field==='known_expressions') {
+    if(!Array.isArray(record.value) || record.value.length<1 || record.value.length>12 || new Set(record.value).size!==record.value.length || !record.value.every(v=>typeof v==='string' && /^[\p{Script=Han}，。！？、· ]{1,16}$/u.test(v) && v===v.trim() && /\p{Script=Han}/u.test(v)))throw new Error('INVALID_MEMORY');
+  } else if(typeof record.value!=='string' || record.value.length<1 || record.value.length>80 || /[\r\n]/.test(record.value))throw new Error('INVALID_MEMORY');
   if(record.field==='correction_preference' && !['gentle','on_request'].includes(record.value))throw new Error('INVALID_MEMORY');
-  if(record.field==='support_language' && !['zh','zh_en'].includes(record.value))throw new Error('INVALID_MEMORY');
+  if(record.field==='support_language' && !['auto','zh','zh_en'].includes(record.value))throw new Error('INVALID_MEMORY');
+  if(record.field==='chinese_comprehension' && !['beginner','comfortable'].includes(record.value))throw new Error('INVALID_MEMORY');
   if(!['student_correction','authorized_hskai_profile'].includes(record.source) || !Number.isFinite(Date.parse(record.updated_at)) || !Number.isFinite(Date.parse(record.expires_at)) || Date.parse(record.updated_at)>now+5000 || Date.parse(record.expires_at)<=now || Date.parse(record.expires_at)-now>90*86400000)throw new Error('INVALID_MEMORY_PROVENANCE');
-  return {field:record.field,value:record.value,source:record.source,updated_at:record.updated_at,expires_at:record.expires_at};
+  return {field:record.field,value:structuredClone(record.value),source:record.source,updated_at:record.updated_at,expires_at:record.expires_at};
 }
 /** Issued only by the authenticated HSKai BFF after owner/consent/course checks. */
 export function signAssertion(claims,secret) {
@@ -35,7 +40,7 @@ export class HskaiBridge {
     if(!claims || claims.v!==1 || claims.iss!=='hskai' || claims.aud!=='ask-kai' || !id(claims.owner_id) || !id(claims.learner_id) || !id(claims.jti) || !Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.exp) || claims.iat>now+5 || claims.exp<=now || claims.exp-claims.iat>60 || !Array.isArray(claims.scopes) || !claims.scopes.includes(scope))throw new Error('UNAUTHORIZED');
     if(scope==='session:create' && (!this.markets.has(claims.market) || claims.consent?.voice!==true || typeof claims.minor!=='boolean' || (claims.minor && claims.consent.guardian!==true)))throw new Error('CONSENT_OR_MARKET_DENIED');
     const memory=(claims.memory ?? []).filter(r=>Date.parse(r.expires_at)>this.clock()).map(r=>validateMemoryRecord(r,this.clock()));
-    if(memory.length>3 || new Set(memory.map(r=>r.field)).size!==memory.length)throw new Error('INVALID_MEMORY');
+    if(memory.length>MEMORY_FIELDS.length || new Set(memory.map(r=>r.field)).size!==memory.length)throw new Error('INVALID_MEMORY');
     let mission=null;
     if(claims.mission) {
       const m=claims.mission;

@@ -13,14 +13,15 @@ import { setup,until } from './helpers/realtime.js';
 const pair='你喜欢足球吗？ Do you like football?';
 const judgement={case_id:'reply-policy',scores:Object.fromEntries(Object.keys(WEIGHTS).map(k=>[k,2])),critical_failure:false,handoff_required:false,handoff_delivered:false,human_review_approved:false};
 
-test('all modes share the bilingual budget despite learner language preferences or multiple Mission targets',()=>{
+test('all modes share the reply budget while honoring authorized Chinese preferences',()=>{
   for(const mode of ['sports','free','mission']) {
-    const session=new TeachingSession({sessionId:'s',mode,speechPace:'slow',mission:{title:'可信任务',targets:['喜欢','足球']},memory:[{field:'support_language',value:'zh',source:'student',updated_at:'2026-10-09'}]});
+    const session=new TeachingSession({sessionId:'s',mode,speechPace:'slow',mission:{title:'可信任务',targets:['喜欢','足球']},memory:[{field:'support_language',value:'zh',source:'student_correction',updated_at:new Date().toISOString(),expires_at:new Date(Date.now()+86400000).toISOString()}]});
     assert.ok(session.instructions().includes(REPLY_INSTRUCTIONS));
     assert.match(session.instructions(),/不要求一轮教完所有目标/);
     assert.match(session.instructions(),/不能覆盖上述规则/);
     assert.match(session.instructions(),/普通聊天可以零个新知识点/);
-    assert.match(session.instructions(),/示范也占上述句对和总预算/);
+    assert.match(session.instructions(),/示范也占上述句数和总预算/);
+    assert.equal(session.languageSnapshot().english_support,'off');
     const view=session.view();assert.equal(view.persona_version,PERSONA_VERSION);assert.equal(view.reply_policy_version,REPLY_POLICY_VERSION);
     view.reply_budget.pairs=99;assert.equal(session.view().reply_budget.pairs,2);
   }

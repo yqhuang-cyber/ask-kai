@@ -11,8 +11,10 @@ enums.code.push('TURN_LIMIT','TURN_FINAL_TIMEOUT','OUTPUT_HOLD_LIMIT');
 names.add('reply.audit');
 names.add('backend.config');enums.business_source=['mock_hskai','external_hskai','unconfigured'];
 for(const key of ['chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs'])numeric.add(key);
-for(const key of ['audit_complete','audit_truncated','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'])boolean.add(key);
-enums.reply_policy_version=['kai-reply-v1'];
+for(const key of ['audit_complete','audit_truncated','budget_exceeded','language_order_issue','english_support_issue','language_context_matched','question_budget_exceeded','translation_review_required','language_support_review_required','teaching_density_review_required'])boolean.add(key);
+enums.reply_policy_version=['kai-reply-v1','kai-reply-v2'];
+names.add('language.decision');numeric.add('known_expression_count');
+Object.assign(enums,{language_policy_version:['kai-language-v1'],english_support:['required','adaptive','off'],language_reason:['beginner_or_unknown','explicit_chinese','student_help_or_new_expression','explicit_bilingual','reported_comprehension','known_expressions']});
 for(const name of ['caption.mode','caption.playback'])names.add(name);
 for(const key of ['played_pcm_ms','received_pcm_ms','queued_pcm_ms','cue_at_ms','phrase_units'])numeric.add(key);
 Object.assign(enums,{caption_mode:['waiting_audio','playing','paused','text_only','complete'],caption_policy_version:['kai-captions-v1'],clock_source:['output_timestamp','context_time']});
@@ -81,7 +83,7 @@ export class ExperienceTrace {
           reply.caption_clock_source=row.clock_source;
         }
         if(row.name==='teaching.response')reply.teaching_context=Object.fromEntries(Object.entries(row).filter(([key])=>['applied_context_version','decision_context_version','decision_context_matched','pending_context'].includes(key)));
-        if(row.name==='reply.audit')reply.reply_audit=Object.fromEntries(Object.entries(row).filter(([key])=>['reply_policy_version','audit_complete','audit_truncated','chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs','budget_exceeded','language_order_issue','question_budget_exceeded','translation_review_required','teaching_density_review_required'].includes(key)));
+        if(row.name==='reply.audit')reply.reply_audit=Object.fromEntries(Object.entries(row).filter(([key])=>['reply_policy_version','language_policy_version','english_support','language_context_matched','audit_complete','audit_truncated','chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs','budget_exceeded','language_order_issue','english_support_issue','question_budget_exceeded','translation_review_required','language_support_review_required','teaching_density_review_required'].includes(key)));
       }
     }
     return {version:1,business_source:this.businessSource,kind:this.kind,provider_ready_observed:this.providerReady,real_experience_accepted:false,case_id:/^E0[1-9]$/.test(caseId)?caseId:'unselected',operator_outcome:['not_run','pass','fail','uncertain'].includes(outcome)?outcome:'not_run',contains_text:false,contains_audio:false,clock_policy:'browser and gateway have independent monotonic origins; compare intervals within one clock only',truncated:this.discarded>0,discarded_rows:this.discarded,summary:{responses:[...responses.values()],interruptions_by_source:interruptions,max_audio_queue_ms:maxQueue,max_caption_pending_chars:maxPending,gateway_dropped_events:this.rows.filter(r=>r.name==='event.dropped').length},timeline:this.rows.map(r=>({...r}))};

@@ -8,6 +8,7 @@ import { SEEDUPLEX_PROTOCOL } from '../../../packages/provider-doubao/seeduplex.
 import { hasSpeechText } from '../../../packages/agent-core/turn-taking.js';
 import { TurnOutputGate } from './output-gate.js';
 import { ReplyAudit,REPLY_POLICY_VERSION } from '../../../packages/agent-core/reply-policy.js';
+import { sameLanguageSupport } from '../../../packages/agent-core/language-support.js';
 
 export function attachRealtime(server,{providerFactory,providerKind='doubao',businessSource='unconfigured',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,replyGraceMs=350,turnWaitMs=5000,safeguardingPort,metrics}={}) {
   const tickets = new Map();
@@ -42,7 +43,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       let lastResponse = null;
       const pendingCancel = new Map();
       const speechCandidates=new Map();
-      let appliedVersion=1,appliedDecision=null,pendingContext=null;
+      let appliedVersion=1,appliedDecision=null,appliedLanguage=teaching.languageSnapshot(),pendingContext=null;
       let diagnostics=false;
       const replyStats=new Map();
       const diagnose=(name,fields={})=>{
@@ -98,7 +99,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
         const version=teaching.version;
         const decision=teaching.view().decision;
         diagnose('context.requested',{context_version:version,turn_id:decision?.turn_id});
-        pendingContext={version,decision,timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
+        pendingContext={version,decision,language:teaching.languageSnapshot(),timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
         try{provider.updateContext({version,instructions:teaching.instructions()});}catch{finish('PROVIDER_CONTEXT_FAILED');}
       };
       const cancelSent=id=> {
@@ -194,7 +195,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           }
           if (packet.control==='user.speech.started') {diagnose('user.speech.started',{turn_id:packet.turn_id,source:'provider_speech_start',active:!!runtime.active});if(ready)interrupt(undefined,'provider_speech_start');return;}
           if(packet.control==='context.updated') {
-            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;appliedDecision=pendingContext.decision;pendingContext=null;diagnose('context.applied',{context_version:appliedVersion,turn_id:appliedDecision?.turn_id});send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
+            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;appliedDecision=pendingContext.decision;appliedLanguage=pendingContext.language;pendingContext=null;diagnose('context.applied',{context_version:appliedVersion,turn_id:appliedDecision?.turn_id});send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
             return;
           }
           if (!packet.event) return;
@@ -212,7 +213,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           if (packet.event.type==='response.started'){lastResponse={id:packet.event.response_id,turn:packet.event.turn_id};policy.newResponse();replyAt=performance.now();firstAudio=false;}
           const event=packet.event,ids={response_id:event.response_id,turn_id:event.turn_id};
           if(event.type==='response.started') {
-            replyStats.set(event.response_id,{at:performance.now(),turn:event.turn_id,chars:0,deltas:0,chunks:0,pcmMs:0,audit:diagnostics?new ReplyAudit():null});
+            const languageContextMatched=!pendingContext && sameLanguageSupport(appliedLanguage,teaching.languageSnapshot());
+            replyStats.set(event.response_id,{at:performance.now(),turn:event.turn_id,chars:0,deltas:0,chunks:0,pcmMs:0,audit:diagnostics?new ReplyAudit({englishSupport:appliedLanguage.english_support,languageContextMatched}):null});
             diagnose('response.started',{...ids,pending_context:!!pendingContext,pending_cancel:pendingCancel.size>0});
             // Snapshot at the first accepted response-start notification, which
             // can arrive after generation began. This proves ACK/turn matching,
@@ -256,6 +258,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           if (packet.event.type==='response.cancelled') {clearTimeout(pendingCancel.get(packet.event.response_id)?.timer);pendingCancel.delete(packet.event.response_id);}
           if(teaching.accept(packet.event)) {
             const view=teaching.view(),decision=view.decision;
+            const language=teaching.languageSnapshot();
+            diagnose('language.decision',{turn_id:event.turn_id,context_version:teaching.version,language_policy_version:language.policy_version,english_support:language.english_support,language_reason:language.reason,known_expression_count:language.known_expressions.length});
             diagnose('teaching.decision',{turn_id:decision.turn_id,context_version:decision.context_version,teaching_policy_version:decision.policy_version,mode:decision.mode,action:decision.action,decision_reason:decision.reason,interaction:decision.interaction,support_level:decision.support_level,new_points:decision.new_points,turn_count:decision.turn_count,goal_attempt_observed:decision.goal_attempt_observed,teaching_paused:decision.teaching_paused,clarification_pending:decision.clarification_pending,teaching_cooldown:decision.teaching_cooldown});
             send({type:'teaching.state',...view});
           }
@@ -278,7 +282,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       tickets.set(token,ticket);
       return {session_id:ticket.session_id,ticket:token,websocket_path:'/api/realtime',protocol:'ask-kai.v1',expires_in:30,provider_connected:false};
     },
-    updateMemory(identity,memory) {for(const session of sessions.values())if(session.identity.owner_id===identity.owner_id && session.identity.learner_id===identity.learner_id){session.teaching.memory=structuredClone(memory);session.teaching.version++;session.flushContext();}},
+    updateMemory(identity,memory) {for(const session of sessions.values())if(session.identity.owner_id===identity.owner_id && session.identity.learner_id===identity.learner_id){session.teaching.updateMemory(memory);session.flushContext();}},
     revoke(identity) {
       for(const [key,ticket] of tickets)if(ticket.identity.owner_id===identity.owner_id && ticket.identity.learner_id===identity.learner_id)tickets.delete(key);
       for(const session of sessions.values())if(session.identity.owner_id===identity.owner_id && session.identity.learner_id===identity.learner_id)session.finish('AUTHORIZATION_REVOKED');

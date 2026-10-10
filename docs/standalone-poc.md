@@ -45,7 +45,7 @@ during implementation; the key on your local machine is needed for listening.
 | POC BFF/gateway | Existing owner/scopes/signature checks, single-use launch nonce and WebSocket ticket; forwards business operations through ports |
 | HSKai interface | `apps/hskai-mock` local HTTP service implements signed launch, memory, privacy and safeguarding contracts |
 | Identity/course | One fixed fictional adult learner and an authored completed Mission fixture; not a real account, consent record or completed course |
-| Preferences | Three allowed fields, source/update/expiry validation and owner isolation; process memory only |
+| Preferences | Five bounded fields: interest, correction, language support, reported comprehension and known expressions; source/update/expiry validation and owner isolation; process memory only |
 | Learning evidence | Task 07 builds sourced, bounded summaries for all entries; Task 08 renders expression cards and one optional review. Supported sports-likes rules separate target text and attempts. No mock mastery, pronunciation score or durable history is invented |
 | Voice | Real Doubao adapter, independent from mock business state; readiness, response ownership, interruption and context ACK rules unchanged |
 | Safety | Local mock case ACK returns `mocked: true`, `delivered: false`; UI says no human handoff, and human-delivered metrics are not incremented |

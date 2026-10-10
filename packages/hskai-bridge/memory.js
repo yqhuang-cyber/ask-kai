@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { signAssertion,validateMemoryRecord } from './identity.js';
+import { signAssertion,validateMemoryRecord,MEMORY_FIELDS } from './identity.js';
 import { bridgeEndpoint } from './endpoint.js';
 const key=identity=>JSON.stringify([identity.owner_id,identity.learner_id]);
 /** Test/local development port. Not the production learner truth source. */
@@ -28,7 +28,7 @@ export class HskaiMemoryPort {
   }
   async read(identity) {
     const result=await this.request(identity,'read');
-    if(!Array.isArray(result.records) || result.records.length>3)throw new Error('HSKAI_MEMORY_INVALID');
+    if(!Array.isArray(result.records) || result.records.length>MEMORY_FIELDS.length)throw new Error('HSKAI_MEMORY_INVALID');
     const records=result.records.filter(r=>Date.parse(r.expires_at)>Date.now()).map(r=>validateMemoryRecord(r));
     if(new Set(records.map(r=>r.field)).size!==records.length)throw new Error('HSKAI_MEMORY_INVALID');
     return records;

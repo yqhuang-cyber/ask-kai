@@ -156,7 +156,7 @@ async function loadMemory() {
   const response=await authorizedFetch('/api/memory');if(!response.ok)throw new Error('MEMORY_UNAVAILABLE');
   const result=await response.json(),list=document.querySelector('#memory-list');list.replaceChildren();
   document.querySelector('#memory-save').disabled=!result.writable;document.querySelector('#memory-delete').disabled=!result.can_delete;
-  const names={interest:'兴趣',correction_preference:'纠错偏好',support_language:'语言支架'};
+  const names={interest:'兴趣',correction_preference:'纠错偏好',support_language:'语言支架',chinese_comprehension:'中文理解情况（自述）',known_expressions:'已知表达（自述或授权画像）'};
   for(const record of result.records){const item=document.createElement('li');item.textContent=`${names[record.field]}：${record.value}（来源：${record.source}；更新：${record.updated_at.slice(0,10)}）`;list.append(item);}
   memoryStatus.textContent=result.records.length?'只使用与你当前练习相关、仍有效的偏好。':'目前没有有效偏好。';
 }
@@ -171,7 +171,9 @@ async function bootstrap() {
 }
 document.querySelector('#memory-form').addEventListener('submit',async event=> {
   event.preventDefault();
-  try{const response=await authorizedFetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field:document.querySelector('#memory-field').value,value:document.querySelector('#memory-value').value})});if(!response.ok)throw new Error('WRITE_FAILED');await loadMemory();memoryStatus.textContent='偏好已更正；后续回合将使用新偏好。';}
+  const field=document.querySelector('#memory-field').value,raw=document.querySelector('#memory-value').value;
+  const value=field==='known_expressions'?raw.split(/[,，、]/u).map(v=>v.trim()).filter(Boolean):raw;
+  try{const response=await authorizedFetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});if(!response.ok)throw new Error('WRITE_FAILED');await loadMemory();memoryStatus.textContent='偏好已更正；后续回合将使用新偏好。';}
   catch{memoryStatus.textContent='更正未成功，请检查授权或偏好值。';}
 });
 document.querySelector('#memory-delete').addEventListener('click',async()=> {

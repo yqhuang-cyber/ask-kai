@@ -95,3 +95,12 @@ integration exercises teaching context updates. Additional probe and interruptio
 regressions verify mute/close/error behavior and waiting for cancellation before
 updating context. No real provider transcript/audio, key or live assertion is used.
 See `protocol/seeduplex-integration.md` for ACK and terminal-identity limitations.
+
+## Adaptive English support (2026-10-10)
+
+`language-support.test.js` adds profile/default/expiry and direct-request tests,
+no ASR mastery inference, actual mock HTTP edits, ACK-safe reply audits and
+student-history-only content expectations. The original ten dimensions remain.
+`browser-check.js` saves and exports support, comprehension and known-expression
+fields through production Web controls and the local signed mock. These checks
+are synthetic, not observed Doubao teaching. See [language policy](language-support.md).

@@ -2,8 +2,8 @@
 
 The authored sports-likes-v1 curriculum has one goal: express a sports preference
 with 我喜欢…. Cards/start tips are curriculum, not live model output or an HSKai
-completed Mission. The kai-hsk1-v2 persona and kai-reply-v1 policy request short,
-patient Chinese/English sentence pairs, a shared length budget, one main question
+completed Mission. The kai-hsk1-v3 persona, kai-reply-v2 and kai-language-v1 policies request short,
+patient Chinese-first replies with English support according to the learner profile and intent, a shared length budget, one main question
 or task, at most one new teaching point/example, AI identity honesty, student topic
 choice and no mastery claims. See [Task 04 policy](short-replies.md).
 These are model instructions; compliance still requires content evaluation.
@@ -41,5 +41,5 @@ source turns and ACKs does not prove model compliance or audible delivery.
 
 Local WebSocket/teaching tests validate ownership and rules, not model teaching
 quality, short-pause handling or true speech. Real multi-turn account evaluation
-must confirm bilingual brevity/order, accurate corresponding English, teaching
+must confirm adaptive English support, brevity/order, accurate corresponding English, teaching
 density, one-question behavior, topic changes and refusal handling.

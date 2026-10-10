@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { signAssertion,verifyAssertion,validateMemoryRecord } from '../../../packages/hskai-bridge/identity.js';
+import { signAssertion,verifyAssertion,validateMemoryRecord,MEMORY_FIELDS } from '../../../packages/hskai-bridge/identity.js';
 import { InMemoryLearnerStore } from '../../../packages/hskai-bridge/memory.js';
 
 export const MOCK_IDENTITY=Object.freeze({owner_id:'poc-owner',learner_id:'poc-learner',market:'SG'});
@@ -44,7 +44,7 @@ export function createMockHskai({secret,clock=()=>Date.now()}={}) {
         if(!Object.hasOwn(fields,input.operation) || identity.operation!==input.operation || Object.keys(input).some(k=>!fields[input.operation].includes(k)))return json(res,400,{error:'INVALID_OPERATION'});
         if(input.operation==='read')return json(res,200,{records:await memory.read(identity)});
         if(input.operation==='write')await memory.write(identity,validateMemoryRecord(input.record,clock()));
-        if(input.operation==='delete'){if(input.field!==null && !['interest','correction_preference','support_language'].includes(input.field))return json(res,400,{error:'INVALID_MEMORY'});await memory.delete(identity,input.field);}
+        if(input.operation==='delete'){if(input.field!==null && !MEMORY_FIELDS.includes(input.field))return json(res,400,{error:'INVALID_MEMORY'});await memory.delete(identity,input.field);}
         return json(res,200,{});
       }
       if(audience==='hskai-privacy') {

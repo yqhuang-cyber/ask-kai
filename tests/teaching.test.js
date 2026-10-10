@@ -23,7 +23,7 @@ test('teaching views are copies and bounded sessions preserve provenance without
   const teaching=new TeachingSession({sessionId:'s1'});teaching.accept(event('user.final','我喜欢足球'));
   teaching.view().attempts[0].kind='mastered';assert.equal(teaching.view().attempts[0].kind,'attempted');
   assert.ok(!Object.hasOwn(teaching.evidence[0],'text'));
-  assert.match(teaching.instructions(),/一到两句/);assert.match(teaching.instructions(),/AI/);
+  assert.match(teaching.instructions(),/最多 2 句中文/);assert.match(teaching.instructions(),/AI/);
 });
 test('gateway passes persona at open, updates at reply boundary and confirms exact version',async t=> {
   const {create,open}=await setup(t);const {packets,provider}=await open(await(await create()).json());

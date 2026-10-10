@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import { SessionRuntime } from '../../../packages/agent-core/session.js';
 import { SCENARIOS, loadScenario, ReplayProvider } from '../../../packages/provider-replay/index.js';
 import { attachRealtime } from './realtime.js';
-import { validateMemoryRecord } from '../../../packages/hskai-bridge/identity.js';
+import { validateMemoryRecord,MEMORY_FIELDS } from '../../../packages/hskai-bridge/identity.js';
 import { Metrics } from '../../../packages/policy/metrics.js';
 import { DEFAULT_SPEECH_PACE, isSpeechPace } from '../../../packages/agent-core/speech.js';
 
@@ -113,7 +113,7 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, p
           if(req.method==='GET')return json(res,200,{records:memoryPort ? await memoryPort.read(identity):identity.memory,writable:!!memoryPort && identity.scopes.includes('memory:write'),can_delete:!!memoryPort && identity.scopes.includes('memory:delete')});
           if(!memoryPort)return json(res,501,{error:'HSKAI_MEMORY_WRITER_REQUIRED'});
           let input;try{input=await readJson(req,1024);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
-          const allowed=['interest','correction_preference','support_language'];
+          const allowed=MEMORY_FIELDS;
           if(!input || typeof input!=='object' || Array.isArray(input) || !Object.keys(input).every(k=>['field',...(req.method==='POST'?['value']:[])].includes(k)) || (input.field!==undefined && !allowed.includes(input.field)))return json(res,400,{error:'INVALID_MEMORY'});
           if(req.method==='POST') {
             const now=new Date().toISOString(),expires=new Date(Date.now()+30*86400000).toISOString();

@@ -34,9 +34,12 @@ completion. No unauthenticated real-provider mode is available. Test identity is
 an injected test-only path, with synthetic provider markers and no startup switch.
 
 GET/POST/DELETE /api/memory use the verified owner+learner, never browser IDs.
-Allowed preferences: interest, correction_preference (gentle/on_request), and
-support_language (zh/zh_en). They carry source/update/expiry; expired values are
-ignored. Corrections expire after 30 days and take effect at a reply boundary.
+Allowed preferences: interest, correction_preference (gentle/on_request),
+support_language (auto/zh/zh_en), chinese_comprehension (beginner/comfortable),
+and known_expressions (1–12 distinct Chinese expressions, each at most 16 characters).
+At most five unique fields carry source/update/expiry; expired values are
+ignored. These are bounded support inputs, not measured mastery; see
+[adaptive language support](language-support.md). Corrections expire after 30 days and take effect at a reply boundary.
 Delete ends the learner's active sessions and removes pending tickets. A signed
 POST /api/authorization/revoke also ends sessions when consent is withdrawn;
 this operation intentionally accepts consent.voice=false for revocation.

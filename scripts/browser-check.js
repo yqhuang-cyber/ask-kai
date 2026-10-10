@@ -188,13 +188,18 @@ try {
   // Expire the launch cookie without waiting 60 seconds. Each protected action refreshes it.
   await page.context().clearCookies();await page.locator('#memory-value').fill('篮球');await page.locator('#memory-save').click();
   await page.getByText('偏好已更正；后续回合将使用新偏好。',{exact:true}).waitFor();assert.match(await page.locator('#memory-list').textContent(),/篮球/);
+  for(const [field,value,display] of [['known_expressions','茶，音乐','茶,音乐'],['chinese_comprehension','comfortable','comfortable'],['support_language','auto','auto']]) {
+    await page.locator('#memory-field').selectOption(field);await page.locator('#memory-value').fill(value);await page.locator('#memory-save').click();
+    await page.waitForFunction(display=>document.querySelector('#memory-list').textContent.includes(display),display);
+  }
   await page.context().clearCookies();const memoryDownload=page.waitForEvent('download');await page.locator('#memory-export').click();
   const memoryStream=await(await memoryDownload).createReadStream(),memoryChunks=[];for await(const chunk of memoryStream)memoryChunks.push(chunk);
-  assert.equal(JSON.parse(Buffer.concat(memoryChunks).toString()).records[0].value,'篮球');
+  const exportedMemory=JSON.parse(Buffer.concat(memoryChunks).toString()).records;
+  assert.equal(exportedMemory[0].value,'篮球');assert.deepEqual(exportedMemory.find(r=>r.field==='known_expressions').value,['茶','音乐']);
   await page.locator('#connect').click();await page.getByText('实时语音尚未开通。需完成豆包协议和服务端连接验证。',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.microphoneRequests),0);assert.equal(await page.locator('#connection-status').textContent(),'未连接');
   await page.locator('#memory-delete').click();await page.getByText('偏好已删除，当前对话已结束。',{exact:true}).waitFor();assert.equal(await page.locator('#memory-list li').count(),0);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'.local/browser-check/poc-mobile.png',fullPage:true});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,replay:true,page_errors:0}));
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,adaptive_language_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,replay:true,page_errors:0}));
 }finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}for(const backend of backends)await backend.close();}
