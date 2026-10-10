@@ -40,3 +40,7 @@ Task 10 的第一部分：使用 GitHub Actions Repository Secret `DOUBAO_API_KE
 流程：创建会话 → 输入静音 → 更新 instructions 并观察 ACK → 官方 `speech_text_buffer.commit` 合成固定「你好。Hello.」 → 观察完整音频／交互终止结构 → replacement append/commit 合成较长的固定中英测试句 → 收到两个音频块后发送 cancel → 等待 ACK → session.close → 等待真实 session.closed 后关连接。
 
 只验证作者指定文本的 TTS 输出，**不是模型自由生成的教学回复**，也不上传学生音频或评测 ASR。报告仅保留事件结构、同一探针内盐处理的 ID、ACK 形状和 PCM 块数／字节数／非零样本数／理论时长，不保存文本内容或音频。PCM 非零不证明音色、发音或实际听感通过。记录 response.done 是否携带 reply ID，更新／取消 ACK 是否带 event ID、是否回带客户端 event ID；单次观测不会自动授权 Web 或证明所有竞态已通过。
+
+首轮输出 [运行 38016385764](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38016385764) 观察到会话就绪、session.updated 与两个非零 PCM 块，共 34816 字节（理论约 725 ms），随后传输失败。更新 ACK 有 event ID 且 session 相符，但没有回带本次客户端 event ID。audio.started 有 question_id／response_id，随后两个 audio.delta 仅有 type／delta／event_id；现有 Web 适配器的逐块 ID 要求与该实际输出不同，不能直接标记可用。
+
+后续请求增加安全的传输错误类别并将 JSON 音频帧上限调整为 128 KiB，解码后 PCM 仍限制 64 KiB。原先把 JSON/base64 封装和 PCM 共用 64 KiB 上限，无法容纳合法的较大 PCM 块。复测将验证是否存在这个问题；在观察到实际错误类别前，不将其认定为本次中断原因。

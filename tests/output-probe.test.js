@@ -67,3 +67,37 @@ test('unapproved profile, missing credentials, request mismatch and abort cannot
   const report=await runOutputProbe({profile,request,env:{DOUBAO_API_KEY:'synthetic-only'},socketFactory,signal:controller.signal});
   assert.equal(report.ended,'aborted');assert.equal(calls,0);
 });
+
+test('large JSON PCM envelope is bounded separately from decoded bytes; transport reasons are masked',async()=>{
+  class LargePeer extends Peer{
+    send(value){
+      if(JSON.parse(value).type==='speech_text_buffer.commit'){
+        this.sent.push(JSON.parse(value));
+        this.message({type:'response.output_audio.started',response_id:'private-r1'});
+        this.message({type:'response.output_audio.delta',delta:Buffer.alloc(60000,1).toString('base64')});
+        this.message({type:'response.done',response_id:'private-r1'});
+        return;
+      }
+      if(JSON.parse(value).type==='speech_text_buffer.replacement.commit'){
+        this.message({type:'response.output_audio.started',response_id:'private-r2'});
+        this.message({type:'response.output_audio.delta',delta:pcm});
+        this.message({type:'response.output_audio.delta',delta:pcm});
+        return;
+      }
+      super.send(value);
+    }
+  }
+  const socket=new LargePeer();
+  const report=await runOutputProbe({profile,request,env:{DOUBAO_API_KEY:'synthetic-only'},durationMs:500,socketFactory:(_url,options)=>{
+    assert.equal(options.maxPayload,131072);return socket;
+  }});
+  assert.equal(report.status,'passed');assert.equal(report.audio.complete.bytes,60000);
+  assert.equal(report.cancel_ack_shape.response_matches,true);
+  const errorSocket=new Peer();
+  const failed=runOutputProbe({profile,request,env:{DOUBAO_API_KEY:'synthetic-only'},durationMs:500,socketFactory:()=>errorSocket});
+  const event=new Event('error');event.error={code:'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH',message:'private secret failure'};
+  errorSocket.dispatchEvent(event);
+  const errorReport=await failed;
+  assert.equal(errorReport.transport_code,'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH');
+  assert.ok(!JSON.stringify(errorReport).includes('private secret failure'));
+});

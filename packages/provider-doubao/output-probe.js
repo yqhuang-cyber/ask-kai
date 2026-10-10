@@ -33,7 +33,7 @@ export async function runOutputProbe({profile,request,env={},signal,durationMs=2
   if(signal?.aborted)return {...report,status:'failed',ended:'aborted'};
   const started=performance.now(),salt=randomBytes(32);
   const socket=socketFactory(DUPLEX_ENDPOINT,{headers:{[profile.auth.header]:profile.auth.prefix+key},
-    maxPayload:65536,perMessageDeflate:false,handshakeTimeout:5000,followRedirects:false});
+    maxPayload:131072,perMessageDeflate:false,handshakeTimeout:5000,followRedirects:false});
   socket.binaryType='arraybuffer';
   return await new Promise(resolve=>{
     let phase='connecting',sessionId,updateId,cancelId,activeReply,closingReason='completed',finished=false,closeTimer;
@@ -61,12 +61,18 @@ export async function runOutputProbe({profile,request,env={},signal,durationMs=2
       closeTimer=setTimeout(()=>finish(reason==='completed'?'close_ack_timeout':reason),2000);
     };
     const onAbort=()=>beginClose('aborted');
-    const onError=()=>finish('transport_error');
+    const onError=event=>{
+      const code=event.error?.code;
+      if(['WS_ERR_UNSUPPORTED_MESSAGE_LENGTH','WS_ERR_INVALID_UTF8','WS_ERR_UNEXPECTED_RSV_1',
+        'ECONNRESET','ETIMEDOUT','ECONNREFUSED','EAI_AGAIN','ENOTFOUND','ERR_TLS_CERT_ALTNAME_INVALID',
+        'UNABLE_TO_VERIFY_LEAF_SIGNATURE'].includes(code))report.transport_code=code;
+      finish('transport_error');
+    };
     const onClose=()=>finish(phase==='closing'&&report.session_closed_observed?closingReason:'remote_closed');
     const onOpen=()=>{phase='ready_pending';send(profile.session_create);};
     const onMessage=event=>{
       if(finished)return;
-      if(typeof event.data!=='string'||Buffer.byteLength(event.data)>65536||report.events.length>=128)return beginClose('frame_limit');
+      if(typeof event.data!=='string'||Buffer.byteLength(event.data)>131072||report.events.length>=128)return beginClose('frame_limit');
       let raw;try{raw=JSON.parse(event.data);}catch{return beginClose('invalid_json');}
       if(!raw||typeof raw!=='object'||Array.isArray(raw))return beginClose('invalid_json_shape');
       const allowed=new Set([...profile.observed_event_types,'conversation.item.added']);
@@ -88,6 +94,8 @@ export async function runOutputProbe({profile,request,env={},signal,durationMs=2
         if(raw.session?.id!==sessionId)return beginClose('foreign_update_ack');
         report.update_ack_observed=true;phase='complete';
         send({type:'speech_text_buffer.commit',event_id:randomUUID(),text:OUTPUT_PROBE_TEXT.complete});
+      }else if(raw.type==='response.output_audio.started'&&['complete','cancel'].includes(phase)){
+        activeReply=typeof raw.response_id==='string'?raw.response_id:null;
       }else if(raw.type==='response.output_audio.delta'&&['complete','cancel','cancel_pending'].includes(phase)){
         if(typeof raw.delta!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(raw.delta))return beginClose('invalid_audio');
         const bytes=Buffer.from(raw.delta,'base64');
@@ -95,14 +103,14 @@ export async function runOutputProbe({profile,request,env={},signal,durationMs=2
         const metrics=report.audio[phase==='complete'?'complete':'cancel'];metrics.chunks++;metrics.bytes+=bytes.length;
         for(let offset=0;offset<bytes.length;offset+=2)if(bytes.readInt16LE(offset)!==0)metrics.nonzero_samples++;
         if(phase==='cancel'&&metrics.chunks>=2){
-          activeReply=typeof raw.response_id==='string'?raw.response_id:null;
+          if(typeof raw.response_id==='string')activeReply=raw.response_id;
           cancelId=randomUUID();phase='cancel_pending';send({type:'response.cancel',event_id:cancelId});
         }
       }else if(raw.type==='response.done'){
         report.terminal_shapes.push({phase,response_id_present:typeof raw.response_id==='string',question_id_present:typeof raw.question_id==='string',event_id_present:typeof raw.event_id==='string'});
         if(phase==='complete'){
           if(!report.audio.complete.bytes)return beginClose('missing_complete_audio');
-          phase='cancel';
+          phase='cancel';activeReply=null;
           send({type:'speech_text_buffer.replacement.append',event_id:randomUUID(),text:OUTPUT_PROBE_TEXT.cancel});
           send({type:'speech_text_buffer.replacement.commit',event_id:randomUUID()});
         }else if(phase==='cancel')return beginClose('completed_before_cancel');
