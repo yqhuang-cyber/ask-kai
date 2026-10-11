@@ -44,6 +44,7 @@ jobs:
             .local/evaluation-batch/batch-failure.json
             .local/evaluation-batch/observations.json
             .local/evaluation-batch/collection-report.json
+            .local/evaluation-batch/protocol-diagnostics.json
             .local/evaluation-batch/scoring-input.json
             .local/evaluation-batch/judgements.json
             .local/evaluation-batch/score-report.json

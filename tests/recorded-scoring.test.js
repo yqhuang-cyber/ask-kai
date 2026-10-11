@@ -66,6 +66,13 @@ test('language control requirements and declared profiles are adapted separately
   const b=adapt(observation({caseIds:['ask-kai-language-03','ask-kai-language-06']}));assert.ok(b.units.every(u=>u.kind==='language_scenario'));
   assert.equal(b.units[0].language_expectation.mode,data.language_scenarios[2].turns[0].expected_mode);assert.equal(b.units[0].case.initial_memory.length,3);
 });
+test('structured summary evidence exists only at case end; run metadata can prove evaluation isolation independently of answer text',()=>{
+  const b=adapt(observation()),j=judgement(b),last=b.units.at(-1);assert.equal(b.units[0].session_summary,null);assert.ok(last.session_summary);
+  const summary=[{turn:last.turn,role:'summary',start:0,end:JSON.stringify(last.session_summary).length}];j.units.at(-1).criteria[1].evidence=summary;
+  const metadata=[{turn:1,role:'metadata',start:0,end:JSON.stringify(b.units[0].execution_evidence).length}];j.units[0].criteria[0].evidence=metadata;
+  assert.equal(evaluateRecorded(b,j).coverage.scored_turns,4);
+  j.units[0].criteria[0].evidence=[{turn:1,role:'summary',start:0,end:1}];assert.throws(()=>evaluateRecorded(b,j),/EVIDENCE_RANGE/);
+});
 test('Judge failure retains pending checkpoint and continues subsequent units; model cannot approve human review',async()=>{
   const b=adapt(observation({real:true})),fixture=judgement(b,{real:true});let calls=0,saves=0;
   const judge=async u=>{calls++;if(calls===2)throw new Error('private upstream error');return {...fixture.units.find(j=>j.unit_id===u.id),human_review_approved:true};};

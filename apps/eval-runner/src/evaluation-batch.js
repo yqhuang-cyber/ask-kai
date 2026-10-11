@@ -14,6 +14,8 @@ import { LANGUAGE_POLICY_VERSION } from '../../../packages/agent-core/language-s
 import { REPLY_POLICY_VERSION } from '../../../packages/agent-core/reply-policy.js';
 import { TEACHING_POLICY_VERSION } from '../../../packages/agent-core/natural-teaching.js';
 import { SUMMARY_POLICY_VERSION } from '../../../packages/agent-core/learning-summary.js';
+import { SeeduplexProvider } from '../../../packages/provider-doubao/seeduplex.js';
+import { observeTrialProvider } from './actions-multiturn.js';
 
 export function scopedEvaluationProfile(profile) {
   if(profile.review_scope!=='static_session_connect_only'||profile.realtime?.reviewed!==false||profile.realtime?.ordered_acks_reviewed!==false||profile.auth?.env!=='DOUBAO_API_KEY')throw new Error('INVALID_EVALUATION_PROBE_PROFILE');
@@ -47,7 +49,13 @@ export async function runEvaluationBatch({data,dataSha,cases,profile,env,directo
     cases:observations.cases.map(c=>({case_id:c.case_id,status:c.status,failure:c.failure,expected_turns:c.expected_turns,collected_turns:c.turns.filter(t=>t.reply_complete).length})),
     retry_case_ids:cases.filter(c=>!observations.cases.some(o=>o.case_id===c.id&&o.status==='collected')).map(c=>c.id),content_scored:false,real_experience_accepted:false});
   const save=async()=>{await atomicPrivateJson(join(directory,'observations.json'),observations);await atomicPrivateJson(join(directory,'collection-report.json'),report());};
-  await save();const audioCache=new Map();
+  await save();const audioCache=new Map(),protocolDiagnostics=[];let connection=0;
+  const observer=(options,caseId,phase)=>{
+    const ordinal=++connection;
+    return observeTrialProvider(new SeeduplexProvider(options),{profile:options.profile,onDiagnostic:row=>{
+      if(protocolDiagnostics.length<1024||row.failure)protocolDiagnostics.push({...row,case_id:caseId,phase,connection:ordinal});
+    }});
+  };
   for(const c of cases) {
     if(signal?.aborted)break;
     const row={case_id:c.id,entry:'free',kind:c.kind,initial_profile:c.initial_profile,profile_evidence:c.profile_evidence,expected_turns:c.turns.length,
@@ -56,15 +64,17 @@ export async function runEvaluationBatch({data,dataSha,cases,profile,env,directo
     try {
       const caseDir=join(directory,c.id);await mkdir(caseDir,{mode:0o700});
       await prepare({cases:[c],datasetSha256:dataSha,profile:scoped,env,directory:caseDir,signal,timeoutMs:45000,protocolProbe:true,onProgress,
-        synthesize:async args=>{const hash=sha256(Buffer.from(args.text));if(!audioCache.has(hash))audioCache.set(hash,await synthesize(args));return audioCache.get(hash);}});
+        synthesize:async args=>{const hash=sha256(Buffer.from(args.text));if(!audioCache.has(hash))audioCache.set(hash,await synthesize({...args,createProvider:options=>observer(options,c.id,'authored_input_tts')}));return audioCache.get(hash);}});
       const inputs=await readInputs(join(caseDir,'audio-manifest.json'),[c],{datasetSha256:dataSha});
       row.audio_manifest_sha256=inputs.manifest_sha256;phase='agent_collection';
       const result=await collect({cases:[c],inputs:inputs.inputs,profile:scoped,env,signal,candidateRevision:env.GITHUB_SHA,datasetVersion:data.dataset_version,
         datasetSha256:dataSha,manifestSha256:inputs.manifest_sha256,protocolProbe:true,turnTimeoutMs:45000,onProgress,
+        providerFactory:ticket=>observer({profile:scoped,env,protocolProbe:true,speechPace:ticket.speech_pace},c.id,'agent_collection'),
         checkpoint:async o=>{if(o.cases[0])Object.assign(row,o.cases[0]);await save();}});
       Object.assign(row,result.observations.cases[0]);
     }catch(error){row.status='failed';row.failure=/^[A-Z_]{1,80}$/.test(error.message)?error.message:'BATCH_CASE_FAILED';row.failure_phase=phase;}
-    await save();onProgress({case_id:c.id,state:row.status,failure:row.failure});
+    await save();await atomicPrivateJson(join(directory,'protocol-diagnostics.json'),{kind:'evaluation_protocol_structure',raw_values_retained:false,rows:protocolDiagnostics});
+    onProgress({case_id:c.id,state:row.status,failure:row.failure});
   }
   const bundle=adaptRecordedObservations(data,[observations],{datasetSha256:dataSha,caseIds:cases.map(c=>c.id),agentRevision:baselineInfo.agent_revision,runtimeDigest:baselineInfo.runtime_digest});
   const judgements=reviewTemplate(bundle),scores=evaluateRecorded(bundle,judgements);
