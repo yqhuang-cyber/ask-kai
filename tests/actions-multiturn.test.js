@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile,mkdtemp,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateActionsTrial,runActionsTrial } from '../apps/eval-runner/src/actions-multiturn.js';
+import { validateActionsTrial,runActionsTrial,trialProviderFactory } from '../apps/eval-runner/src/actions-multiturn.js';
 import { prepareInputAudio,synthesizeInput } from '../apps/eval-runner/src/input-audio.js';
 import { runMultiturn,runPreflight } from '../apps/eval-runner/src/multiturn.js';
 import { sha256 } from '../apps/eval-runner/src/multiturn-plan.js';
@@ -70,4 +70,13 @@ test('failed preparation stops collection and never exposes provider error text 
   assert.equal(r.status,'failed');assert.equal(r.phase,'prepare_authored_input_audio');assert.equal(r.failure,'MULTITURN_TRIAL_FAILED');
   assert.equal(collected,false);assert.ok(!JSON.stringify(r).includes(env.DOUBAO_API_KEY));
   assert.equal(r.input_audio_prepared_turns,1);
+});
+test('failed trial wire mapping records structure and isolated aliases, never payload strings or secrets',async t=>{
+  const {scoped}=validateActionsTrial(params()),peer=await protocolPeer(t),rows=[];
+  const provider=trialProviderFactory({profile:scoped,env,onDiagnostic:row=>rows.push(row),socketFactory:peer.socketFactory})({speech_pace:'slow'});
+  await new Promise((resolve,reject)=>provider.open({sessionId:'authored-session',onEvent:p=>{if(p.event?.type==='session.ready')resolve();},onFailure:reject}));
+  assert.throws(()=>provider.receive({type:'conversation.item.input_audio_transcription.delta',event_id:'private-event-id',question_id:'private-question-id',delta:'private transcript',api_key:env.DOUBAO_API_KEY}),/INVALID_PROVIDER_ID/);
+  const failure=rows.at(-1);assert.equal(failure.failure,'INVALID_PROVIDER_ID');assert.equal(failure.item_id,null);assert.equal(failure.question_id,'id-1');assert.equal(failure.shape.fields.delta.type,'string');
+  for(const text of ['private transcript','private-question-id','private-event-id',env.DOUBAO_API_KEY,'fixture-session','api_key'])assert.ok(!JSON.stringify(rows).includes(text));
+  assert.equal((await provider.close()).acknowledged,true);
 });

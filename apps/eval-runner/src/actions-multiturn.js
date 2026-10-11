@@ -1,9 +1,38 @@
 import { join } from 'node:path';
 import { preflight } from '../../../packages/provider-doubao/probe.js';
-import { validateSeeduplexProfile } from '../../../packages/provider-doubao/seeduplex.js';
+import { SeeduplexProvider,validateSeeduplexProfile } from '../../../packages/provider-doubao/seeduplex.js';
 import { selectCases,readAudioManifest,sha256 } from './multiturn-plan.js';
 import { prepareInputAudio } from './input-audio.js';
 import { runMultiturn,writeRunCheckpoint } from './multiturn.js';
+
+const diagnosticKeys=new Set(['type','event_id','session','id','item_id','question_id','response_id','delta','transcript','text','results','asr','content_index','response','error','code','status_code','start','end','is_interim','words','word','duration','confidence','audio_info','audio','utterances']);
+const protocolCodes=new Set(['INVALID_PROVIDER_EVENT','INVALID_PROVIDER_ID','INVALID_PROVIDER_TEXT','PROVIDER_ASR_FAILED',
+  'PROVIDER_REPORTED_ERROR','FOREIGN_PROVIDER_TURN','UNBOUND_PROVIDER_RESPONSE','UNBOUND_AUDIO_STREAM','AMBIGUOUS_AUDIO_STREAM',
+  'PROVIDER_TEXT_LIMIT','PROVIDER_TEXT_REWRITE','INVALID_PROVIDER_AUDIO','OVERLAPPING_PROVIDER_RESPONSE','UNBOUND_CONTEXT_ACK','UNBOUND_CANCEL_ACK']);
+function shape(value,depth=0) {
+  if(value===null)return {type:'null'};
+  if(typeof value==='string')return {type:'string',length:value.length};
+  if(Array.isArray(value))return {type:'array',length:value.length,...(depth<3&&value.length?{first:shape(value[0],depth+1)}:{})};
+  if(typeof value==='object')return {type:'object',fields:depth<3?Object.fromEntries(Object.keys(value).filter(k=>diagnosticKeys.has(k)).slice(0,24).map(k=>[k,shape(value[k],depth+1)])):undefined};
+  return {type:typeof value};
+}
+// Capture field types/lengths and per-session ID aliases only. No wire payload,
+// strings, transcripts, keys, session identifiers or PCM are retained.
+export function trialProviderFactory({profile,env,onDiagnostic=()=>{},socketFactory}) {
+  return ticket=>{
+    const provider=new SeeduplexProvider({profile,env,protocolProbe:true,speechPace:ticket.speech_pace,...(socketFactory?{socketFactory}:{})});
+    const receive=provider.receive.bind(provider),aliases=new Map();
+    const record=row=>{try{onDiagnostic(row);}catch{}};
+    const alias=value=>{if(typeof value!=='string'||!value||value.length>120)return null;if(!aliases.has(value))aliases.set(value,`id-${aliases.size+1}`);return aliases.get(value);};
+    provider.receive=raw=>{
+      const type=profile.observed_event_types.includes(raw?.type)?raw.type:'other';
+      const row={type,shape:shape(raw),item_id:alias(raw?.item_id),question_id:alias(raw?.question_id),response_id:alias(raw?.response_id)};
+      try{receive(raw);if(type!=='response.output_audio.delta')record(row);}
+      catch(error){record({...row,failure:protocolCodes.has(error.message)?error.message:'PROVIDER_PROTOCOL_ERROR'});throw error;}
+    };
+    return provider;
+  };
+}
 
 // Fixed, bounded trial on authored scripts. The same probe-only attestation as
 // the live adapter smoke never becomes an ordinary Web/CLI runtime profile.
@@ -30,7 +59,8 @@ export async function runActionsTrial({profile,request,data,datasetSha256,env={}
     profile_sha256:request.profile_sha256,input_source:'authored_tts',business_source:'mock_hskai',
     protocol_probe:true,runtime_profile_scope:'protocol_smoke',web_profile_enabled:false,
     content_scored:false,judge_calls:0,microphone_uploaded:false,browser_audio_tested:false,real_experience_accepted:false,
-    input_audio_prepared_turns:0,status:'running',phase:'preflight',failure:null};
+    input_audio_prepared_turns:0,status:'running',phase:'preflight',failure:null,
+    protocol_diagnostics:[],protocol_diagnostics_truncated:false,provider_protocol_failure:null};
   if(!credentialReady)return {...report,status:'blocked',failure:'SERVER_CREDENTIAL_REQUIRED'};
   const boundedSignal=AbortSignal.any([AbortSignal.timeout(request.duration_ms),...(signal?[signal]:[])]);
   try {
@@ -44,9 +74,14 @@ export async function runActionsTrial({profile,request,data,datasetSha256,env={}
     report.input_audio_prepared_turns=manifest.entries.length;
     const audio=await readInputs(join(directory,'audio-manifest.json'),cases,{datasetSha256});
     report.phase='collect_actual_agent_replies';
+    const providerFactory=trialProviderFactory({profile:scoped,env,onDiagnostic:row=>{
+      if(row.failure)report.provider_protocol_failure=row;
+      if(report.protocol_diagnostics.length<256)report.protocol_diagnostics.push(row);
+      else report.protocol_diagnostics_truncated=true;
+    }});
     const result=await collect({cases,inputs:audio.inputs,profile:scoped,env,signal:boundedSignal,
       candidateRevision:env.GITHUB_SHA,datasetVersion:data.dataset_version,datasetSha256,manifestSha256:audio.manifest_sha256,
-      turnTimeoutMs:45000,protocolProbe:true,onProgress,checkpoint:(o,r)=>writeRunCheckpoint(directory,o,r)});
+      turnTimeoutMs:45000,protocolProbe:true,providerFactory,onProgress,checkpoint:(o,r)=>writeRunCheckpoint(directory,o,r)});
     report.collection=result.report;report.status=result.report.status;report.phase='finished';
   }catch(error){report.status='failed';report.failure=/^[A-Z_]{1,80}$/.test(error.message)?error.message:'MULTITURN_TRIAL_FAILED';}
   return report;

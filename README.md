@@ -93,7 +93,7 @@ npm run test:browser
 | [逐轮 CSV](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.csv) | 保留原始 20 列，补至 48 列；前 4 行是原说明，第 5 行是字段名 |
 | [优化与检查说明](docs/eval-datasets/freechat-v3.1/review.md) | 本轮完善内容、检查结果和使用方法 |
 
-当前状态为 **`prepared_not_executed`**：数据准备与检查已完成，尚未跑真实豆包或 Judge，没有模型得分。全部案例属于 `free` 入口的固定学生脚本；代码语言预览仅诊断，参考只供评审，回放前文使用实际 Kai 回复。34 个主动信号是学生话语，不是真实 idle 事件；本集不覆盖真实语速、插话、字幕播放或全部三个入口的验收。
+数据文件保留准备状态 **`prepared_not_executed`**，运行记录独立保存，不把实际输出填回作者标注。已开始首案真实豆包试跑，全量采集与评分仍待完成，没有 Judge 或模型得分。全部案例属于 `free` 入口的固定学生脚本；代码语言预览仅诊断，参考只供评审，回放前文使用实际 Kai 回复。34 个主动信号是学生话语，不是真实 idle 事件；本集不覆盖真实语速、插话、字幕播放或全部三个入口的验收。
 
 在仓库根目录执行以下命令，只检查数据，不调用模型。CI 也执行同一校验。JSON 不能直接作为现有 `eval:content` 的实际输出或整份发送给待测模型。详见[评测集完善与检查](docs/freechat-eval.md)和[版本与文件清单](docs/freechat-eval-manifest.json)。
 
@@ -119,7 +119,7 @@ npm run eval:multiturn -- --live --case ask-kai-v2-001 \
   --out .local/eval-run-001
 ```
 
-结果逐轮保存在 Git 忽略的 `.local/` 新目录，含实际记录 `observations.json` 和不含逐字稿的 `report.json`；失败保留部分内容，下一案重新建立会话。可先试一案，再用 `--all` 跑主集，`--all --include-language` 跑全部 48 案／255 轮。工程模拟测试已通过；**本评测集尚未真实执行，运行器本次不自动评分，也不完成 Task 10 的 Web／语音验收**。详见[完整使用说明、技术时序与结果边界](docs/multiturn-eval.md)。
+结果逐轮保存在 Git 忽略的 `.local/` 新目录，含实际记录 `observations.json` 和不含逐字稿的 `report.json`；失败保留部分内容，下一案重新建立会话。可先试一案，再用 `--all` 跑主集，`--all --include-language` 跑全部 48 案／255 轮。工程模拟测试已通过；**首案真实试跑已开始，全量评测尚未完成，运行器不自动评分，也不完成 Task 10 的 Web／语音验收**。详见[完整使用说明、实际试跑记录、技术时序与结果边界](docs/multiturn-eval.md)。
 
 ## 1. 产品目标与首期边界
 
