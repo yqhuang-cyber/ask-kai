@@ -8,6 +8,8 @@
 
 每维和每项可评 criteria 必须绑定 `{turn, role, start, end}` 证据，位置使用 JavaScript UTF-16 索引；引用范围只能来自截至当前轮的实际文本。评分文件绑定整个输入 artifact 的 SHA-256，修改回复或换一轮历史后必须重新评分。纯聊天的 progress 不强求教学。总结单独按作者条件契约与实际事件审核，不虚构任意词卡、掌握或发音结论。
 
+`role` 支持 `student`、`kai`、`summary`、`metadata`。总结 JSON 仅在最后一轮提供；运行元数据只证明观测到的执行来源及隔离标记，不证明没有内部记忆写回。缺少该类执行证据的要求保留 `null`，不能当作通过。
+
 十维数值复用原 `scoreCase`；`authored_tts_real_model` 显式区分固定作者音频／真实 AI 输出与真人记录。通用 `eval:content` 不接受该来源，必须经过真实记录适配。现有真人数据审核合同不因本工具改变。
 
 | 状态／分类 | 处理 |
@@ -44,6 +46,8 @@ GitHub workflow **Frozen Agent full evaluation** 固定 8 个按轮数均衡的�
 `collection-report.json` 列出每案状态和 `retry_case_ids`。通过新的显式请求选择失败 ID，从第一轮新建会话重跑，保留旧记录；工具不会自动续接、改写前文或调 Agent。汇总有重复案例时必须显式选择替代运行 ID，且只能替代未完成的原尝试，不能挑选更高分的成功尝试。
 
 每批 Artifact 包含请求／基线、观测、评分输入、评分模板与报告，保留 7 天。仅固定作者脚本与 AI 输出，不上传 PCM、Key、原始 wire trace 或真人录音。缺少独立 Judge 配置时仍完成采集和评分适配，报告明确未评分；不会把规则计数冒充语义分数。
+
+安全协议诊断只记录事件名、字段类型／长度、会话内 ID 别名和错误类别，不保留原始值。2026-10-12 的失败重跑确认输入 TTS 有超过 64 KiB 的单包 PCM；`authored-tts-pcm-reframing-v1` 仅对评测输入合成拆包，保持字节、顺序和所有权，记录版本。Agent 输出与生产解码器仍沿用冻结基线。语气词无最终 ASR 时保留采集失败，不替换脚本或伪造回复。
 
 ```bash
 npm run eval:report -- \

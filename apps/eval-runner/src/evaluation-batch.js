@@ -2,7 +2,7 @@ import { mkdir,readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { selectCases,readAudioManifest,sha256 } from './multiturn-plan.js';
-import { prepareInputAudio,synthesizeInput } from './input-audio.js';
+import { prepareInputAudio,synthesizeInput,INPUT_TTS_TRANSPORT_VERSION } from './input-audio.js';
 import { runMultiturn } from './multiturn.js';
 import { atomicPrivateJson } from './private-artifacts.js';
 import { validateSeeduplexProfile } from '../../../packages/provider-doubao/seeduplex.js';
@@ -36,13 +36,13 @@ export async function runEvaluationBatch({data,dataSha,cases,profile,env,directo
   const scoped=scopedEvaluationProfile(profile);
   if(!preflight(profile,env).live_eligible)throw new Error('SERVER_CREDENTIAL_REQUIRED');
   const observations={version:1,kind:'ask-kai-multiturn-observations',run_id:`batch-${randomUUID()}`,execution:'recorded_real_model',
-    input_source:'authored_scripts_as_audio',business_source:'mock_hskai',candidate_revision:env.GITHUB_SHA,...baselineInfo,
+    input_source:'authored_scripts_as_audio',input_tts_transport_version:INPUT_TTS_TRANSPORT_VERSION,business_source:'mock_hskai',candidate_revision:env.GITHUB_SHA,...baselineInfo,
     dataset_version:data.dataset_version,dataset_sha256:dataSha,audio_manifest_sha256:null,model_version:profile.session_create.session.model,
     profile_sha256:sha256(Buffer.from(JSON.stringify(scoped))),policy_versions:{persona:PERSONA_VERSION,language:LANGUAGE_POLICY_VERSION,reply:REPLY_POLICY_VERSION,teaching:TEACHING_POLICY_VERSION,summary:SUMMARY_POLICY_VERSION,rubric:RUBRIC_VERSION},
     history_source:'actual_provider_session_only',references_sent_to_model:false,soft_goals_sent_to_model:false,protocol_probe:true,runtime_profile_scope:'protocol_smoke',
     scores_present:false,judge_calls:0,browser_audio_tested:false,real_experience_accepted:false,cases:[]};
   const report=()=>({version:1,kind:'ask-kai-batch-collection-report',run_id:observations.run_id,...baselineInfo,
-    runner_revision:env.GITHUB_SHA,dataset_sha256:dataSha,model_version:observations.model_version,selected_cases:cases.length,
+    runner_revision:env.GITHUB_SHA,input_tts_transport_version:INPUT_TTS_TRANSPORT_VERSION,dataset_sha256:dataSha,model_version:observations.model_version,selected_cases:cases.length,
     selected_turns:cases.reduce((s,c)=>s+c.turns.length,0),completed_cases:observations.cases.filter(c=>c.status==='collected').length,
     collected_turns:observations.cases.reduce((s,c)=>s+c.turns.filter(t=>t.reply_complete).length,0),
     status:observations.cases.length===cases.length&&observations.cases.every(c=>c.status==='collected')?'observations_collected':'incomplete',

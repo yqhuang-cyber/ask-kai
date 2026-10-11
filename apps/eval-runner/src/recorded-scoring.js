@@ -35,7 +35,7 @@ export function adaptRecordedObservations(data,observations,{datasetSha256,caseI
     if(agentRevision)assert(o.agent_revision===agentRevision&&o.runtime_digest===runtimeDigest&&o.baseline_verified===true,'OBSERVED_AGENT_BASELINE_MISMATCH');
     if(execution)assert(execution===o.execution&&modelVersion===o.model_version&&profileHash===o.profile_sha256&&equal(policyVersions,o.policy_versions),'MIXED_EVALUATION_VERSIONS');
     execution=o.execution;modelVersion=o.model_version;profileHash=o.profile_sha256;policyVersions=o.policy_versions;
-    assert(!runs.some(r=>r.run_id===o.run_id),'DUPLICATE_OBSERVATION_RUN');runs.push({run_id:o.run_id,runner_revision:o.candidate_revision});
+    assert(!runs.some(r=>r.run_id===o.run_id),'DUPLICATE_OBSERVATION_RUN');runs.push({run_id:o.run_id,runner_revision:o.candidate_revision,input_tts_transport_version:o.input_tts_transport_version??'production-decoder-64k'});
     for(const c of o.cases){assert(specs.has(c.case_id)&&!rows.has(c.case_id),'DUPLICATE_OR_UNKNOWN_OBSERVED_CASE');rows.set(c.case_id,c);sourceRuns.set(c.case_id,o.run_id);sourceObservations.set(c.case_id,o);}
   }
   const bundle={version:1,kind:'ask-kai-recorded-scoring-input',dataset_version:data.dataset_version,dataset_sha256:datasetSha256,
