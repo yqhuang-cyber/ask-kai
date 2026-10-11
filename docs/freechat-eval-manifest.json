@@ -1,5 +1,5 @@
 {
-  "dataset_version": "freechat-v3.0-20261010",
+  "dataset_version": "freechat-v3.1-20261011",
   "status": "prepared_not_executed",
   "entry": "free",
   "modality": "text",
@@ -72,5 +72,26 @@
   },
   "provider_runs": 0,
   "judge_runs": 0,
-  "full_dialogues_committed": false
+  "full_dialogues_committed": false,
+  "prepared_format_version": 2,
+  "independent_language_turns": 244,
+  "score_anchor_turns": 244,
+  "candidate_reference_turns": 244,
+  "case_specific_summary_contracts": 40,
+  "key_turn_calibrations": 33,
+  "language_scenario_count": 8,
+  "language_scenario_turn_count": 11,
+  "gold_mode_counts": {
+    "required": 239,
+    "adaptive": 4,
+    "off": 1
+  },
+  "language_scenario_mode_counts": {
+    "required": 6,
+    "adaptive": 2,
+    "off": 3
+  },
+  "runtime_mode_disagreements": 15,
+  "diagnostic_is_gold": false,
+  "candidate_budget_notices": 0
 }
