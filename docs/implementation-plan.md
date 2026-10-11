@@ -56,6 +56,10 @@ original steps below describe the foundation, not the current priority order.
 
 2026-10-11: at the user's request, added the complete V3.1 Excel, JSON, CSV and review notes to the [versioned dataset directory](eval-datasets/freechat-v3.1/), with README links and per-file hashes in the manifest. CI now runs the offline checker against the committed JSON. This publishes the prepared fixed scripts and annotations; it does not record provider/Judge runs or complete real-experience acceptance.
 
+### Multi-turn evaluation runner
+
+2026-10-11: implemented the same-repository CLI `npm run eval:multiturn`. Default offline preflight selects one original case; explicit live collection uses the signed mock HSKai launch, production gateway/adapter, paced student audio, actual ASR/replies, teaching updates with ACK and existing summaries. Every case has a fresh session and declared initial language fixtures. References, soft goals and future turns never enter model requests. Optional fixed-input TTS uses the existing Doubao credential in separate sessions. Private, per-turn checkpoints bind candidate/data/audio/model/policy versions and preserve partial failures; later cases continue independently. Local protocol-fixture tests pass. No real run of this dataset has occurred, no scores are produced, and recorded-output adaptation, semantic review, scoring and Task 10 Web/device acceptance remain pending. See [runner usage and sequence](multiturn-eval.md).
+
 | Step | Deliverable | Gate | State |
 | --- | --- | --- | --- |
 | 1 | Local foundation, event contracts, synthetic replay, CI | Local verification passes; true provider readiness is never simulated | Merged to main (PR #1) |

@@ -12,11 +12,13 @@ function json(res,status,value){res.writeHead(status,{'Content-Type':'applicatio
 async function body(req){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>4096)throw new Error('INVALID_REQUEST');chunks.push(chunk);}const value=JSON.parse(Buffer.concat(chunks).toString());if(!value || typeof value!=='object' || Array.isArray(value))throw new Error('INVALID_REQUEST');return value;}
 
 // Actual local HTTP contract double, never an external HSKai account or human queue.
-export function createMockHskai({secret,clock=()=>Date.now()}={}) {
+export function createMockHskai({secret,clock=()=>Date.now(),initialMemory,mission=MOCK_MISSION}={}) {
   if(typeof secret!=='string' || secret.length<32)throw new Error('BRIDGE_SECRET_REQUIRED');
   const memory=new InMemoryLearnerStore(),used=new Map(),privacy=new Map(),handoffs=new Map();
   const fixture={field:'interest',value:'足球',source:'authorized_hskai_profile',updated_at:new Date(clock()).toISOString(),expires_at:new Date(clock()+30*86400000).toISOString()};
-  memory.records.set(key(MOCK_IDENTITY),[fixture]);
+  const records=initialMemory===undefined?[fixture]:initialMemory;
+  if(!Array.isArray(records) || records.length>MEMORY_FIELDS.length || new Set(records.map(r=>r?.field)).size!==records.length)throw new Error('INVALID_MOCK_FIXTURE');
+  memory.records.set(key(MOCK_IDENTITY),records.map(r=>validateMemoryRecord(r,clock())));
   const server=createServer(async(req,res)=> {
     if(!/^127\.0\.0\.1:\d+$/.test(req.headers.host??'') || req.headers.origin || req.headers['sec-fetch-site'])return json(res,403,{error:'INTERNAL_LOOPBACK_REQUIRED'});
     if(req.method!=='POST')return json(res,405,{error:'METHOD_NOT_ALLOWED'});
@@ -36,7 +38,7 @@ export function createMockHskai({secret,clock=()=>Date.now()}={}) {
       if(audience==='hskai-launch') {
         if(identity.owner_id!==MOCK_IDENTITY.owner_id || identity.learner_id!==MOCK_IDENTITY.learner_id || identity.operation!=='issue' || Object.keys(input).length)return json(res,400,{error:'INVALID_LAUNCH'});
         const now=Math.floor(clock()/1000);
-        const assertion=signAssertion({v:1,iss:'hskai',aud:'ask-kai',...MOCK_IDENTITY,jti:randomUUID(),iat:now,exp:now+60,authorization_until:now+600,minor:false,consent:{voice:true,guardian:false},scopes,memory:await memory.read(MOCK_IDENTITY),mission:MOCK_MISSION},secret);
+        const assertion=signAssertion({v:1,iss:'hskai',aud:'ask-kai',...MOCK_IDENTITY,jti:randomUUID(),iat:now,exp:now+60,authorization_until:now+600,minor:false,consent:{voice:true,guardian:false},scopes,memory:await memory.read(MOCK_IDENTITY),mission},secret);
         return json(res,200,{assertion,source:'mock_hskai'});
       }
       if(audience==='hskai-memory') {

@@ -19,6 +19,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run verify:p0
       - run: npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json
+      - run: npm run eval:multiturn
       - run: npm run probe:preflight
       - run: npm run eval:demo
       - run: npm run release:status

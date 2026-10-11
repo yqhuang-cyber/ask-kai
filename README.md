@@ -53,6 +53,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [当前体验 P0：Task 07 有来源的会话结构化总结数据](docs/session-summary.md)
 - [当前体验 P0：Task 08 Web 本轮小结、表达卡片与可再练项](docs/web-summary-cards.md)
 - [当前体验 P0：Task 09 用例矩阵、内容审核、负向对照与 CI](docs/p0-regression.md)
+- [自由会话多轮运行器：预检、音频准备与实际回复收集](docs/multiturn-eval.md)
 - [全双工协议核对与连接探针](docs/protocol/duplex-spike.md)
 - [Seeduplex 官方 PDF／Demo 映射与接入步骤](docs/protocol/seeduplex-integration.md)
 - [Web 音频、网关和打断验收](docs/web-realtime.md)
@@ -88,7 +89,7 @@ npm run test:browser
 | 文件 | 用途 |
 | --- | --- |
 | [Excel 审阅工作簿](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.xlsx) | 查看案例、规范逐轮、评分锚点和语言对照，填写人工复核意见 |
-| [规范 JSON](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json) | 完整准备格式 v2，供离线检查及后续回放适配 |
+| [规范 JSON](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json) | 完整准备格式 v2，供离线检查与多轮运行器选择案例 |
 | [逐轮 CSV](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.csv) | 保留原始 20 列，补至 48 列；前 4 行是原说明，第 5 行是字段名 |
 | [优化与检查说明](docs/eval-datasets/freechat-v3.1/review.md) | 本轮完善内容、检查结果和使用方法 |
 
@@ -99,6 +100,24 @@ npm run test:browser
 ```bash
 npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json
 ```
+
+### 自由会话多轮运行器
+
+已实现同仓库 CLI，复用生产 Agent 网关和本地 mock HSKai，每案独立会话、逐轮发送学生音频，收集实际 ASR、Kai 回复与现有总结。参考和软目标不发送给模型，前文使用实际此前回复。默认只离线预检一案；真实调用必须显式加 `--live`，使用本机豆包 Key、已审核的正常语音 profile 和干净 Git 工作区。
+
+```bash
+# 离线预检，不调用豆包
+npm run eval:multiturn
+# 可选：同一 Key 合成固定学生脚本音频，会产生真实费用
+npm run eval:multiturn -- --live --prepare-audio \
+  --case ask-kai-v2-001 --out .local/eval-input-001
+# 经现有 Agent 链路收集实际回复，会产生真实费用
+npm run eval:multiturn -- --live --case ask-kai-v2-001 \
+  --audio-manifest .local/eval-input-001/audio-manifest.json \
+  --out .local/eval-run-001
+```
+
+结果逐轮保存在 Git 忽略的 `.local/` 新目录，含实际记录 `observations.json` 和不含逐字稿的 `report.json`；失败保留部分内容，下一案重新建立会话。可先试一案，再用 `--all` 跑主集，`--all --include-language` 跑全部 48 案／255 轮。工程模拟测试已通过；**本评测集尚未真实执行，运行器本次不自动评分，也不完成 Task 10 的 Web／语音验收**。详见[完整使用说明、技术时序与结果边界](docs/multiturn-eval.md)。
 
 ## 1. 产品目标与首期边界
 
