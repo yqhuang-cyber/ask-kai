@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile,mkdtemp,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateActionsTrial,runActionsTrial,trialProviderFactory } from '../apps/eval-runner/src/actions-multiturn.js';
+import { validateActionsTrial,runActionsTrial,trialProviderFactory,observeTrialProvider } from '../apps/eval-runner/src/actions-multiturn.js';
 import { prepareInputAudio,synthesizeInput } from '../apps/eval-runner/src/input-audio.js';
 import { runMultiturn,runPreflight } from '../apps/eval-runner/src/multiturn.js';
 import { sha256 } from '../apps/eval-runner/src/multiturn-plan.js';
-import { validateSeeduplexProfile } from '../packages/provider-doubao/seeduplex.js';
+import { SeeduplexProvider,validateSeeduplexProfile } from '../packages/provider-doubao/seeduplex.js';
 import { protocolPeer } from './helpers/multiturn.js';
 
 const profile=JSON.parse(await readFile(new URL('../docs/protocol/seeduplex-connect.profile.json',import.meta.url)));
@@ -61,8 +61,11 @@ test('trial propagates probe scope through fixed input preparation and actual au
 test('probe-only authored TTS remains inaccessible by default and works only through explicit trial scope',async t=>{
   const {scoped}=validateActionsTrial(params()),peer=await protocolPeer(t);
   await assert.rejects(synthesizeInput({text:'你好',profile:scoped,env,socketFactory:peer.socketFactory}),/SEEDUPLEX_PROBE_ONLY/);
-  const pcm=await synthesizeInput({text:'你好',profile:scoped,env,socketFactory:peer.socketFactory,protocolProbe:true,timeoutMs:3000});
+  const rows=[];
+  const pcm=await synthesizeInput({text:'你好',profile:scoped,env,socketFactory:peer.socketFactory,protocolProbe:true,timeoutMs:3000,
+    createProvider:options=>observeTrialProvider(new SeeduplexProvider(options),{profile:scoped,onDiagnostic:row=>rows.push(row)})});
   assert.equal(pcm.length,3200);assert.equal(peer.sessions.length,1);
+  assert.ok(rows.some(r=>r.type==='response.output_audio.done'));assert.ok(!JSON.stringify(rows).includes('你好'));
 });
 test('failed preparation stops collection and never exposes provider error text or credentials',async()=>{
   let collected=false;

@@ -8,7 +8,7 @@ import { atomicPrivateJson } from './private-artifacts.js';
 
 // A separate fixed-text TTS session creates an authored *student input* fixture.
 // This audio is not an Agent reply, a real learner recording or a model score.
-export async function synthesizeInput({text,profile,env=process.env,signal,timeoutMs=45000,socketFactory,protocolProbe=false}={}) {
+export async function synthesizeInput({text,profile,env=process.env,signal,timeoutMs=45000,socketFactory,protocolProbe=false,createProvider=options=>new SeeduplexProvider(options)}={}) {
   validateSeeduplexProfile(profile,{protocolProbe});
   if(typeof text!=='string'||!text.trim()||text.length>2000||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw new Error('INVALID_TTS_INPUT');
   if(signal?.aborted)throw new Error('RUN_ABORTED');
@@ -27,8 +27,9 @@ export async function synthesizeInput({text,profile,env=process.env,signal,timeo
     const abort=()=>void finish('RUN_ABORTED'),timer=setTimeout(()=>void finish('TTS_TIMEOUT'),timeoutMs);
     signal?.addEventListener('abort',abort,{once:true});
     try {
-      provider=new SeeduplexProvider({profile,env,protocolProbe,...(socketFactory?{socketFactory}:{})});
-      provider.open({sessionId:randomUUID(),instructions:'只合成指定的测试输入文本，不生成对话回答。',onFailure:()=>void finish('TTS_PROVIDER_FAILED'),onEvent:packet=>{
+      provider=createProvider({profile,env,protocolProbe,...(socketFactory?{socketFactory}:{})});
+      provider.open({sessionId:randomUUID(),instructions:'只合成指定的测试输入文本，不生成对话回答。',onFailure:code=>void finish(
+        ['PROVIDER_PROTOCOL_ERROR','PROVIDER_TRANSPORT_ERROR','PROVIDER_DISCONNECTED','PROVIDER_INITIALIZATION_FAILED'].includes(code)?`TTS_${code}`:'TTS_PROVIDER_FAILED'),onEvent:packet=>{
         if(done||closing)return;
         try {
           const e=packet.event;

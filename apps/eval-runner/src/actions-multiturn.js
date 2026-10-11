@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { preflight } from '../../../packages/provider-doubao/probe.js';
 import { SeeduplexProvider,validateSeeduplexProfile } from '../../../packages/provider-doubao/seeduplex.js';
 import { selectCases,readAudioManifest,sha256 } from './multiturn-plan.js';
-import { prepareInputAudio } from './input-audio.js';
+import { prepareInputAudio,synthesizeInput } from './input-audio.js';
 import { runMultiturn,writeRunCheckpoint } from './multiturn.js';
 
 const diagnosticKeys=new Set(['type','event_id','session','id','item_id','question_id','response_id','delta','transcript','text','results','asr','content_index','response','error','code','status_code','start','end','is_interim','words','word','duration','confidence','audio_info','audio','utterances']);
@@ -21,12 +21,18 @@ function shape(value,depth=0) {
 export function trialProviderFactory({profile,env,onDiagnostic=()=>{},socketFactory}) {
   return ticket=>{
     const provider=new SeeduplexProvider({profile,env,protocolProbe:true,speechPace:ticket.speech_pace,...(socketFactory?{socketFactory}:{})});
+    return observeTrialProvider(provider,{profile,onDiagnostic});
+  };
+}
+export function observeTrialProvider(provider,{profile,onDiagnostic=()=>{}}) {
     const receive=provider.receive.bind(provider),aliases=new Map(),asrSnapshots=new Map();
     const record=row=>{try{onDiagnostic(row);}catch{}};
     const alias=value=>{if(typeof value!=='string'||!value||value.length>120)return null;if(!aliases.has(value))aliases.set(value,`id-${aliases.size+1}`);return aliases.get(value);};
     provider.receive=raw=>{
       const type=profile.observed_event_types.includes(raw?.type)?raw.type:'other';
       const row={type,shape:shape(raw),item_id:alias(raw?.item_id),question_id:alias(raw?.question_id),response_id:alias(raw?.response_id)};
+      const codes=[raw?.code,raw?.status_code,raw?.error?.code].filter(v=>Number.isSafeInteger(v)&&v>=0||typeof v==='string'&&/^\d{1,12}$/.test(v));
+      if(codes.length)row.service_status_codes=codes.map(Number);
       if(type==='conversation.item.input_audio_transcription.delta'&&row.item_id&&typeof raw.delta==='string') {
         const prior=asrSnapshots.get(row.item_id);let common=0;
         if(prior!==undefined)while(common<Math.min(prior.length,raw.delta.length)&&prior[common]===raw.delta[common])common++;
@@ -38,7 +44,6 @@ export function trialProviderFactory({profile,env,onDiagnostic=()=>{},socketFact
       catch(error){record({...row,failure:protocolCodes.has(error.message)?error.message:'PROVIDER_PROTOCOL_ERROR'});throw error;}
     };
     return provider;
-  };
 }
 
 // Fixed, bounded trial on authored scripts. The same probe-only attestation as
@@ -70,10 +75,21 @@ export async function runActionsTrial({profile,request,data,datasetSha256,env={}
     protocol_diagnostics:[],protocol_diagnostics_truncated:false,provider_protocol_failure:null};
   if(!credentialReady)return {...report,status:'blocked',failure:'SERVER_CREDENTIAL_REQUIRED'};
   const boundedSignal=AbortSignal.any([AbortSignal.timeout(request.duration_ms),...(signal?[signal]:[])]);
+  let connection=0;
+  const record=row=>{
+    if(row.failure)report.provider_protocol_failure=row;
+    if(report.protocol_diagnostics.length<256)report.protocol_diagnostics.push(row);
+    else report.protocol_diagnostics_truncated=true;
+  };
   try {
     if(boundedSignal.aborted)throw new Error('RUN_ABORTED');
     report.phase='prepare_authored_input_audio';
     const manifest=await prepare({cases,datasetSha256,profile:scoped,env,signal:boundedSignal,directory,
+      synthesize:args=>synthesizeInput({...args,createProvider:options=>{
+        const trialConnection=++connection;
+        return observeTrialProvider(new SeeduplexProvider(options),{profile:options.profile,
+          onDiagnostic:row=>record({...row,phase:'prepare_authored_input_audio',trial_connection:trialConnection})});
+      }}),
       timeoutMs:45000,protocolProbe:true,onProgress:row=>{
         if(row.state==='input_audio_prepared')report.input_audio_prepared_turns++;
         onProgress(row);
@@ -81,11 +97,10 @@ export async function runActionsTrial({profile,request,data,datasetSha256,env={}
     report.input_audio_prepared_turns=manifest.entries.length;
     const audio=await readInputs(join(directory,'audio-manifest.json'),cases,{datasetSha256});
     report.phase='collect_actual_agent_replies';
-    const providerFactory=trialProviderFactory({profile:scoped,env,onDiagnostic:row=>{
-      if(row.failure)report.provider_protocol_failure=row;
-      if(report.protocol_diagnostics.length<256)report.protocol_diagnostics.push(row);
-      else report.protocol_diagnostics_truncated=true;
-    }});
+    const providerFactory=ticket=>{
+      const trialConnection=++connection;
+      return trialProviderFactory({profile:scoped,env,onDiagnostic:row=>record({...row,phase:'collect_actual_agent_replies',trial_connection:trialConnection})})(ticket);
+    };
     const result=await collect({cases,inputs:audio.inputs,profile:scoped,env,signal:boundedSignal,
       candidateRevision:env.GITHUB_SHA,datasetVersion:data.dataset_version,datasetSha256,manifestSha256:audio.manifest_sha256,
       turnTimeoutMs:45000,protocolProbe:true,providerFactory,onProgress,checkpoint:(o,r)=>writeRunCheckpoint(directory,o,r)});

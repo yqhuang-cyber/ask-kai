@@ -55,6 +55,8 @@ sequenceDiagram
 
 [结构诊断 38143585810](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38143585810) 定位到同一 `item_id` 的 ASR 完成事件含 `text` 字符串、没有 `transcript`，原适配器因读取缺失字段而抛出 `INVALID_PROVIDER_TEXT`。已修复实际 `text` 映射，保留既有 `transcript` fixture 兼容；两字段同时存在但内容冲突，或字段为空／类型不正确时仍拒绝形成学习证据。最终识别之前的文本不会变成学生最终话轮。第三个请求用于验证修复后的实际四轮链路。
 
+[修复复测 38143968964](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38143968964) 在准备第 3 条固定输入时遇到 `TTS_PROVIDER_FAILED`，前两条已生成，尚未再次进入 Agent。后续请求将同样的结构诊断扩至输入 TTS，并区分协议／连接／断开错误；不根据该通用错误要求更换 Key，不自动重复调用。
+
 ### 本机运行
 
 在仓库根目录运行。默认使用已提交的 V3.1 JSON，默认只选第一个原始案例。`.env` 中使用现有 `DOUBAO_API_KEY` 和 `DOUBAO_REALTIME_PROFILE`，不需要额外 Judge Key。正常语音 profile 的静态、实时和有序 ACK 审核必须完成；仅探针审核的配置不能用于运行器，工具不会修改审核开关。
