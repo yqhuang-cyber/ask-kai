@@ -57,7 +57,7 @@ test('audio manifest binds dataset, scripts, bytes and provenance; rejects corru
 });
 test('multi-turn collection uses actual production adapter and authorized gateway; context updates and cases are isolated',async t=>{
   const scripts=[['你好','再见'],['只用中文','再见']],outputs=[['你好。Hello.','再见。Bye.'],['好的。','再见。']];
-  const peer=await protocolPeer(t,{scripts,outputs}),cases=fixtureCases(scripts),snapshots=[];
+  const peer=await protocolPeer(t,{scripts,outputs,contextDelayMs:30}),cases=fixtureCases(scripts),snapshots=[];
   cases[0].turns[1].dependency={type:'prior_reply_semantics',source_turns:[1],condition:'authored dependency'};
   cases[1].initial_profile={support_language:'zh',chinese_comprehension:'comfortable',known_expressions:['再见']};
   const r=await runMultiturn({cases,inputs:fixtureInputs(cases),profile:reviewed(),providerKind:'test',providerFactory:peer.providerFactory(reviewed()),...versions,turnTimeoutMs:3000,checkpoint:async(o,p)=>snapshots.push(structuredClone(p))});
@@ -65,6 +65,8 @@ test('multi-turn collection uses actual production adapter and authorized gatewa
   assert.deepEqual(r.observations.cases.map(c=>c.turns.map(t=>t.actual_kai)),outputs);
   assert.ok(r.observations.cases.every(c=>c.summary.business_source==='mock_hskai'));
   assert.ok(r.observations.cases[0].turns[0].diagnostics.some(d=>d.name==='context.applied'));
+  assert.ok(r.observations.cases.every(c=>c.turns.every(t=>t.context_update_confirmed&&t.diagnostics.some(d=>d.name==='context.applied'))));
+  assert.deepEqual(r.observations.cases[0].turns.map(t=>t.next_turn_context_version),[2,3]);
   assert.deepEqual(r.report.cases[0].dependency_review_turns,[2]);assert.equal(r.observations.history_source,'actual_provider_session_only');
   assert.equal(peer.sessions.length,2);assert.deepEqual(peer.sessions.map(s=>s.inputs),scripts);
   assert.ok(peer.sessions[0].instructions[0].includes('自由聊天'));assert.ok(!peer.sessions[0].instructions[0].includes('足球","source'));

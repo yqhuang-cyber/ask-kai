@@ -128,8 +128,10 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
           asr_surface_match:comparableText(f.text)===comparableText(input.text),reply_complete:true,
           pcm_output_duration_ms:r.audio_bytes/48,playback_measured:false,
           dependency_review:input.dependency.type==='prior_reply_semantics'?'required':'not_required',
-          context_dependency:structuredClone(input.dependency),diagnostics:diagnostics.slice(diagnosticStart)};
+          context_dependency:structuredClone(input.dependency)};
         await wait(()=>appliedVersion===(latestState?.context_version??1));
+        result.next_turn_context_version=appliedVersion;result.context_update_confirmed=true;
+        result.diagnostics=diagnostics.slice(diagnosticStart);
         current=null;return result;
       },
       async finish(){await stop();return {summary,session_terminal:terminal,failure};},

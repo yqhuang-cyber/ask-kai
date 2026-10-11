@@ -6,7 +6,7 @@ import { SeeduplexProvider } from '../../packages/provider-doubao/seeduplex.js';
 import { sha256 } from '../../apps/eval-runner/src/multiturn-plan.js';
 
 // Authored protocol peer: inputs/outputs are fixtures, not real Doubao results.
-export async function protocolPeer(t,{scripts=[['你好','再见']],outputs=[['你好。Hello.','再见。Bye.']],omitReplyTurn,asrOverride,foreignTurn=false,asrFinalField='transcript'}={}) {
+export async function protocolPeer(t,{scripts=[['你好','再见']],outputs=[['你好。Hello.','再见。Bye.']],omitReplyTurn,asrOverride,foreignTurn=false,asrFinalField='transcript',contextDelayMs=0}={}) {
   const http=createServer(),wss=new WebSocketServer({server:http}),requests=[],sessions=[];
   http.listen(0,'127.0.0.1');await once(http,'listening');
   t.after(()=>{for(const ws of wss.clients)ws.terminate();wss.close();http.close();http.closeAllConnections();});
@@ -16,7 +16,7 @@ export async function protocolPeer(t,{scripts=[['你好','再见']],outputs=[['�
     socket.on('message',bytes=>{
       const raw=JSON.parse(bytes.toString());requests.push(raw);
       if(raw.type==='session.create'){state.instructions.push(raw.session.instructions);wire({type:'session.created',session:{id:'fixture-session'}});}
-      if(raw.type==='session.update'){state.instructions.push(raw.session.instructions);wire({type:'session.updated',session:{id:'fixture-session'}});}
+      if(raw.type==='session.update'){state.instructions.push(raw.session.instructions);setTimeout(()=>wire({type:'session.updated',session:{id:'fixture-session'}}),contextDelayMs);}
       if(raw.type==='session.close')wire({type:'session.closed'});
       if(raw.type==='speech_text_buffer.commit') {
         const ids={response_id:randomUUID(),question_id:randomUUID()};

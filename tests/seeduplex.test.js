@@ -42,11 +42,11 @@ test('Seeduplex startup requires separate static and ACK review; output pcm is e
   assert.equal(x.sent[0].session.audio.output.format.type,'pcm_s16le');
   x.provider.close();
 });
-test('text before audio starts a response once; ASR deltas accumulate and final alone forms an attempt',()=>{
+test('text before audio starts a response once; cumulative ASR updates replace partials and final alone forms an attempt',()=>{
   const x = setup(), runtime = new SessionRuntime('local-session'); x.ready();
   x.wire({type:'conversation.item.input_audio_transcription.started',item_id:'private-q1'});
   x.wire({type:'conversation.item.input_audio_transcription.delta',item_id:'private-q1',delta:'我喜欢'});
-  x.wire({type:'conversation.item.input_audio_transcription.delta',item_id:'private-q1',delta:'足球'});
+  x.wire({type:'conversation.item.input_audio_transcription.delta',item_id:'private-q1',delta:'我喜欢足球'});
   x.wire(output('response.output_text.delta',undefined,undefined,{delta:'你喜欢足球。'}));
   x.wire(output('response.output_audio.started'));
   x.wire(output('response.output_audio.delta',undefined,undefined,{delta:Buffer.alloc(960).toString('base64')}));
@@ -71,6 +71,17 @@ test('observed ASR text completion retains final ownership and deduplication wit
   assert.equal(finals.length,1);assert.equal(finals[0].event.payload.text,'我喜欢足球');
   assert.equal(finals[0].event.turn_id,x.packets.find(p=>p.event?.type==='user.partial').event.turn_id);
   assert.deepEqual(x.failures,[]);x.provider.close();
+});
+test('ASR hypotheses may revise and shorten; repeated cumulative text cannot overflow or create premature evidence',()=>{
+  const x=setup(),runtime=new SessionRuntime('local-session');x.ready();
+  const hypotheses=['我','我喜欢','我喜欢足球','我喜欢篮球','我喜欢'];
+  for(const delta of hypotheses)x.wire({type:'conversation.item.input_audio_transcription.delta',item_id:'private-q1',delta});
+  assert.deepEqual(x.packets.filter(p=>p.event?.type==='user.partial').map(p=>p.event.payload.text),hypotheses);
+  for(let n=0;n<50;n++)x.wire({type:'conversation.item.input_audio_transcription.delta',item_id:'private-q1',delta:'x'.repeat(100)});
+  for(const packet of x.packets)if(packet.event)assert.equal(runtime.ingest(packet.event).accepted,true);
+  assert.equal(runtime.evidence.length,0);assert.deepEqual(x.failures,[]);
+  x.wire({type:'conversation.item.input_audio_transcription.completed',item_id:'private-q1',text:'我喜欢篮球'});
+  assert.equal(x.packets.at(-1).event.payload.text,'我喜欢篮球');x.provider.close();
 });
 test('conflicting or malformed ASR final fields cannot become student evidence',()=>{
   for(const fields of [{text:'有效',transcript:'冲突'},{text:null,transcript:'有效'},{text:''},{text:'x'.repeat(2001)}]) {

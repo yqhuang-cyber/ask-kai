@@ -149,7 +149,9 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
       }
       if (raw.type.endsWith('.failed')) throw new Error('PROVIDER_ASR_FAILED');
       if (raw.type.endsWith('.delta')) {
-        turn.text = this.text(turn.text + this.text(raw.delta));
+        // Actual 1.2.6.1 ASR streams cumulative hypotheses, including rewrites
+        // and shorter corrections. The event's name does not imply fragments.
+        turn.text = this.text(raw.delta);
         return this.onEvent({event:this.event('user.partial',{text:turn.text},{turn_id:turn.id})});
       }
       // 2026-10-11 actual Seeduplex ASR completion uses `text`; the typed demo
