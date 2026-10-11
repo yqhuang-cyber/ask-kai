@@ -44,6 +44,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [外部 HSKai 历史参考（不属于当前 POC 依赖）](docs/integration-hskai.md)
 - [测试覆盖及验收边界](docs/testing.md)
 - [逐步实施与当前进度](docs/implementation-plan.md)
+- [Tutor Agent Harness Review：现状、pi 借鉴与建议（归档，暂不实施）](docs/tutor-agent-harness-review.md)
 - [当前体验 P0：Task 01 基线、诊断入口及测试场景](docs/experience-baseline.md)
 - [当前体验 P0：Task 02 慢速默认、Web 语速选择与本地试听](docs/speech-pace.md)
 - [当前体验 P0：Task 03 等待学生、打断确认与取消竞态](docs/turn-taking.md)
