@@ -44,7 +44,7 @@ test('missing existing Secret produces a metadata-only blocked report, without p
 test('trial propagates probe scope through fixed input preparation and actual authorized gateway collection',async t=>{
   const directory=await mkdtemp(join(tmpdir(),'kai-actions-trial-'));t.after(()=>rm(directory,{recursive:true,force:true}));
   const scripts=[data.cases[0].turns.map(t=>t.input.text)],outputs=[scripts[0].map(()=> '你好。Hello.')];
-  const peer=await protocolPeer(t,{scripts,outputs});let preparedScope,collectionScope;
+  const peer=await protocolPeer(t,{scripts,outputs,asrFinalField:'text'});let preparedScope,collectionScope;
   const r=await runActionsTrial({...params(),directory,
     prepare:args=>{preparedScope=args.protocolProbe;return prepareInputAudio({...args,synthesize:async()=>Buffer.alloc(640,1)});},
     collect:args=>{collectionScope=args.protocolProbe;return runMultiturn({...args,providerKind:'test',turnTimeoutMs:3000,

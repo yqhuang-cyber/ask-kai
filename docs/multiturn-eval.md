@@ -53,6 +53,8 @@ sequenceDiagram
 
 首次[实际试跑 38143125703](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38143125703) 使用已有 Key 成功生成 4 条输入音频，并取得 Agent 供应商就绪；第一轮以 `PROVIDER_PROTOCOL_ERROR` 结束，没有有效 ASR final 或完整回复。已保留失败记录与诚实的部分总结，没有评分。第二个请求补充仅字段类型／长度与会话内 ID 别名的结构诊断，用于定位实际 ASR 映射，不记录原始帧、逐字稿字段值或密钥。它仍是一次显式、固定范围的试跑，不是自动重试。
 
+[结构诊断 38143585810](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38143585810) 定位到同一 `item_id` 的 ASR 完成事件含 `text` 字符串、没有 `transcript`，原适配器因读取缺失字段而抛出 `INVALID_PROVIDER_TEXT`。已修复实际 `text` 映射，保留既有 `transcript` fixture 兼容；两字段同时存在但内容冲突，或字段为空／类型不正确时仍拒绝形成学习证据。最终识别之前的文本不会变成学生最终话轮。第三个请求用于验证修复后的实际四轮链路。
+
 ### 本机运行
 
 在仓库根目录运行。默认使用已提交的 V3.1 JSON，默认只选第一个原始案例。`.env` 中使用现有 `DOUBAO_API_KEY` 和 `DOUBAO_REALTIME_PROFILE`，不需要额外 Judge Key。正常语音 profile 的静态、实时和有序 ACK 审核必须完成；仅探针审核的配置不能用于运行器，工具不会修改审核开关。

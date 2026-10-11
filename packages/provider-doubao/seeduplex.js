@@ -152,7 +152,13 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
         turn.text = this.text(turn.text + this.text(raw.delta));
         return this.onEvent({event:this.event('user.partial',{text:turn.text},{turn_id:turn.id})});
       }
-      const text = this.text(raw.transcript); turn.final = true; turn.text = '';
+      // 2026-10-11 actual Seeduplex ASR completion uses `text`; the typed demo
+      // and older authored fixtures use `transcript`. Never silently prefer
+      // one conflicting final transcript over another.
+      const hasText=Object.hasOwn(raw,'text'),hasTranscript=Object.hasOwn(raw,'transcript');
+      const text=this.text(hasText?raw.text:raw.transcript);
+      if(hasText&&hasTranscript&&this.text(raw.transcript)!==text)throw new Error('PROVIDER_ASR_TEXT_CONFLICT');
+      turn.final = true; turn.text = '';
       return this.onEvent({event:this.event('user.final',{text},{turn_id:turn.id})});
     }
     if (['response.output_text.delta','response.output_text.done','response.output_audio.started','response.output_audio.delta','response.output_audio.done','response.done'].includes(raw.type)) {

@@ -61,6 +61,25 @@ test('text before audio starts a response once; ASR deltas accumulate and final 
   x.provider.sendAudio(Buffer.alloc(640)); assert.equal(x.sent.at(-1).type,'input_audio_buffer.append');
   x.provider.close(); assert.equal(x.sent.at(-1).type,'session.close');
 });
+test('observed ASR text completion retains final ownership and deduplication without requiring transcript',()=>{
+  const x=setup();x.ready();
+  x.wire({type:'conversation.item.input_audio_transcription.started',item_id:'private-q1'});
+  x.wire({type:'conversation.item.input_audio_transcription.delta',item_id:'private-q1',delta:'我喜欢'});
+  x.wire({type:'conversation.item.input_audio_transcription.completed',item_id:'private-q1',content_index:0,text:'我喜欢足球'});
+  x.wire({type:'conversation.item.input_audio_transcription.completed',item_id:'private-q1',text:'重复结果'});
+  const finals=x.packets.filter(p=>p.event?.type==='user.final');
+  assert.equal(finals.length,1);assert.equal(finals[0].event.payload.text,'我喜欢足球');
+  assert.equal(finals[0].event.turn_id,x.packets.find(p=>p.event?.type==='user.partial').event.turn_id);
+  assert.deepEqual(x.failures,[]);x.provider.close();
+});
+test('conflicting or malformed ASR final fields cannot become student evidence',()=>{
+  for(const fields of [{text:'有效',transcript:'冲突'},{text:null,transcript:'有效'},{text:''},{text:'x'.repeat(2001)}]) {
+    const x=setup();x.ready();x.wire({type:'conversation.item.input_audio_transcription.completed',item_id:'private-q1',...fields});
+    assert.deepEqual(x.failures,['PROVIDER_PROTOCOL_ERROR']);assert.ok(!x.packets.some(p=>p.event?.type==='user.final'));x.provider.close();
+  }
+  const x=setup();x.ready();x.wire({type:'conversation.item.input_audio_transcription.completed',item_id:'private-q1',text:'一致',transcript:'一致'});
+  assert.equal(x.packets.at(-1).event.payload.text,'一致');assert.deepEqual(x.failures,[]);x.provider.close();
+});
 test('audio completion alone does not finish the interaction; completed text contributes only its suffix',()=>{
   const x = setup(); x.ready();
   x.wire(output('response.output_audio.started'));

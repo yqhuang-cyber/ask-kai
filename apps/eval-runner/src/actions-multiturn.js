@@ -8,7 +8,7 @@ import { runMultiturn,writeRunCheckpoint } from './multiturn.js';
 const diagnosticKeys=new Set(['type','event_id','session','id','item_id','question_id','response_id','delta','transcript','text','results','asr','content_index','response','error','code','status_code','start','end','is_interim','words','word','duration','confidence','audio_info','audio','utterances']);
 const protocolCodes=new Set(['INVALID_PROVIDER_EVENT','INVALID_PROVIDER_ID','INVALID_PROVIDER_TEXT','PROVIDER_ASR_FAILED',
   'PROVIDER_REPORTED_ERROR','FOREIGN_PROVIDER_TURN','UNBOUND_PROVIDER_RESPONSE','UNBOUND_AUDIO_STREAM','AMBIGUOUS_AUDIO_STREAM',
-  'PROVIDER_TEXT_LIMIT','PROVIDER_TEXT_REWRITE','INVALID_PROVIDER_AUDIO','OVERLAPPING_PROVIDER_RESPONSE','UNBOUND_CONTEXT_ACK','UNBOUND_CANCEL_ACK']);
+  'PROVIDER_TEXT_LIMIT','PROVIDER_TEXT_REWRITE','INVALID_PROVIDER_AUDIO','OVERLAPPING_PROVIDER_RESPONSE','UNBOUND_CONTEXT_ACK','UNBOUND_CANCEL_ACK','PROVIDER_ASR_TEXT_CONFLICT']);
 function shape(value,depth=0) {
   if(value===null)return {type:'null'};
   if(typeof value==='string')return {type:'string',length:value.length};
@@ -21,12 +21,19 @@ function shape(value,depth=0) {
 export function trialProviderFactory({profile,env,onDiagnostic=()=>{},socketFactory}) {
   return ticket=>{
     const provider=new SeeduplexProvider({profile,env,protocolProbe:true,speechPace:ticket.speech_pace,...(socketFactory?{socketFactory}:{})});
-    const receive=provider.receive.bind(provider),aliases=new Map();
+    const receive=provider.receive.bind(provider),aliases=new Map(),asrSnapshots=new Map();
     const record=row=>{try{onDiagnostic(row);}catch{}};
     const alias=value=>{if(typeof value!=='string'||!value||value.length>120)return null;if(!aliases.has(value))aliases.set(value,`id-${aliases.size+1}`);return aliases.get(value);};
     provider.receive=raw=>{
       const type=profile.observed_event_types.includes(raw?.type)?raw.type:'other';
       const row={type,shape:shape(raw),item_id:alias(raw?.item_id),question_id:alias(raw?.question_id),response_id:alias(raw?.response_id)};
+      if(type==='conversation.item.input_audio_transcription.delta'&&row.item_id&&typeof raw.delta==='string') {
+        const prior=asrSnapshots.get(row.item_id);let common=0;
+        if(prior!==undefined)while(common<Math.min(prior.length,raw.delta.length)&&prior[common]===raw.delta[common])common++;
+        row.partial_relation=prior===undefined?'first':raw.delta===prior?'identical':raw.delta.startsWith(prior)?'extends':prior.startsWith(raw.delta)?'shortens':common?'revises':'unrelated';
+        row.shared_prefix_chars=common;asrSnapshots.set(row.item_id,raw.delta);
+      }
+      if(type==='conversation.item.input_audio_transcription.completed')asrSnapshots.delete(row.item_id);
       try{receive(raw);if(type!=='response.output_audio.delta')record(row);}
       catch(error){record({...row,failure:protocolCodes.has(error.message)?error.message:'PROVIDER_PROTOCOL_ERROR'});throw error;}
     };

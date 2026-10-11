@@ -6,7 +6,7 @@ import { SeeduplexProvider } from '../../packages/provider-doubao/seeduplex.js';
 import { sha256 } from '../../apps/eval-runner/src/multiturn-plan.js';
 
 // Authored protocol peer: inputs/outputs are fixtures, not real Doubao results.
-export async function protocolPeer(t,{scripts=[['你好','再见']],outputs=[['你好。Hello.','再见。Bye.']],omitReplyTurn,asrOverride,foreignTurn=false}={}) {
+export async function protocolPeer(t,{scripts=[['你好','再见']],outputs=[['你好。Hello.','再见。Bye.']],omitReplyTurn,asrOverride,foreignTurn=false,asrFinalField='transcript'}={}) {
   const http=createServer(),wss=new WebSocketServer({server:http}),requests=[],sessions=[];
   http.listen(0,'127.0.0.1');await once(http,'listening');
   t.after(()=>{for(const ws of wss.clients)ws.terminate();wss.close();http.close();http.closeAllConnections();});
@@ -28,7 +28,7 @@ export async function protocolPeer(t,{scripts=[['你好','再见']],outputs=[['�
         const n=state.reply++,text=scripts[index][n];state.inputs.push(text);
         const question=`q${n}`,ids={question_id:foreignTurn?'foreign-question':question,response_id:`r${n}`};
         wire({type:'conversation.item.input_audio_transcription.started',item_id:question});
-        wire({type:'conversation.item.input_audio_transcription.completed',item_id:question,transcript:asrOverride??text});
+        wire({type:'conversation.item.input_audio_transcription.completed',item_id:question,[asrFinalField]:asrOverride??text});
         if(omitReplyTurn===n+1)return;
         const answer=outputs[index][n];
         wire({type:'response.output_text.delta',...ids,delta:answer});
