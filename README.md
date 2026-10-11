@@ -81,7 +81,24 @@ npm run test:browser
 
 真实完整回复可按 [Task 09 输入与人工评分模板](docs/p0-regression.md) 评测；人工评分不需要额外 API Key，可选 LangChain Judge 仅显式调用。Web 诊断导出只有元数据，不会自动收集逐字稿、录音或上传 Langfuse。评测独立于实时语音链路，仍不在每轮生成前串行调用第二个规划模型。真实模型内容和设备体验尚待实际观察与验收。
 
-用户提供的 **40 个自由对话案例、244 轮**已完善为 `freechat-v3.1-20261011` 评测集：保留原输入、参考、初始条件与首轮软目标；244 轮补独立语言预期、十维评分锚点和简短合格示例，33 个关键回合给具体评分对照，40 案分别定义有来源的总结条件。另有 8 组语言策略对照、11 轮，覆盖不同画像和当前请求。代码语言预览仅诊断，参考只供评审，回放前文用实际 Kai 回复；34 个主动信号是学生话语，不是真实 idle 事件。数据准备与检查已完成，尚未跑真实豆包或 Judge。完整数据单独交付，仓库保留无正文清单与 `npm run eval:dataset:check -- /absolute/path/ask-kai-freechat-eval-v3.json` 校验入口。详见[评测集完善与检查](docs/freechat-eval.md)。
+### 自由会话评测集（V3.1）
+
+用户提供的 **40 个自由对话案例、244 轮**已完善为 `freechat-v3.1-20261011`，完整文件已纳入 [评测集目录](docs/eval-datasets/freechat-v3.1/)。保留原输入、参考、初始条件与首轮软目标；244 轮补独立语言预期、十维评分锚点和简短合格示例，33 个关键回合给具体评分对照，40 案分别定义有来源的总结条件。另有 **8 组语言策略对照、11 轮**，覆盖不同画像和当前请求。
+
+| 文件 | 用途 |
+| --- | --- |
+| [Excel 审阅工作簿](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.xlsx) | 查看案例、规范逐轮、评分锚点和语言对照，填写人工复核意见 |
+| [规范 JSON](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json) | 完整准备格式 v2，供离线检查及后续回放适配 |
+| [逐轮 CSV](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.csv) | 保留原始 20 列，补至 48 列；前 4 行是原说明，第 5 行是字段名 |
+| [优化与检查说明](docs/eval-datasets/freechat-v3.1/review.md) | 本轮完善内容、检查结果和使用方法 |
+
+当前状态为 **`prepared_not_executed`**：数据准备与检查已完成，尚未跑真实豆包或 Judge，没有模型得分。全部案例属于 `free` 入口的固定学生脚本；代码语言预览仅诊断，参考只供评审，回放前文使用实际 Kai 回复。34 个主动信号是学生话语，不是真实 idle 事件；本集不覆盖真实语速、插话、字幕播放或全部三个入口的验收。
+
+在仓库根目录执行以下命令，只检查数据，不调用模型。CI 也执行同一校验。JSON 不能直接作为现有 `eval:content` 的实际输出或整份发送给待测模型。详见[评测集完善与检查](docs/freechat-eval.md)和[版本与文件清单](docs/freechat-eval-manifest.json)。
+
+```bash
+npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json
+```
 
 ## 1. 产品目标与首期边界
 

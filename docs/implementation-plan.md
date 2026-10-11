@@ -54,6 +54,8 @@ original steps below describe the foundation, not the current priority order.
 
 2026-10-11: calibrated the dataset as `freechat-v3.1-20261011` (prepared format v2). All 244 original turns now include independently authored language expectations, mapped scoring criteria, ten-dimensional anchors and short alternative replies. There are 33 concrete key-turn calibrations, 40 conditional case-specific summary contracts, and 8 supplementary language scenarios / 11 turns. Runtime language previews remain diagnostics, not gold labels. The offline checker accepts explicit authored-versus-runtime disagreements while rejecting future evidence, reference leakage and fabricated results. Actual reply collection, complete replay adaptation and real scoring remain pending; this iteration changes data preparation only.
 
+2026-10-11: at the user's request, added the complete V3.1 Excel, JSON, CSV and review notes to the [versioned dataset directory](eval-datasets/freechat-v3.1/), with README links and per-file hashes in the manifest. CI now runs the offline checker against the committed JSON. This publishes the prepared fixed scripts and annotations; it does not record provider/Judge runs or complete real-experience acceptance.
+
 | Step | Deliverable | Gate | State |
 | --- | --- | --- | --- |
 | 1 | Local foundation, event contracts, synthetic replay, CI | Local verification passes; true provider readiness is never simulated | Merged to main (PR #1) |

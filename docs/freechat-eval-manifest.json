@@ -72,7 +72,7 @@
   },
   "provider_runs": 0,
   "judge_runs": 0,
-  "full_dialogues_committed": false,
+  "full_dialogues_committed": true,
   "prepared_format_version": 2,
   "independent_language_turns": 244,
   "score_anchor_turns": 244,
@@ -93,5 +93,32 @@
   },
   "runtime_mode_disagreements": 15,
   "diagnostic_is_gold": false,
-  "candidate_budget_notices": 0
+  "candidate_budget_notices": 0,
+  "publication": {
+    "date": "2026-10-11",
+    "directory": "docs/eval-datasets/freechat-v3.1",
+    "data_kind": "fixed_student_scripts_and_review_annotations",
+    "artifacts": {
+      "ask-kai-freechat-eval-v3.1.xlsx": {
+        "path": "docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.xlsx",
+        "bytes": 257051,
+        "sha256": "067ff0e5da834a65f073de680ff13f8647cdd599f63f41fdd49812796dfeeed4"
+      },
+      "ask-kai-freechat-eval-v3.1.json": {
+        "path": "docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json",
+        "bytes": 5366145,
+        "sha256": "8d32f2b2729fcc5a01875781ab1f28db12d8c07e5cd2ecf0d8848f959542406a"
+      },
+      "ask-kai-freechat-eval-v3.1.csv": {
+        "path": "docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.csv",
+        "bytes": 3266990,
+        "sha256": "2ffc7c5ae93e18213df6b81599662cdf41aad657e1ca184a428a783a8ca68678"
+      },
+      "review.md": {
+        "path": "docs/eval-datasets/freechat-v3.1/review.md",
+        "bytes": 4590,
+        "sha256": "7269faa4c9a05a91b2af04ce0c9c4f64926027296c5034324920fc765a815a15"
+      }
+    }
+  }
 }

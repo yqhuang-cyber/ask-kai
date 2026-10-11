@@ -2,7 +2,7 @@
 
 2026-10-11 已完成 `freechat-v3.1-20261011` 的数据校准与检查：主集保留 40 案例、244 轮，补充 8 组语言对照、11 轮，全部是 `free` 入口。餐厅、购物、自我介绍和听辨请求属于学生自选练习，不因此变成 Mission。当前状态是 `prepared_not_executed`，没有调用真实豆包或 Judge，没有模型得分。
 
-完整 CSV、审阅工作簿和规范 JSON 单独交付。仓库只保存[无对话正文的清单](freechat-eval-manifest.json)、准备格式校验器和合成测试，不提交上传的学生对话内容。
+2026-10-11 已按用户要求将完整评测文件纳入 [V3.1 版本目录](eval-datasets/freechat-v3.1/)：[Excel 工作簿](eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.xlsx)、[规范 JSON](eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json)、[48 列 CSV](eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.csv)及[优化说明](eval-datasets/freechat-v3.1/review.md)。这些是用户提供的固定案例脚本、参考与评审标注，未采集真实供应商逐字稿或录音；不包含真实模型执行结果。[版本清单](freechat-eval-manifest.json)记录文件路径、大小及 SHA-256，原始来源 SHA-256 与本次文件校验值分别保留。
 
 ## 完善内容
 
@@ -34,9 +34,9 @@ V3.1 为 40 案分别定义 `summary_contract`：候选表达只有实际呈现�
 67 条语言／问题数提示已逐条复核并附处理。中文词嵌入英译、引语、同一个问题的选项可能是计数提示；同时问形式与主题则已改为一次一个问题。不能把这些提示当作真实模型成绩，或用标点计数证明翻译、新点和任务语义合格。
 
 ```bash
-npm run eval:dataset:check -- /absolute/path/ask-kai-freechat-eval-v3.json
+npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json
 ```
 
-准备格式 v2 校验不发网络请求、不生成回复、不打分，仍兼容 v1。它检查重复／断号、原文一致、参考／未来前文泄漏、未知画像来源、诊断状态重算、独立预期与锚点完整、评分漂移和伪造执行结果。独立预期可与诊断预览不同，不为通过检查而改成生产代码输出。当前 JSON 不能直接交给 `eval:content`，也不能整份发送给待测模型；后续任务才收集实际回复、保存模型／提示词／Judge 版本并适配原十维评测器。
+在仓库根目录运行；CI 同样执行该检查。准备格式 v2 校验不发网络请求、不生成回复、不打分，仍兼容 v1。它检查重复／断号、原文一致、参考／未来前文泄漏、未知画像来源、诊断状态重算、独立预期与锚点完整、评分漂移和伪造执行结果。独立预期可与诊断预览不同，不为通过检查而改成生产代码输出。当前 JSON 不能直接交给 `eval:content`，也不能整份发送给待测模型；后续任务才收集实际回复、保存模型／提示词／Judge 版本并适配原十维评测器。
 
 本轮完成数据准备。真实语速、插话、字幕播放、听辨及发音仍属于真实音频和设备验收；这 40 案例不覆盖全部三个入口的产品验收。
