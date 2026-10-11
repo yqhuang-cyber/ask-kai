@@ -105,6 +105,8 @@ npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-
 
 **当前实施顺序（2026-10-11）：先完善评测工具／运行器／评分器，固定现有 Agent 基线，再跑全量并分析修改面。** 本阶段暂缓策略时序、提示词与教学行为调整；首案发现作为问题证据保留。完整 tasking 和两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)。
 
+逐轮[真实记录评分适配](docs/recorded-scoring.md)已实现：`npm run eval:recorded` 生成现有十维的评分输入、逐项要求与证据模板；`npm run eval:report` 汇总完整分母、失败分类和跨案例问题。模板未填或 Judge 未配置时明确保留未评分，不把采集成功当作内容通过。批量入口和实际执行记录见该文档。
+
 **已有 GitHub Secret `DOUBAO_API_KEY` 可直接试跑，无需新的 Key。** 在 [Actions](https://github.com/yqhuang-cyber/ask-kai/actions) 选择 **Doubao first-case multi-turn trial → Run workflow → main**。入口固定第 001 案／4 轮，先合成学生脚本音频，再经 Agent 收集实际回复；总预算 5 分钟、不自动重试。请求文件变更也可启动一次试跑，普通提交与日常 CI 不调用豆包。结果在 `doubao-multiturn-trial` Artifact 中保留 3 天，包含实际 AI 回复、识别与总结，不包含输入音频、密钥或原始 wire trace。专用探针配置不能启用普通 Web／CLI，不会自动修改实时审核开关。GitHub Secret 不会自动出现在本机 `.env`。
 
 [第一案真实收集已成功](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38144369875)：4 条输入、4 个 ASR final、4 条完整回复、4 次上下文 ACK 和现有结束总结。已有 Key 已确认可用。开场超句数预算、未经独立评测的发音肯定结论和 ASR 表面差异已列为复核事项；没有内容得分，也没有全量或 Web／设备验收结论。[修复后复跑也成功](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38144953706)：累计 ASR 不再重复拼接，每轮均记录上下文确认和下一轮版本。新决策确认晚于本轮回复开始，当前轮策略生效仍需解决。完整记录见[试跑记录](docs/multiturn-eval.md#首案实际收集成功)。
