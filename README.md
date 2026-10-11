@@ -94,7 +94,7 @@ npm run test:browser
 | [逐轮 CSV](docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.csv) | 保留原始 20 列，补至 48 列；前 4 行是原说明，第 5 行是字段名 |
 | [优化与检查说明](docs/eval-datasets/freechat-v3.1/review.md) | 本轮完善内容、检查结果和使用方法 |
 
-数据文件保留准备状态 **`prepared_not_executed`**，运行记录独立保存，不把实际输出填回作者标注。已开始首案真实豆包试跑，全量采集与评分仍待完成，没有 Judge 或模型得分。全部案例属于 `free` 入口的固定学生脚本；代码语言预览仅诊断，参考只供评审，回放前文使用实际 Kai 回复。34 个主动信号是学生话语，不是真实 idle 事件；本集不覆盖真实语速、插话、字幕播放或全部三个入口的验收。
+数据文件保留准备状态 **`prepared_not_executed`**，运行记录独立保存，不把实际输出填回作者标注。2026-10-12 已尝试全部 48 案，47 案完整采集，244/255 轮获得实际回复并完成模型辅助离线评分；011 案剩余 11 轮未采集，另有 11 项要求证据不足。没有独立 Judge API 调用或人工批准。详见[固定基线评测结果与修改候选](docs/eval-results/2026-10-12-freechat-baseline.md)。全部案例属于 `free` 入口的固定学生脚本；代码语言预览仅诊断，参考只供评审，回放前文使用实际 Kai 回复。34 个主动信号是学生话语，不是真实 idle 事件；本集不覆盖真实语速、插话、字幕播放或全部三个入口的验收。
 
 在仓库根目录执行以下命令，只检查数据，不调用模型。CI 也执行同一校验。JSON 不能直接作为现有 `eval:content` 的实际输出或整份发送给待测模型。详见[评测集完善与检查](docs/freechat-eval.md)和[版本与文件清单](docs/freechat-eval-manifest.json)。
 
@@ -105,6 +105,8 @@ npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-
 ### 自由会话多轮运行器
 
 **当前实施顺序（2026-10-11）：先完善评测工具／运行器／评分器，固定现有 Agent 基线，再跑全量并分析修改面。** 本阶段暂缓策略时序、提示词与教学行为调整；首案发现作为问题证据保留。完整 tasking 和两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)。
+
+本轮结果和[机器可读逐轮记录](docs/eval-results/2026-10-12-freechat-baseline.json)已发布：系统性策略时序、口头总结密度、动态语言选择、澄清与错误纠正、总结空态覆盖是后续对照与 Agent harness 设计候选。全部 244 轮的十维和逐项要求保留证据定位；根因仍是待验证假设，Agent 基线未改，Task 10 未完成。
 
 逐轮[真实记录评分适配](docs/recorded-scoring.md)已实现：`npm run eval:recorded` 生成现有十维的评分输入、逐项要求与证据模板；`npm run eval:report` 汇总完整分母、失败分类和跨案例问题。模板未填或 Judge 未配置时明确保留未评分，不把采集成功当作内容通过。批量入口和实际执行记录见该文档。
 
@@ -126,7 +128,7 @@ npm run eval:multiturn -- --live --case ask-kai-v2-001 \
   --out .local/eval-run-001
 ```
 
-结果逐轮保存在 Git 忽略的 `.local/` 新目录，含实际记录 `observations.json` 和不含逐字稿的 `report.json`；失败保留部分内容，下一案重新建立会话。可先试一案，再用 `--all` 跑主集，`--all --include-language` 跑全部 48 案／255 轮。工程模拟测试已通过；**首案真实试跑已开始，全量评测尚未完成，运行器不自动评分，也不完成 Task 10 的 Web／语音验收**。详见[完整使用说明、实际试跑记录、技术时序与结果边界](docs/multiturn-eval.md)。
+结果逐轮保存在 Git 忽略的 `.local/` 新目录，含实际记录 `observations.json` 和不含逐字稿的 `report.json`；失败保留部分内容，下一案重新建立会话。可先试一案，再用 `--all` 跑主集，`--all --include-language` 跑全部 48 案／255 轮。工程模拟测试已通过；**全范围真实采集及失败重跑已执行；47/48 案完整、244/255 轮完成模型辅助离线评分，11 轮采集缺口与人工／独立 Judge 校准仍待完成；Task 10 的 Web／语音验收保持开放**。详见[完整使用说明、实际试跑记录、技术时序与结果边界](docs/multiturn-eval.md)。
 
 ## 1. 产品目标与首期边界
 
