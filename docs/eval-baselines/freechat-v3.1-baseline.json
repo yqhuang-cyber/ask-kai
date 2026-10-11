@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "ask-kai-evaluation-baseline",
+  "declared_at": "2026-10-11",
+  "agent_repository": "yqhuang-cyber/ask-kai",
+  "agent_revision": "6661d7ba3ecf7f3eef8f23f74c5d625cb8f457e2",
+  "agent_tree": "c80a3f5d158dbef588cd8aefa68250c4ba3a891c",
+  "dataset_version": "freechat-v3.1-20261011",
+  "dataset_sha256": "8d32f2b2729fcc5a01875781ab1f28db12d8c07e5cd2ecf0d8848f959542406a",
+  "profile_sha256": "dc1a5bbd61c67969313f85286af1b872591a732225d55487302e3bc561bfafc0",
+  "model_version": "1.2.6.1",
+  "rubric_version": "kai-content-v3",
+  "full_evaluation_executed": false,
+  "content_scored": false,
+  "baseline_guard_implemented": false,
+  "plan": "docs/evaluation-first.md"
+}

@@ -1,5 +1,9 @@
 # Incremental delivery
 
+## Evaluation before Agent changes (2026-10-11)
+
+The user explicitly prioritizes evaluation tooling, collection and scoring before further Agent changes. Freeze the published Agent baseline `6661d7ba3ecf7f3eef8f23f74c5d625cb8f457e2`; retain the already merged ASR protocol repairs. Do not tune the Agent from one case. Tasks E01–E03 adapt actual observations to the existing rubric, complete evaluation evidence/review and enable controlled batch collection. E04 executes the full original set plus separately reported language controls; E05 aggregates evidence and root-cause hypotheses. Only then does H01 design Agent harness changes and compare versions. Current-turn strategy timing and content issues remain recorded, not repaired in this phase. Task 10 device acceptance remains separate. See [evaluation-first tasking](evaluation-first.md) and [baseline record](eval-baselines/freechat-v3.1-baseline.json).
+
 ## Independent POC scope (2026-10-09)
 
 The user clarified that this is an independent Ask Kai Agent POC. Default
