@@ -70,7 +70,13 @@ sequenceDiagram
 | 学习结论 | 第 3 轮给出未经独立评测的发音肯定结论，与现有人设约束不符，需内容优化 |
 | 顺序表面提示 | 第 1／4 轮存在计数提示；仍需按独立语言标注作语义复核，不能仅据计数判定翻译／顺序合格或失败 |
 
-实际 ASR 诊断还显示同案 partial 可增长、修订或缩短；已按当前 Seeduplex 的累计识别快照替换，避免把已返回的文本反复拼接。仅 final 形成学生回合与学习证据。运行器的每轮诊断现在在上下文 ACK 后截取，同时记录 `context_update_confirmed` 与供下一轮使用的 `next_turn_context_version`，避免真实网络延迟下遗漏 ACK。第五个固定请求复核这两处修正，始终保持同一试跑范围。
+实际 ASR 诊断还显示同案 partial 可增长、修订或缩短；已按当前 Seeduplex 的累计识别快照替换，避免把已返回的文本反复拼接。仅 final 形成学生回合与学习证据。运行器的每轮诊断现在在上下文 ACK 后截取，同时记录 `context_update_confirmed` 与供下一轮使用的 `next_turn_context_version`，避免真实网络延迟下遗漏 ACK。第五个固定请求保持同一试跑范围，并完成以下实际复核。
+
+[修正复核 38144953706](https://github.com/yqhuang-cyber/ask-kai/actions/runs/38144953706)，candidate `007e32cdfb18bea38be5106ea98735da29a2592e`、request `multiturn-2026-10-11-05`：再次完成 4 条输入、4 个 ASR final、4 条完整回复和正常 `session.closed` 总结。四轮 `context_update_confirmed` 均为 `true`，`next_turn_context_version` 依次为 2／3／4／5，每轮保留 `context.applied`。partial 最大字符数依次为 44／32／8／24，未再重复拼接累计快照。258 项本地测试、合成回放和 P0 对照通过；对应 Foundation CI 通过。实际记录保存在该运行的 `doubao-multiturn-trial` Artifact，保留 3 天。
+
+**策略时序仍有待解决：** 四轮 `teaching.response.decision_context_matched` 均为 `false`；回复开始使用的已确认版本依次为 1／2／3／4，而该轮最终 ASR 后产生的新决策版本为 2／3／4／5，确认均晚于本轮回复开始。运行器保证下一轮发送前取得确认，没有证明本轮模型采用本轮最新语言／教学动作。需要另行设计并实测本轮更新时序，不能靠等待下一轮或修改评测预期消除这个限制。
+
+本次开场仍超过两句中文预算；第 3 轮使用一般表达肯定，未重复上次的明确发音结论，但这不能证明该问题已修复。名字和告别 ASR 表面差异仍需人工复核。运行器只采集供应商输出，不模拟扬声器播放；PCM 时长不是实际听感、字幕同步或插话验收。
 
 这次成功证明第一案的数据采集链路可用，没有证明全量数据、内容质量或 Web／真人设备验收通过。待完成独立十维评分适配和语义复核后，才扩大至其余原始案例与语言对照。
 
