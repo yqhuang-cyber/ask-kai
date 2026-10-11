@@ -12,12 +12,12 @@ import { openAgentHarness } from './agent-harness.js';
 import { sha256 } from './multiturn-plan.js';
 import { atomicPrivateJson } from './private-artifacts.js';
 
-export function runPreflight({cases,profile,env={},inputs,worktreeClean=true,prepareAudio=false}={}) {
+export function runPreflight({cases,profile,env={},inputs,worktreeClean=true,prepareAudio=false,protocolProbe=false}={}) {
   const blockers=[];
   if(!worktreeClean)blockers.push('candidate_worktree_not_clean');
   if(!profile){blockers.push('reviewed_realtime_profile_required');if(!env.DOUBAO_API_KEY)blockers.push('server_credential_required');}
   else {
-    try{validateSeeduplexProfile(profile);}catch{blockers.push('reviewed_realtime_profile_required');}
+    try{validateSeeduplexProfile(profile,{protocolProbe});}catch{blockers.push('reviewed_realtime_profile_required');}
     const key=env[profile.auth?.env];
     if(typeof key!=='string'||!key||key.length>8192||/[^\x21-\x7e]/.test(key))blockers.push('server_credential_required');
   }
@@ -42,10 +42,10 @@ export async function privateRunDirectory(path) {
 }
 
 export async function runMultiturn({cases,inputs,profile,env,signal,candidateRevision,datasetVersion,datasetSha256,manifestSha256,
-  providerKind='doubao',providerFactory,turnTimeoutMs=45000,openSession=openAgentHarness,onProgress=()=>{},checkpoint=async()=>{}}={}) {
+  providerKind='doubao',providerFactory,turnTimeoutMs=45000,openSession=openAgentHarness,onProgress=()=>{},checkpoint=async()=>{},protocolProbe=false}={}) {
   if(!/^[a-f0-9]{40}$/.test(candidateRevision??'')||!Number.isSafeInteger(turnTimeoutMs)||turnTimeoutMs<1||turnTimeoutMs>120000||!cases?.length)throw new Error('INVALID_MULTITURN_RUN');
   if(providerKind==='doubao') {
-    const check=runPreflight({cases,inputs,profile,env});if(!check.live_eligible)throw new Error('MULTITURN_PREFLIGHT_BLOCKED');
+    const check=runPreflight({cases,inputs,profile,env,protocolProbe});if(!check.live_eligible)throw new Error('MULTITURN_PREFLIGHT_BLOCKED');
   }else if(providerKind!=='test'||!providerFactory)throw new Error('INVALID_EVAL_PROVIDER');
   const runId=`multiturn-${randomUUID()}`;
   const observations={version:1,kind:'ask-kai-multiturn-observations',run_id:runId,
@@ -56,10 +56,12 @@ export async function runMultiturn({cases,inputs,profile,env,signal,candidateRev
     profile_sha256:profile?sha256(Buffer.from(JSON.stringify(profile))):null,
     policy_versions:{persona:PERSONA_VERSION,language:LANGUAGE_POLICY_VERSION,reply:REPLY_POLICY_VERSION,teaching:TEACHING_POLICY_VERSION,summary:SUMMARY_POLICY_VERSION,rubric:RUBRIC_VERSION},
     history_source:'actual_provider_session_only',references_sent_to_model:false,soft_goals_sent_to_model:false,
+    protocol_probe:protocolProbe,runtime_profile_scope:profile?.realtime?.review_scope??'normal_realtime',
     scores_present:false,judge_calls:0,browser_audio_tested:false,real_experience_accepted:false,cases:[]};
   const report=()=>({version:1,kind:'ask-kai-multiturn-run-report',run_id:runId,execution:observations.execution,
     candidate_revision:candidateRevision,dataset_version:datasetVersion,dataset_sha256:datasetSha256,
     model_version:observations.model_version,policy_versions:observations.policy_versions,
+    protocol_probe:protocolProbe,runtime_profile_scope:observations.runtime_profile_scope,
     selected_cases:cases.length,selected_turns:cases.reduce((n,c)=>n+c.turns.length,0),
     completed_cases:observations.cases.filter(c=>c.status==='collected').length,
     collected_turns:observations.cases.reduce((n,c)=>n+c.turns.filter(t=>t.reply_complete).length,0),
@@ -79,7 +81,7 @@ export async function runMultiturn({cases,inputs,profile,env,signal,candidateRev
     observations.cases.push(result);let session;
     try {
       if(signal?.aborted)throw new Error('RUN_ABORTED');
-      session=await openSession({profile,env,initialProfile:c.initial_profile,signal,providerKind,providerFactory,turnTimeoutMs});result.session_opened=true;
+      session=await openSession({profile,env,initialProfile:c.initial_profile,signal,providerKind,providerFactory,turnTimeoutMs,protocolProbe});result.session_opened=true;
       for(const t of c.turns) {
         const audio=inputs.get(`${c.id}/${t.turn}`);
         onProgress({case_id:c.id,turn:t.turn,state:'collecting'});

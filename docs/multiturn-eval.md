@@ -39,6 +39,20 @@ sequenceDiagram
 
 ## 三步使用
 
+### 使用 GitHub 中已有的 Key 试跑
+
+已有 Repository Secret `DOUBAO_API_KEY` 时，不需要再提供 Key，也不需要 Judge、Langfuse 或 HSKai Key。GitHub Secret 只能注入 Actions 步骤，不能读取出来自动填入本机 `.env`；下方 CLI 的本地配置与 Actions 配置是两个运行环境。
+
+仓库已新增 **Doubao first-case multi-turn trial**。首次提交或修改 `.github/live/doubao-multiturn-request.json` 会在 main 启动；之后可在 GitHub → Actions → 该工作流 → Run workflow → main 手动重跑。普通提交与日常 CI 不启动真实调用。
+
+该入口固定第 001 案／4 轮，整体供应商调用预算 5 分钟，不自动重试：先用同一个 Key 合成固定学生文本，再通过现有授权 Agent 网关进行实际 ASR／多轮回答。数据集与静态 profile 的哈希绑定在请求文件，不能通过工作流输入扩大范围或注入其他文本。
+
+试跑沿用已完成真实适配器复测的专用 `protocol_smoke` 机制：只在内存中建立明确的探针配置，并显式传入 `protocolProbe: true`。普通 Web 和本地 CLI 仍拒绝探针配置，已提交模板和正常实时审核开关保持原值。其目的是取得首个持续音频、ASR 和模型回答观测，不预先认定这些行为已验收。
+
+运行结束后打开 Actions 的 **Artifacts → doubao-multiturn-trial**：`observations.json` 是实际识别／AI 回复与总结，`report.json` 和 `trial-report.json` 是元数据，`audio-manifest.json` 记录作者合成输入来源。Artifact 保留 3 天；不上传输入 PCM、密钥、真实学生录音或原始供应商 wire trace。逐字稿只来自本仓库作者脚本和生成的 AI 回复，终端日志不打印它们。失败时同样保存已完成的记录。该入口不自动赋分，不完成 Task 10 或开启 Web 语音。
+
+### 本机运行
+
 在仓库根目录运行。默认使用已提交的 V3.1 JSON，默认只选第一个原始案例。`.env` 中使用现有 `DOUBAO_API_KEY` 和 `DOUBAO_REALTIME_PROFILE`，不需要额外 Judge Key。正常语音 profile 的静态、实时和有序 ACK 审核必须完成；仅探针审核的配置不能用于运行器，工具不会修改审核开关。
 
 先执行离线预检：

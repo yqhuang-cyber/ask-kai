@@ -41,7 +41,7 @@ export async function protocolPeer(t,{scripts=[['你好','再见']],outputs=[['�
     });
   });
   const socketFactory=()=>new WebSocket(`ws://127.0.0.1:${http.address().port}`);
-  return {requests,sessions,socketFactory,providerFactory:profile=>ticket=>new SeeduplexProvider({profile,env:{DOUBAO_API_KEY:'fixture-only-key'},socketFactory,speechPace:ticket.speech_pace})};
+  return {requests,sessions,socketFactory,providerFactory:(profile,{protocolProbe=false}={})=>ticket=>new SeeduplexProvider({profile,env:{DOUBAO_API_KEY:'fixture-only-key'},socketFactory,speechPace:ticket.speech_pace,protocolProbe})};
 }
 export function fixtureCases(scripts=[['你好','再见']]) {
   return scripts.map((turns,index)=>({id:`ask-kai-v2-${String(index+1).padStart(3,'0')}`,kind:'original_case',entry:'free',

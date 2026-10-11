@@ -103,6 +103,8 @@ npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-
 
 ### 自由会话多轮运行器
 
+**已有 GitHub Secret `DOUBAO_API_KEY` 可直接试跑，无需新的 Key。** 在 [Actions](https://github.com/yqhuang-cyber/ask-kai/actions) 选择 **Doubao first-case multi-turn trial → Run workflow → main**。入口固定第 001 案／4 轮，先合成学生脚本音频，再经 Agent 收集实际回复；总预算 5 分钟、不自动重试。请求文件变更也可启动一次试跑，普通提交与日常 CI 不调用豆包。结果在 `doubao-multiturn-trial` Artifact 中保留 3 天，包含实际 AI 回复、识别与总结，不包含输入音频、密钥或原始 wire trace。专用探针配置不能启用普通 Web／CLI，不会自动修改实时审核开关。GitHub Secret 不会自动出现在本机 `.env`。
+
 已实现同仓库 CLI，复用生产 Agent 网关和本地 mock HSKai，每案独立会话、逐轮发送学生音频，收集实际 ASR、Kai 回复与现有总结。参考和软目标不发送给模型，前文使用实际此前回复。默认只离线预检一案；真实调用必须显式加 `--live`，使用本机豆包 Key、已审核的正常语音 profile 和干净 Git 工作区。
 
 ```bash

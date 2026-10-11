@@ -8,8 +8,8 @@ import { profileMemory,comparableText } from './multiturn-plan.js';
 // Starts the same gateway, authorization ports, reducer, teaching, safety and
 // summary projection as Web. Fixture overrides exist only in this CLI process.
 export async function openAgentHarness({profile,env=process.env,initialProfile,signal,
-  providerFactory,providerKind='doubao',turnTimeoutMs=45000,contextTimeoutMs=5000}={}) {
-  if(providerKind==='doubao')validateSeeduplexProfile(profile);
+  providerFactory,providerKind='doubao',turnTimeoutMs=45000,contextTimeoutMs=5000,protocolProbe=false}={}) {
+  if(providerKind==='doubao')validateSeeduplexProfile(profile,{protocolProbe});
   else if(providerKind!=='test'||typeof providerFactory!=='function')throw new Error('INVALID_EVAL_PROVIDER');
   const backend=await startMockBackend({initialMemory:profileMemory(initialProfile),mission:null});
   let server,ws,pump,current,closed=false,failure=null,ready=false,summary=null,terminal=null,latestState=null;
@@ -35,7 +35,7 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
   try {
     server=createGateway({bridge:backend.bridge,memoryPort:backend.memoryPort,safeguardingPort:backend.safeguardingPort,privacyPort:backend.privacyPort,pocPort:backend.pocPort,
       providerKind,speechPaceSupported:true,contextTimeoutMs,readyTimeoutMs:10000,
-      providerFactory:providerFactory??(ticket=>createDoubaoProvider({profile,env,speechPace:ticket.speech_pace}))});
+      providerFactory:providerFactory??(ticket=>createDoubaoProvider({profile,env,speechPace:ticket.speech_pace,protocolProbe}))});
     server.listen(0,'127.0.0.1');await once(server,'listening');
     const origin=`http://127.0.0.1:${server.address().port}`;
     const post=async(path,body,cookie)=>{
