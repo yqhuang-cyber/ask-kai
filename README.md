@@ -4,7 +4,7 @@
 
 > **当前状态：独立 POC 的本地业务链路已可运行。** 基础工程第 1–7 步及体验 Task 01–09 已完成工程实现；普通 Web 真实纵向验收于 2026-10-12 由用户确认完成。真实内容已有首轮采集及模型辅助复核，剩余设备场景、采集缺口、人工校准与改造后回归分别保留。身份、Mission 和偏好由本地 mock 提供。详见[完整收尾 TODO](docs/poc-completion-todo.md)。
 
-**收尾 Task04设计已完成，Task05的05-01～05-08工程已实现，05-09全量回归正在运行，尚未整体验收通过。** [POC Harness 改造设计](docs/task04-poc-harness-design.md)明确上下文与语言请求、拒绝／收束、澄清／纠正、共享预算、回合归属及有来源总结；[分项实施与回归清单](docs/task05-implementation-tasking.md)列出九个子任务、验收范围和回滚方式。[候选版本评测](docs/candidate-evaluation.md)已增加冻结、校验和对比入口；[上下文快照](docs/context-snapshots.md)已统一组装和来源记录；[本轮语言请求](docs/scoped-language-requests.md)已区分作用范围和一次求助；[真实针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)保留语言不稳定、告别邀请与未澄清的失败；[有来源总结](docs/task05-sourced-summary.md)已实现。Agent运行代码已进入逐类改造，作者数据及旧分数保持原样，Pi完整目标架构继续作为后续参考。
+**收尾 Task04设计已完成，Task05的05-01～05-08工程已实现，05-09全量采集已结束：45/48案完整、233/255轮有效，正式评分待审，尚未整体验收通过。** [POC Harness 改造设计](docs/task04-poc-harness-design.md)明确上下文与语言请求、拒绝／收束、澄清／纠正、共享预算、回合归属及有来源总结；[分项实施与回归清单](docs/task05-implementation-tasking.md)列出九个子任务、验收范围和回滚方式。[候选版本评测](docs/candidate-evaluation.md)已增加冻结、校验和对比入口；[上下文快照](docs/context-snapshots.md)已统一组装和来源记录；[本轮语言请求](docs/scoped-language-requests.md)已区分作用范围和一次求助；[真实针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)保留语言不稳定、告别邀请与未澄清的失败；[有来源总结](docs/task05-sourced-summary.md)已实现。Agent运行代码已进入逐类改造，作者数据及旧分数保持原样，Pi完整目标架构继续作为后续参考。
 
 ## 本地运行
 
@@ -113,7 +113,7 @@ npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-
 
 ### 自由会话多轮运行器
 
-**当前实施顺序（2026-10-12）：评测工具、全量采集、评分校准、小范围根因对照和 Task04 改造设计已交付；Task05的05-01～05-08已实现，05-09完整候选回归正在运行，内容问题尚未全部通过。**；原冻结基线、作者数据、实际记录和旧分数保留。早期顺序及两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)，当前开发清单见[Task05](docs/task05-implementation-tasking.md)。
+**当前实施顺序（2026-10-12）：评测工具、全量采集、评分校准、小范围根因对照和 Task04 改造设计已交付；Task05的05-01～05-08已实现，05-09完整候选采集已结束，3案失败、正式评分待审，内容问题尚未全部通过。**；原冻结基线、作者数据、实际记录和旧分数保留。早期顺序及两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)，当前开发清单见[Task05](docs/task05-implementation-tasking.md)。
 
 首轮结果和[机器可读逐轮记录](docs/eval-results/2026-10-12-freechat-baseline.json)已发布，244 轮保留十维、逐项要求及证据定位。后续[Task03](docs/eval-results/2026-10-12-task03-root-cause.md)确认了本轮语言识别和后台更新时序，并保留旧双语状态干扰的支持假设及反例；内容纠正、收束、澄清、密度及总结观察已纳入[Task04设计](docs/task04-poc-harness-design.md)，未定位原因继续未知。旧Agent基线保留，Task05候选另按版本评测，原Task10仍有剩余验收项。
 
@@ -641,7 +641,7 @@ docs/
   test-fixtures/           # 脱敏、合成的事件样本
 ~~~
 
-Task05的05-01～05-08工程已分别校验、提交并推送main；下一步完成05-09全量复核与旧基线对比，再按[开发清单](docs/task05-implementation-tasking.md)处理未通过类别。[针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)列出实际成功及失败，工程通过不代表内容合格。原体验 Task10剩余验收按收尾 Task06处理；进度以[实施计划](docs/implementation-plan.md)和[收尾 TODO](docs/poc-completion-todo.md)为准。
+Task05的05-01～05-08工程已分别校验、提交并推送main；[全量采集核查](docs/eval-results/2026-10-13-task05-full-collection.md)已发布；下一步补齐3个失败案并完成05-09正式评分与旧基线对比，再按[开发清单](docs/task05-implementation-tasking.md)处理未通过类别。[针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)列出实际成功及失败，工程通过不代表内容合格。原体验 Task10剩余验收按收尾 Task06处理；进度以[实施计划](docs/implementation-plan.md)和[收尾 TODO](docs/poc-completion-todo.md)为准。
 
 PRD v1.1 已归档到 [产品需求文档](docs/prd/ask-kai-agent-prd-v1.1.md)。技术 ERD v1.0、测试与 Evaluation v1.0 及配套用例工作簿也是本路线图的设计依据，其源文件仍待归档。实施时在每个 Issue / PR 关联需求与测试 ID。
 

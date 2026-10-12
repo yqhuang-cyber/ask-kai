@@ -1,6 +1,6 @@
 # 收尾 Task 05：分项实施与回归清单
 
-2026-10-12。依据[Task04 POC Harness设计](task04-poc-harness-design.md)形成。**05-01～05-08工程已分别提交主干，05-09全量候选回归正在运行，Task05尚未整体验收通过。** [真实针对性回归](eval-results/2026-10-12-task05-targeted-regression.md)保留语言两次固定PCM对照、拒绝／收束及澄清／纠正成功与失败；当前319测试、三个回放和CI通过，不把工程验证算作内容放行。[候选评测](candidate-evaluation.md)、[暂停目标与收束](paused-goals-and-closing.md)、[澄清与纠正](clarification-and-correction.md)、[共享短回复](task05-short-replies.md)、[回合与呈现证据](author-turn-and-presentation-evidence.md)、[有来源总结](task05-sourced-summary.md)说明实现边界。旧数据、原评分及普通Web已完成验收保留。
+2026-10-12。依据[Task04 POC Harness设计](task04-poc-harness-design.md)形成。**05-01～05-08工程已分别提交主干，05-09全量候选采集已结束，45/48案完整、233/255轮有效，正式评分待审，Task05尚未整体验收通过。** [真实针对性回归](eval-results/2026-10-12-task05-targeted-regression.md)保留语言两次固定PCM对照、拒绝／收束及澄清／纠正成功与失败；当前319测试、三个回放和CI通过，不把工程验证算作内容放行。[候选评测](candidate-evaluation.md)、[暂停目标与收束](paused-goals-and-closing.md)、[澄清与纠正](clarification-and-correction.md)、[共享短回复](task05-short-replies.md)、[回合与呈现证据](author-turn-and-presentation-evidence.md)、[有来源总结](task05-sourced-summary.md)说明实现边界。[全量采集核查](eval-results/2026-10-13-task05-full-collection.md)列出3个采集失败与未解决内容问题。旧数据、原评分及普通Web已完成验收保留。
 
 ## 1. 顺序与模块
 
