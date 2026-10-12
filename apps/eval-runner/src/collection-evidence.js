@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
 
 export const COLLECTION_EVIDENCE_VERSION='kai-collection-evidence-v1';
+export function authorProviderAssociation({caseId,turn,audioSha,finals,replies,complete=false}) {
+  const providerTurns=[...new Set(finals.map(f=>f.turn_id))],links=replies.map(r=>({turn_id:r.turn_id,response_id:r.response_id,model_reply_complete:r.completed===true}));
+  const single=providerTurns.length===1&&links.length===1&&links[0].turn_id===providerTurns[0];
+  return {version:1,case_id:caseId,author_turn:turn,input_audio_sha256:audioSha,association_basis:'collector_active_input_window',
+    status:single?'single':providerTurns.length>1||links.length>1?'fragmented':'unresolved',
+    provider_turn_ids:providerTurns.slice(0,4),response_links:links.slice(0,4),truncated:providerTurns.length>4||links.length>4,
+    eligible_as_complete_turn:complete&&single&&links[0].model_reply_complete,provider_ids_merged:false,semantic_alignment_verified:false,playback_measured:false};
+}
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 // Descriptive amplitude measurements, not VAD, pronunciation or listening proof.

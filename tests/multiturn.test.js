@@ -69,6 +69,7 @@ test('multi-turn collection uses actual production adapter and authorized gatewa
   assert.deepEqual(r.observations.cases[0].turns.map(t=>t.next_turn_context_version),[2,3]);
   assert.deepEqual(r.report.cases[0].dependency_review_turns,[2]);assert.equal(r.observations.history_source,'actual_provider_session_only');
   assert.equal(peer.sessions.length,2);assert.deepEqual(peer.sessions.map(s=>s.inputs),scripts);
+  for(const c of r.observations.cases)for(const turn of c.turns){assert.equal(turn.author_provider_association.case_id,c.case_id);assert.equal(turn.author_provider_association.status,'single');assert.equal(turn.author_provider_association.eligible_as_complete_turn,true);assert.equal(turn.author_provider_association.semantic_alignment_verified,false);}
   assert.ok(peer.sessions[0].instructions[0].includes('自由聊天'));assert.ok(!peer.sessions[0].instructions[0].includes('足球","source'));
   assert.ok(peer.sessions[1].instructions[0].includes('comfortable'));assert.ok(!peer.sessions[1].instructions[0].includes('Hello.'));
   assert.ok(peer.requests.every(r=>!['conversation.item.create','speech_text_buffer.commit'].includes(r.type)));

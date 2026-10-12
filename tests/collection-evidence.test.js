@@ -76,6 +76,9 @@ test('a completed model fragment from a split ASR input remains a failed collect
   assert.deepEqual(turn.asr_segments.map(s=>s.text),['你好','tail']);assert.equal(new Set(turn.asr_segments.map(s=>s.turn_id)).size,2);
   assert.equal(turn.reply_fragments[0].text,'你好');assert.equal(turn.fragments_truncated,false);
   assert.equal(turn.collection_evidence.provider_final_before_input_end,true);assert.equal(turn.collection_evidence.all_input_enqueued,false);
+  assert.equal(turn.author_provider_association.case_id,cases[0].id);assert.equal(turn.author_provider_association.author_turn,1);
+  assert.equal(turn.author_provider_association.status,'fragmented');assert.equal(turn.author_provider_association.provider_turn_ids.length,2);
+  assert.equal(turn.author_provider_association.provider_ids_merged,false);assert.equal(turn.author_provider_association.eligible_as_complete_turn,false);
   // Legacy diagnostic records retain their original raw flag; the supplement
   // explicitly separates raw/model completion from validated collector turns.
   turn.reply_complete=true;const report=summarizeCollectionEvidence(r.observations);

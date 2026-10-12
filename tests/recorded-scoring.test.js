@@ -58,6 +58,13 @@ test('a legacy partial or failed fragment marked reply complete never enters sco
     assert.equal(evaluateRecorded(b,reviewTemplate(b)).coverage.unassessable_turns,3);
   }
 });
+
+test('explicit fragmented author/provider association is unassessable even with a completed model fragment',()=>{
+  const o=observation(),row=o.cases[0].turns[1];row.input_audio_sha256='c'.repeat(64);
+  row.author_provider_association={version:1,case_id:o.cases[0].case_id,author_turn:2,input_audio_sha256:row.input_audio_sha256,status:'fragmented',provider_turn_ids:['first','tail'],response_links:[{response_id:'r1',turn_id:'first',model_reply_complete:true}],eligible_as_complete_turn:false,provider_ids_merged:false,truncated:false};
+  const b=adapt(o);assert.deepEqual(b.units.map(u=>u.eligible),[true,false,false,false]);assert.equal(b.units[1].unassessable_reason,'author_provider_association_incomplete');
+  row.author_provider_association.eligible_as_complete_turn=true;assert.throws(()=>adapt(o),/INVALID_AUTHOR_PROVIDER_ASSOCIATION/);
+});
 test('ten dimensions reuse existing weights; criterion failure cannot disappear under perfect dimension averages',()=>{
   const b=adapt(observation()),j=judgement(b);j.units[0].criteria[0].score=0;
   const r=evaluateRecorded(b,j);assert.equal(r.results[0].score,100);assert.equal(r.results[0].status,'failed');assert.equal(r.coverage.scored_turns,4);assert.equal(r.complete_scoring,true);

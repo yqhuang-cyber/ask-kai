@@ -4,11 +4,11 @@ import { createGateway } from '../../realtime-gateway/src/server.js';
 import { startMockBackend } from '../../hskai-mock/src/backend.js';
 import { createDoubaoProvider,validateSeeduplexProfile } from '../../../packages/provider-doubao/seeduplex.js';
 import { profileMemory,comparableText } from './multiturn-plan.js';
-import { CollectionEvidence,observeMemoryPort } from './collection-evidence.js';
+import { CollectionEvidence,observeMemoryPort,authorProviderAssociation } from './collection-evidence.js';
 
 // Starts the same gateway, authorization ports, reducer, teaching, safety and
 // summary projection as Web. Fixture overrides exist only in this CLI process.
-export async function openAgentHarness({profile,env=process.env,initialProfile,signal,
+export async function openAgentHarness({profile,env=process.env,initialProfile,caseId=null,signal,
   providerFactory,providerKind='doubao',turnTimeoutMs=45000,contextTimeoutMs=5000,protocolProbe=false}={}) {
   if(providerKind==='doubao')validateSeeduplexProfile(profile,{protocolProbe});
   else if(providerKind!=='test'||typeof providerFactory!=='function')throw new Error('INVALID_EVAL_PROVIDER');
@@ -120,6 +120,9 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
         notify();pump=setTimeout(tick,20);
       }catch{fail('EVAL_INPUT_PUMP_FAILED');}
     };tick();
+    const association=(input,audio,complete)=>authorProviderAssociation({caseId,turn:input.turn,audioSha:audio.sha256,
+      finals:[...finals].filter(([,f])=>f.case_turn===input.turn).map(([turn_id])=>({turn_id})),
+      replies:[...replies].filter(([,r])=>r.case_turn===input.turn).map(([response_id,r])=>({...r,response_id})),complete});
     return {
       snapshotTurn(input,audio) {
         const r=[...replies.values()].find(r=>r.case_turn===input.turn&&finals.get(r.turn_id)?.case_turn===input.turn);
@@ -129,7 +132,7 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
           input_source:audio.source,input_audio_sha256:audio.sha256,input_audio_duration_ms:audio.duration_ms,
           // A failed collector turn can contain a completed model fragment.
           // Preserve that fact without admitting the failed segment to scoring.
-          reply_complete:false,model_reply_complete:r?.completed===true,playback_measured:false,asr_surface_match:f?comparableText(f.text)===comparableText(input.text):null,
+          reply_complete:false,model_reply_complete:r?.completed===true,playback_measured:false,author_provider_association:association(input,audio,false),asr_surface_match:f?comparableText(f.text)===comparableText(input.text):null,
           asr_segments:segments.slice(0,4).map(([id,f])=>({turn_id:id,text:f.text})),
           reply_fragments:fragments.slice(0,4).map(([id,r])=>({response_id:id,turn_id:r.turn_id,text:r.text,model_reply_complete:r.completed})),
           fragments_truncated:segments.length>4||fragments.length>4,
@@ -152,7 +155,7 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
         if(!r.text.trim())throw new Error('EVAL_MISSING_REPLY_TEXT');
         const result={turn:input.turn,script_input:input.text,actual_student_transcript:f.text,actual_kai:r.text,
           input_source:audio.source,input_audio_sha256:audio.sha256,input_audio_duration_ms:audio.duration_ms,
-          asr_surface_match:comparableText(f.text)===comparableText(input.text),reply_complete:true,
+          asr_surface_match:comparableText(f.text)===comparableText(input.text),reply_complete:true,author_provider_association:association(input,audio,true),
           pcm_output_duration_ms:r.audio_bytes/48,playback_measured:false,
           dependency_review:input.dependency.type==='prior_reply_semantics'?'required':'not_required',
           context_dependency:structuredClone(input.dependency)};

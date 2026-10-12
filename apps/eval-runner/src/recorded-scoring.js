@@ -56,14 +56,17 @@ export function adaptRecordedObservations(data,observations,{datasetSha256,caseI
       const obs=row?.turns.find(x=>x.turn===t.turn),authored=spec.turns[t.turn-1],key=`${c.id}-t${String(t.turn).padStart(2,'0')}`;
       if(obs)assert(obs.script_input===t.text&&['authored_tts','approved_recording','synthetic_fixture'].includes(obs.input_source),'OBSERVED_SCRIPT_MISMATCH');
       if(execution==='recorded_real_model'&&obs)assert(obs.input_source==='authored_tts','GENERATED_INPUT_REQUIRED');
-      const complete=!!obs?.reply_complete&&!obs.failure&&obs.state!=='partial'&&nonempty(obs.actual_student_transcript)&&nonempty(obs.actual_kai);
+      const association=obs?.author_provider_association;
+      if(association)assert(association.version===1&&association.case_id===c.id&&association.author_turn===t.turn&&association.input_audio_sha256===obs.input_audio_sha256&&association.provider_ids_merged===false&&['single','fragmented','unresolved'].includes(association.status)&&typeof association.eligible_as_complete_turn==='boolean'&&Array.isArray(association.provider_turn_ids)&&Array.isArray(association.response_links)&&association.provider_turn_ids.length<=4&&association.response_links.length<=4&&(!association.eligible_as_complete_turn||association.status==='single'&&!association.truncated&&association.provider_turn_ids.length===1&&association.response_links.length===1&&association.response_links[0].model_reply_complete&&association.response_links[0].turn_id===association.provider_turn_ids[0]),'INVALID_AUTHOR_PROVIDER_ASSOCIATION');
+      const complete=!!obs?.reply_complete&&!obs.failure&&obs.state!=='partial'&&(!association||association.eligible_as_complete_turn)&&nonempty(obs.actual_student_transcript)&&nonempty(obs.actual_kai);
       const eligible=complete&&prefixComplete&&obs.actual_kai.length<=2000&&obs.actual_student_transcript.length<=2000;
-      const reason=!complete?'collection_incomplete':!prefixComplete?'history_incomplete':!eligible?'evaluator_text_limit':null;
+      const reason=association&&!association.eligible_as_complete_turn?'author_provider_association_incomplete':!complete?'collection_incomplete':!prefixComplete?'history_incomplete':!eligible?'evaluator_text_limit':null;
       const req=requirements(authored,c.kind),lang=languageExpectation(authored,c.kind);
       assert(modes.includes(lang.mode),'INVALID_SCORING_LANGUAGE');
       const current=obs?{student:obs.actual_student_transcript??'',kai:obs.actual_kai??''}:null;
       const unit={id:key,case_id:c.id,turn:t.turn,kind:c.kind,eligible,unassessable_reason:reason,
         source_run_id:sourceRuns.get(c.id)??null,input_audio_sha256:obs?.input_audio_sha256??null,input_audio_duration_ms:obs?.input_audio_duration_ms??null,
+        author_provider_association:association?structuredClone(association):null,
         input_script:t.text,actual:current,history:structuredClone(history),requirements:req,language_expectation:lang,
         session_summary:t.turn===c.turns.length&&row?.summary?Object.fromEntries(Object.entries(row.summary).filter(([k])=>!['session_id','voice'].includes(k))):null,
         execution_evidence:row?{source_run_id:sourceRuns.get(c.id),history_source:sourceObservations.get(c.id).history_source,references_sent_to_model:sourceObservations.get(c.id).references_sent_to_model,

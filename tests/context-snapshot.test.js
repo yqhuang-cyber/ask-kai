@@ -45,3 +45,11 @@ test('context diagnostics retain only bounded hashes and provenance metadata, ne
   const trace=new ExperienceTrace({now:()=>10});trace.record('teaching.response',{response_id:'owned',...clean});const report=trace.snapshot();
   assert.equal(report.summary.responses[0].teaching_context.applied_context_hash,'b'.repeat(64));assert.equal(report.contains_text,false);
 });
+
+test('gateway completion leaves browser presentation unknown; browser-only observation is reply-owned and metadata-only',()=>{
+  const trace=new ExperienceTrace({now:()=>10});trace.gateway({name:'response.complete',at_ms:1,fields:{response_id:'r1',state:'done',pcm_duration_ms:200}});
+  let p=trace.snapshot().summary.responses[0].presentation;assert.equal(p.browser_audio_observed,false);assert.equal(p.played_pcm_ms,null);
+  trace.record('audio.queued',{response_id:'r1',queue_ms:120,text:'private'});trace.record('caption.playback',{response_id:'r1',played_pcm_ms:180,caption_mode:'complete'});trace.record('presentation.dropped',{response_id:'old',reason:'ownership'});
+  p=trace.snapshot().summary.responses[0].presentation;assert.equal(p.browser_audio_observed,true);assert.equal(p.played_pcm_ms,180);assert.equal(p.caption_complete,true);
+  assert.equal(trace.snapshot().summary.responses[1].presentation.late_events_dropped,1);assert.ok(!JSON.stringify(trace.snapshot()).includes('private'));
+});

@@ -82,7 +82,7 @@ export async function runMultiturn({cases,inputs,profile,env,signal,candidateRev
     observations.cases.push(result);let session;
     try {
       if(signal?.aborted)throw new Error('RUN_ABORTED');
-      session=await openSession({profile,env,initialProfile:c.initial_profile,signal,providerKind,providerFactory,turnTimeoutMs,protocolProbe});result.session_opened=true;
+      session=await openSession({profile,env,initialProfile:c.initial_profile,caseId:c.id,signal,providerKind,providerFactory,turnTimeoutMs,protocolProbe});result.session_opened=true;
       for(const t of c.turns) {
         const audio=inputs.get(`${c.id}/${t.turn}`);
         onProgress({case_id:c.id,turn:t.turn,state:'collecting'});

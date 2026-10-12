@@ -72,6 +72,16 @@ export class ExperienceTrace {
       maxQueue=Math.max(maxQueue,row.queue_ms??0);maxPending=Math.max(maxPending,row.pending_chars??0);
       if(row.response_ref) {
         const reply=responses.get(row.response_ref)??{response_ref:row.response_ref};responses.set(row.response_ref,reply);
+        reply.presentation??={browser_audio_observed:false,caption_observed:false,queue_ms:null,played_pcm_ms:null,drained:false,caption_complete:false,text_only:false,late_events_dropped:0};
+        const presentation=reply.presentation;
+        if(row.clock==='browser') {
+          if(row.name==='audio.queued'){presentation.browser_audio_observed=true;presentation.queue_ms=Math.max(presentation.queue_ms??0,row.queue_ms??0);}
+          if(row.name==='audio.drained'){presentation.browser_audio_observed=true;presentation.drained=true;}
+          if(row.name==='caption.revealed')presentation.caption_observed=true;
+          if(row.name==='caption.playback'){presentation.browser_audio_observed=true;presentation.played_pcm_ms=row.played_pcm_ms??null;presentation.caption_complete=row.caption_mode==='complete';}
+          if(row.name==='caption.mode'&&row.caption_mode==='text_only')presentation.text_only=true;
+          if(row.name==='presentation.dropped')presentation.late_events_dropped++;
+        }
         if(row.name==='response.complete')Object.assign(reply,{state:row.state,text_chars:row.text_chars,text_deltas:row.text_deltas,audio_chunks:row.audio_chunks,received_pcm_ms:row.pcm_duration_ms,gateway_span_ms:row.elapsed_ms});
         if(row.name==='cancel.ack')reply.cancel_ack_ms=row.ack_ms;
         if(row.name==='cancel.requested')reply.cancel_source=row.source;
