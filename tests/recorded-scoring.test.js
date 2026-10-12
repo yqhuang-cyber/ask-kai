@@ -50,6 +50,14 @@ test('missing/partial turns remain unassessable; later history gaps are never si
   const r=evaluateRecorded(b,reviewTemplate(b));assert.equal(r.coverage.unassessable_turns,3);assert.equal(r.coverage.pending_turns,1);assert.equal(r.mean_actual_input_score,null);assert.equal(r.complete_scoring,false);
   assert.equal(r.collection_failures[0].failure,'TURN_TIMEOUT');
 });
+test('a legacy partial or failed fragment marked reply complete never enters scoring or later comparable history',()=>{
+  for(const marker of [{state:'partial'},{failure:'MULTIPLE_ASR_TURNS'}]) {
+    const o=observation();Object.assign(o.cases[0].turns[1],marker);assert.equal(o.cases[0].turns[1].reply_complete,true);
+    const b=adapt(o);assert.deepEqual(b.units.map(u=>u.eligible),[true,false,false,false]);
+    assert.equal(b.units[1].unassessable_reason,'collection_incomplete');assert.equal(b.units[2].history.length,1);
+    assert.equal(evaluateRecorded(b,reviewTemplate(b)).coverage.unassessable_turns,3);
+  }
+});
 test('ten dimensions reuse existing weights; criterion failure cannot disappear under perfect dimension averages',()=>{
   const b=adapt(observation()),j=judgement(b);j.units[0].criteria[0].score=0;
   const r=evaluateRecorded(b,j);assert.equal(r.results[0].score,100);assert.equal(r.results[0].status,'failed');assert.equal(r.coverage.scored_turns,4);assert.equal(r.complete_scoring,true);

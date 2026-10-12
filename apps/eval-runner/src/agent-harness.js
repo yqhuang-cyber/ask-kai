@@ -124,11 +124,17 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
       snapshotTurn(input,audio) {
         const r=[...replies.values()].find(r=>r.case_turn===input.turn&&finals.get(r.turn_id)?.case_turn===input.turn);
         const f=(r&&finals.get(r.turn_id))??[...finals.values()].find(f=>f.case_turn===input.turn);
+        const segments=[...finals].filter(([,f])=>f.case_turn===input.turn),fragments=[...replies].filter(([,r])=>r.case_turn===input.turn);
         return {turn:input.turn,script_input:input.text,actual_student_transcript:f?.text??null,actual_kai:r?.text??null,
           input_source:audio.source,input_audio_sha256:audio.sha256,input_audio_duration_ms:audio.duration_ms,
-          reply_complete:r?.completed===true,playback_measured:false,asr_surface_match:f?comparableText(f.text)===comparableText(input.text):null,
+          // A failed collector turn can contain a completed model fragment.
+          // Preserve that fact without admitting the failed segment to scoring.
+          reply_complete:false,model_reply_complete:r?.completed===true,playback_measured:false,asr_surface_match:f?comparableText(f.text)===comparableText(input.text):null,
+          asr_segments:segments.slice(0,4).map(([id,f])=>({turn_id:id,text:f.text})),
+          reply_fragments:fragments.slice(0,4).map(([id,r])=>({response_id:id,turn_id:r.turn_id,text:r.text,model_reply_complete:r.completed})),
+          fragments_truncated:segments.length>4||fragments.length>4,
           dependency_review:input.dependency.type==='prior_reply_semantics'?'required':'not_required',
-          context_dependency:structuredClone(input.dependency),diagnostics:diagnostics.slice(diagnosticStart),collection_evidence:evidence.snapshot(input.turn)};
+          context_dependency:structuredClone(input.dependency),diagnostics:evidence.turns.has(input.turn)?diagnostics.slice(diagnosticStart):[],collection_evidence:evidence.snapshot(input.turn)};
       },
       async turn(input,audio) {
         if(failure)throw new Error(failure);

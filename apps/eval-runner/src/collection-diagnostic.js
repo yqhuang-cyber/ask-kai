@@ -16,10 +16,11 @@ export function validateDiagnosticRequest(request,{baseline,data,dataSha,profile
 // Metadata-only publication. Findings describe this attempt; no automatic ASR
 // semantic judgment, internal memory verdict, score or historical replacement.
 export function summarizeCollectionEvidence(observations) {
+  const valid=t=>t.reply_complete===true&&!t.failure&&t.state!=='partial';
   const cases=observations.cases.map(c=>({case_id:c.case_id,status:c.status,failure:c.failure,expected_turns:c.expected_turns,
-    collected_turns:c.turns.filter(t=>t.reply_complete).length,
+    collected_turns:c.turns.filter(valid).length,
     memory_audit:c.memory_audit??null,session_evidence_truncated:c.collection_evidence?.truncated??null,
-    turns:c.turns.map(t=>({case_id:c.case_id,turn:t.turn,reply_complete:t.reply_complete,failure:t.failure??null,
+    turns:c.turns.map(t=>({case_id:c.case_id,turn:t.turn,reply_complete:valid(t),model_reply_complete:t.model_reply_complete??t.reply_complete,failure:t.failure??null,
       input_audio_sha256:t.input_audio_sha256,asr_surface_match:t.asr_surface_match,
       collection_evidence:t.collection_evidence??null,
       gateway_event_names:[...new Set(t.diagnostics?.map(d=>d.name)??[])],
@@ -31,6 +32,7 @@ export function summarizeCollectionEvidence(observations) {
     execution:observations.execution,observation_scope:'task02_independent_diagnostic',historical_baseline_replaced:false,
     input_pcm_scope:'authored_tts_fixtures_only',pacing_changed:false,turn_timeout_ms:45000,judge_calls:0,content_scored:false,
     selected_cases:cases.length,expected_turns:cases.reduce((n,c)=>n+c.expected_turns,0),collected_turns:turns.filter(t=>t.reply_complete).length,
+    raw_reported_reply_complete:observations.cases.reduce((n,c)=>n+c.turns.filter(t=>t.reply_complete).length,0),
     measured_input_turns:measured.length,early_provider_finals:measured.filter(t=>t.collection_evidence.provider_final_before_input_end===true).map(t=>`${t.case_id}-t${String(t.turn).padStart(2,'0')}`),
     partial_turns:turns.filter(t=>!t.reply_complete).length,internal_memory_audit_covered:false,playback_measured:false,cases};
 }

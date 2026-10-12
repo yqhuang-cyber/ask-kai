@@ -53,7 +53,7 @@ export function adaptRecordedObservations(data,observations,{datasetSha256,caseI
       const obs=row?.turns.find(x=>x.turn===t.turn),authored=spec.turns[t.turn-1],key=`${c.id}-t${String(t.turn).padStart(2,'0')}`;
       if(obs)assert(obs.script_input===t.text&&['authored_tts','approved_recording','synthetic_fixture'].includes(obs.input_source),'OBSERVED_SCRIPT_MISMATCH');
       if(execution==='recorded_real_model'&&obs)assert(obs.input_source==='authored_tts','GENERATED_INPUT_REQUIRED');
-      const complete=!!obs?.reply_complete&&nonempty(obs.actual_student_transcript)&&nonempty(obs.actual_kai);
+      const complete=!!obs?.reply_complete&&!obs.failure&&obs.state!=='partial'&&nonempty(obs.actual_student_transcript)&&nonempty(obs.actual_kai);
       const eligible=complete&&prefixComplete&&obs.actual_kai.length<=2000&&obs.actual_student_transcript.length<=2000;
       const reason=!complete?'collection_incomplete':!prefixComplete?'history_incomplete':!eligible?'evaluator_text_limit':null;
       const req=requirements(authored,c.kind),lang=languageExpectation(authored,c.kind);

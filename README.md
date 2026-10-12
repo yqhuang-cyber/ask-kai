@@ -35,7 +35,8 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 
 ### 文档入口
 
-- [收尾 Task 02：独立采集诊断与证据边界](docs/collection-evidence.md)
+- [收尾 Task 02：采集证据结果（011 完整；040 多 ASR 留证；只改评测）](docs/eval-results/2026-10-12-task02-evidence.md)
+- [独立采集诊断工具与证据边界](docs/collection-evidence.md)
 - [Ask Kai Agent 产品需求 v1.1](docs/prd/ask-kai-agent-prd-v1.1.md)
 - [独立 POC 启动、mock 合同与范围](docs/standalone-poc.md)
 - [独立 POC 架构决策](docs/adr/0002-standalone-poc.md)

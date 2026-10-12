@@ -63,3 +63,21 @@ test('diagnostic request binds frozen runtime, exact cases, budget and historica
   const cases=validateDiagnosticRequest(request,options);assert.equal(cases.length,5);assert.deepEqual(Object.keys(cases[0].turns[0]),['turn','text','dependency']);
   for(const change of [{case_ids:['ask-kai-v2-001']},{duration_ms:1},{baseline_artifact_sha256:'a'.repeat(64)},{agent_revision:'a'.repeat(40)},{unexpected:true}])assert.throws(()=>validateDiagnosticRequest({...request,...change},options),/INVALID_COLLECTION_DIAGNOSTIC_REQUEST/);
 });
+
+test('a completed model fragment from a split ASR input remains a failed collector turn, never a scored complete reply',async t=>{
+  const profile=JSON.parse(await readFile('docs/protocol/seeduplex-profile.template.json'));profile.reviewed=profile.realtime.reviewed=profile.realtime.ordered_acks_reviewed=true;
+  const cases=fixtureCases([['你好']]),peer=await protocolPeer(t,{scripts:[['你好','tail']],outputs:[['你好','unused']],omitReplyTurn:2});
+  const bytes=Buffer.concat([Buffer.alloc(640,1),Buffer.alloc(19200),Buffer.alloc(640,1),Buffer.alloc(12800)]);
+  const inputs=new Map([[`${cases[0].id}/1`,{bytes,source:'synthetic_fixture',sha256:sha256(bytes),duration_ms:bytes.length/32}]]);
+  const r=await runMultiturn({cases,inputs,profile,providerKind:'test',providerFactory:peer.providerFactory(profile),
+    candidateRevision:'a'.repeat(40),datasetVersion:'fixture',datasetSha256:'b'.repeat(64),manifestSha256:'c'.repeat(64),turnTimeoutMs:3000});
+  const turn=r.observations.cases[0].turns[0];assert.equal(turn.failure,'MULTIPLE_ASR_TURNS');assert.equal(turn.state,'partial');
+  assert.equal(turn.model_reply_complete,true);assert.equal(turn.reply_complete,false);assert.equal(r.report.collected_turns,0);
+  assert.deepEqual(turn.asr_segments.map(s=>s.text),['你好','tail']);assert.equal(new Set(turn.asr_segments.map(s=>s.turn_id)).size,2);
+  assert.equal(turn.reply_fragments[0].text,'你好');assert.equal(turn.fragments_truncated,false);
+  assert.equal(turn.collection_evidence.provider_final_before_input_end,true);assert.equal(turn.collection_evidence.all_input_enqueued,false);
+  // Legacy diagnostic records retain their original raw flag; the supplement
+  // explicitly separates raw/model completion from validated collector turns.
+  turn.reply_complete=true;const report=summarizeCollectionEvidence(r.observations);
+  assert.equal(report.raw_reported_reply_complete,1);assert.equal(report.collected_turns,0);assert.equal(report.partial_turns,1);
+});
