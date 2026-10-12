@@ -19,7 +19,7 @@ test('pending context remains bound to its original version across newer input a
   provider.emit('session.ready');provider.emit('user.final',{text:'Please speak Chinese only.'},{turn_id:'t1'});
   provider.emit('response.started',{}, {turn_id:'t1',response_id:'r1'});provider.emit('response.done',{}, {turn_id:'t1',response_id:'r1'});
   const first={...provider.contexts[0]};assert.equal(first.version,2);
-  provider.emit('user.final',{text:'Please add English translation.'},{turn_id:'t2'});provider.emit('response.started',{}, {turn_id:'t2',response_id:'r2'});
+  provider.emit('user.final',{text:'English only when needed.'},{turn_id:'t2'});provider.emit('response.started',{}, {turn_id:'t2',response_id:'r2'});
   provider.control('context.updated',{version:999});assert.equal(provider.contexts.length,1);
   provider.control('context.updated',{version:2});assert.equal(provider.contexts.length,1);
   provider.emit('response.done',{}, {turn_id:'t2',response_id:'r2'});assert.equal(provider.contexts.length,2);assert.equal(provider.contexts[1].version,3);

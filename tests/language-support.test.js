@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RunnableLambda } from '@langchain/core/runnables';
-import { LanguageSupport,LANGUAGE_INSTRUCTIONS } from '../packages/agent-core/language-support.js';
+import { LanguageSupport,LANGUAGE_INSTRUCTIONS,sameLanguageSupport } from '../packages/agent-core/language-support.js';
 import { TeachingSession } from '../packages/agent-core/teaching.js';
 import { measureReply,ReplyAudit } from '../packages/agent-core/reply-policy.js';
 import { validateMemoryRecord } from '../packages/hskai-bridge/identity.js';
@@ -39,6 +39,41 @@ test('current requests override old preferences; help restores English unless Ch
   policy.observe('我刚开始学中文。');assert.equal(policy.snapshot().english_support,'required');
   policy.observe('我听得懂中文，请不用英文翻译。');assert.equal(policy.snapshot().english_support,'off');assert.equal(policy.snapshot().comprehension,'comfortable');
   policy.observe('按需要加英文。');assert.equal(policy.snapshot().english_support,'adaptive');
+});
+
+test('a reply-only language exception expires at owned completion without overwriting saved or session preference',()=>{
+  const p=new LanguageSupport({memory:[record('support_language','zh_en')]});
+  p.observe('这句只用中文。',{turn_id:'t1',source_event_id:'e1',context_version:2});const first=p.snapshot();
+  assert.equal(first.english_support,'off');assert.equal(first.request_scope,'reply');assert.equal(first.session_preference,'zh_en');
+  assert.equal(p.completeReply('foreign'),false);assert.equal(p.snapshot().english_support,'off');
+  assert.equal(p.completeReply('t1'),true);assert.equal(p.snapshot().english_support,'required');assert.equal(p.completeReply('t1'),false);
+  p.observe('接下来只用中文。',{turn_id:'t2'});assert.equal(p.snapshot().request_scope,'session');
+  p.observe('这个词加英文解释。',{turn_id:'t3'});assert.equal(p.snapshot().english_support,'required');
+  p.completeReply('t3');assert.equal(p.snapshot().english_support,'off');assert.equal(p.snapshot().preference,'zh');
+  assert.equal(sameLanguageSupport(first,{...first,source_turn_id:'different'}),false);
+});
+test('reply completion cannot clear newer requests; one help event never changes comprehension or permanent profile',()=>{
+  const p=new LanguageSupport({memory:[record('chinese_comprehension','comfortable')]});
+  p.observe("I don't understand.",{turn_id:'t1'});assert.equal(p.snapshot().english_support,'required');p.completeReply('t1');assert.equal(p.snapshot().english_support,'adaptive');
+  p.observe('这句只用中文。',{turn_id:'t2'});p.observe('这个词加英文解释。',{turn_id:'t3'});
+  assert.equal(p.completeReply('t2'),false);assert.equal(p.snapshot().english_support,'required');
+  assert.equal(p.snapshot().comprehension,'comfortable');assert.equal(p.memory.length,1);
+  for(const text of ['他说“这句只用中文”。','不要这句只用中文。','How do you translate "this time Chinese only"?']){p.observe(text);assert.equal(p.snapshot().request_scope,'default');}
+});
+test('completion before final ASR cannot leave a reply-only exception attached to a future turn',()=>{
+  const t=new TeachingSession({sessionId:'s',mode:'free'}),done={...event('', 't1','response.done'),event_id:'done-t1',payload:{}};
+  assert.equal(t.completeReply(done),false);t.accept(event('这句只用中文。','t1'));
+  assert.equal(t.languageSnapshot().request_scope,'default');assert.equal(t.languageSnapshot().english_support,'required');
+  t.accept(event('这个词加英文解释。','t2'));assert.equal(t.languageSnapshot().request_scope,'reply');
+  assert.equal(t.completeReply(done),false);assert.equal(t.languageSnapshot().request_scope,'reply');
+});
+test('late final after reply completion flushes the restored preference without waiting for an unrelated next reply',async t=>{
+  const {create,open}=await setup(t),{provider,packets}=await open(await(await create({mode:'free'})).json());
+  provider.emit('session.ready');const ids={turn_id:'late',response_id:'late-reply'};
+  provider.emit('response.started',{},ids);provider.emit('response.text.delta',{text:'好的。'},ids);provider.emit('response.done',{},ids);
+  assert.equal(provider.contexts.length,0);provider.emit('user.final',{text:'这句只用中文。'},{turn_id:'late'});
+  assert.equal(provider.contexts.length,1);assert.match(provider.contexts[0].instructions,/"request_scope":"default"/);
+  provider.control('context.updated',{version:provider.contexts[0].version});await until(()=>packets.some(p=>p.type==='teaching.context.applied'));
 });
 
 test('Chinese use, ASR, quoted commands and teaching attempts do not establish comprehension or mastery',()=> {

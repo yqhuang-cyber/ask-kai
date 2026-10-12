@@ -14,7 +14,8 @@ for(const key of ['chinese_chars','english_words','numeric_units','spoken_units'
 for(const key of ['audit_complete','audit_truncated','budget_exceeded','language_order_issue','english_support_issue','language_context_matched','question_budget_exceeded','translation_review_required','language_support_review_required','teaching_density_review_required'])boolean.add(key);
 enums.reply_policy_version=['kai-reply-v1','kai-reply-v2'];
 names.add('language.decision');numeric.add('known_expression_count');
-Object.assign(enums,{language_policy_version:['kai-language-v1'],english_support:['required','adaptive','off'],language_reason:['beginner_or_unknown','explicit_chinese','student_help_or_new_expression','explicit_bilingual','reported_comprehension','known_expressions']});
+names.add('language.reply.completed');
+Object.assign(enums,{language_policy_version:['kai-language-v1','kai-language-v2'],english_support:['required','adaptive','off'],language_reason:['beginner_or_unknown','explicit_chinese','student_help_or_new_expression','explicit_bilingual','reported_comprehension','known_expressions']});
 for(const name of ['caption.mode','caption.playback'])names.add(name);
 for(const key of ['played_pcm_ms','received_pcm_ms','queued_pcm_ms','cue_at_ms','phrase_units'])numeric.add(key);
 Object.assign(enums,{caption_mode:['waiting_audio','playing','paused','text_only','complete'],caption_policy_version:['kai-captions-v1'],clock_source:['output_timestamp','context_time']});
@@ -25,6 +26,7 @@ Object.assign(enums,{summary_policy_version:['kai-summary-v1'],summary_focus:['p
 names.add('teaching.decision');names.add('teaching.response');
 for(const name of ['context.queued','context.confirmation.ignored'])names.add(name);
 numeric.add('current_decision_context_version');
+numeric.add('current_state_version');
 Object.assign(enums,{context_policy_version:['kai-context-v1'],context_scope:['initial','subsequent_inputs']});
 enums.reason.push('wrong_version','no_pending');
 for(const key of ['applied_context_version','decision_context_version','new_points','turn_count','teaching_cooldown'])numeric.add(key);
@@ -87,7 +89,7 @@ export class ExperienceTrace {
           reply.caption_played_pcm_ms=row.played_pcm_ms;
           reply.caption_clock_source=row.clock_source;
         }
-        if(row.name==='teaching.response')reply.teaching_context=Object.fromEntries(Object.entries(row).filter(([key])=>['applied_context_version','applied_context_hash','context_policy_version','current_decision_context_version','decision_context_version','decision_context_matched','pending_context'].includes(key)));
+        if(row.name==='teaching.response')reply.teaching_context=Object.fromEntries(Object.entries(row).filter(([key])=>['applied_context_version','applied_context_hash','context_policy_version','current_state_version','current_decision_context_version','decision_context_version','decision_context_matched','pending_context'].includes(key)));
         if(row.name==='reply.audit')reply.reply_audit=Object.fromEntries(Object.entries(row).filter(([key])=>['reply_policy_version','language_policy_version','english_support','language_context_matched','audit_complete','audit_truncated','chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs','budget_exceeded','language_order_issue','english_support_issue','question_budget_exceeded','translation_review_required','language_support_review_required','teaching_density_review_required'].includes(key)));
       }
     }

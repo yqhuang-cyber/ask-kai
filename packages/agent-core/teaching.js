@@ -11,7 +11,7 @@ export class TeachingSession {
     if(!['sports','free','mission'].includes(mode))throw new Error('INVALID_MODE');
     if(mode==='mission' && !mission)throw new Error('TRUSTED_MISSION_REQUIRED');
     this.speechInstructions=speechPaceInstructions(speechPace);
-    Object.assign(this,{sessionId,mode,memory:structuredClone(memory),mission:mission?structuredClone(mission):null});this.stage='warmup';this.version=1;this.seen=new Set();this.evidence=[];
+    Object.assign(this,{sessionId,mode,memory:structuredClone(memory),mission:mission?structuredClone(mission):null});this.stage='warmup';this.version=1;this.seen=new Set();this.evidence=[];this.completedReplyTurns=new Set();
     this.teaching=new NaturalTeaching({mode,mission});
     this.learning=new LearningSummary({sessionId,mode,mission});
     this.language=new LanguageSupport({memory});
@@ -31,6 +31,7 @@ export class TeachingSession {
     this.version++;
     const decision=this.teaching.select(event,this.version);
     this.language.observe(event.payload.text,{turn_id:event.turn_id,source_event_id:event.event_id,context_version:this.version});
+    if(this.completedReplyTurns.has(event.turn_id))this.language.completeReply(event.turn_id);
     if(this.stage==='warmup')this.stage='conversation';
     if(decision.action==='CLOSE')this.stage='closing';
     else if(this.stage==='closing')this.stage='conversation';
@@ -40,6 +41,13 @@ export class TeachingSession {
       if(decision.action!=='CLOSE')this.stage='practice';
     }
     return true;
+  }
+  completeReply(event) {
+    if(this.closed||!validateEvent(event)||event.session_id!==this.sessionId||!['response.done','response.cancelled'].includes(event.type)||this.completedReplyTurns.has(event.turn_id))return false;
+    if(this.completedReplyTurns.size>=1000)throw new Error('TEACHING_TURN_LIMIT');
+    this.completedReplyTurns.add(event.turn_id);
+    if(!this.language.completeReply(event.turn_id))return false;
+    this.version++;return true;
   }
   forward(packet) {return this.learning.forward(packet);}
   updateMemory(memory){this.memory=structuredClone(memory);this.language.updateMemory(memory);this.version++;}

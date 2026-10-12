@@ -35,6 +35,7 @@ test('reference or future history, future initial goal and unsupported known exp
 
 function authoredFixture(){
  const d=fixture();d.version=2;
+ d.rules.language_policy_version='kai-language-v1';d.rules.reply_policy_version='kai-reply-v2';
  d.optimization={annotation_source:'authored_semantic_review',derived_from_runtime:false};
  d.rules.gold_source='authored_semantic_review_independent_of_runtime';
  const c=d.cases[0],t=c.turns[0],e=t.expected;
@@ -62,6 +63,11 @@ test('authored expectations stay independent of production language predictions'
  assert.equal(r.language_scenarios,1);
  assert.equal(r.provider_runs,0);
  assert.equal(r.semantic_quality_not_scored,true);
+});
+test('archived authored previews may disagree with candidate behavior but cannot carry future evidence',()=>{
+ const d=authoredFixture();d.cases[0].turns[0].language_preview.policy.english_support='off';
+ assert.equal(checkPreparedDataset(d).annotation_source,'authored_semantic_review');
+ d.cases[0].turns[0].language_preview.policy.known_expressions=['future-only-expression'];assert.throws(()=>checkPreparedDataset(d),/CONTEXT_LEAK/);
 });
 test('authored preparation rejects future evidence, reference leakage and fake executed output',()=>{
  for(const [mutate,code] of [

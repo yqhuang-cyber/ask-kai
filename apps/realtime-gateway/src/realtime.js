@@ -220,7 +220,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             // Snapshot at the first accepted response-start notification, which
             // can arrive after generation began. This proves ACK/turn matching,
             // not model compliance or that already generated audio used it.
-            diagnose('teaching.response',{...ids,applied_context_version:appliedVersion,applied_context_hash:appliedContext.hash,context_policy_version:appliedContext.policy_version,current_decision_context_version:teaching.version,decision_context_version:appliedDecision?.context_version,decision_context_matched:appliedDecision?.turn_id===event.turn_id,pending_context:!!pendingContext});
+            diagnose('teaching.response',{...ids,applied_context_version:appliedVersion,applied_context_hash:appliedContext.hash,context_policy_version:appliedContext.policy_version,current_state_version:teaching.version,current_decision_context_version:teaching.view().decision?.context_version,decision_context_version:appliedDecision?.context_version,decision_context_matched:appliedDecision?.turn_id===event.turn_id,pending_context:!!pendingContext});
           }
           if(['user.partial','user.final'].includes(event.type))diagnose(event.type,{...ids,chars:Array.from(event.payload.text).length});
           const stats=replyStats.get(event.response_id);
@@ -264,9 +264,16 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             diagnose('teaching.decision',{turn_id:decision.turn_id,context_version:decision.context_version,teaching_policy_version:decision.policy_version,mode:decision.mode,action:decision.action,decision_reason:decision.reason,interaction:decision.interaction,support_level:decision.support_level,new_points:decision.new_points,turn_count:decision.turn_count,goal_attempt_observed:decision.goal_attempt_observed,teaching_paused:decision.teaching_paused,clarification_pending:decision.clarification_pending,teaching_cooldown:decision.teaching_cooldown});
             send({type:'teaching.state',...view});
             diagnose('context.queued',{context_version:teaching.version,turn_id:decision.turn_id});
+            // A final can arrive after this reply's observed terminal boundary.
+            // Flush only that owned completed turn, never an arbitrary early final.
+            if(teaching.completedReplyTurns.has(event.turn_id))flushContext();
           }
           const projected={type:'event',event:packet.event,audio:packet.audio,sample_rate:packet.sample_rate,provider_connected:ready && providerKind==='doubao',synthetic:providerKind!=='doubao'};
           if(outputGate && ['response.started','response.text.delta','response.audio.chunk','response.done'].includes(event.type))outputGate.push(projected);else send(projected);
+          if(teaching.completeReply(event)) {
+            send({type:'teaching.state',...teaching.view()});
+            diagnose('language.reply.completed',{turn_id:event.turn_id,context_version:teaching.version});
+          }
           if(['response.done','response.cancelled'].includes(packet.event.type))flushContext();
         }});
         send({type:'session.config',session_id:ticket.session_id,audio:provider.audio,speech:{supported:provider.profile?.realtime?.protocol===SEEDUPLEX_PROTOCOL,pace:provider.speechPace??null,output_speed:provider.profile?.session_create?.session?.audio?.output?.speed??null},provider_connected:false,synthetic:providerKind!=='doubao'});

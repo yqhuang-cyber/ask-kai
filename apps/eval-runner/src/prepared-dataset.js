@@ -52,7 +52,9 @@ export function checkPreparedDataset(data) {
   const authored=data.version===2;
   if(authored)assert(data.optimization?.annotation_source==='authored_semantic_review'&&data.optimization.derived_from_runtime===false&&data.rules?.gold_source==='authored_semantic_review_independent_of_runtime','INVALID_AUTHORED_PROVENANCE');
   assert(data.scope?.entry==='free'&&data.scope.modality==='text'&&data.scope.provider_executed===false&&data.scope.judge_executed===false,'INVALID_PREPARED_SCOPE');
-  assert(data.rules?.rubric_version===RUBRIC_VERSION&&data.rules.language_policy_version===LANGUAGE_POLICY_VERSION&&data.rules.reply_policy_version===REPLY_POLICY_VERSION&&sameObject(data.rules.weights,WEIGHTS)&&sameObject(data.rules.budget,REPLY_BUDGET),'PREPARED_RULES_DRIFT');
+  // Authored v2 annotations are pinned to the original preparation contract.
+  // Candidate runtime versions must not rewrite their gold or archived preview.
+  assert(data.rules?.rubric_version===RUBRIC_VERSION&&data.rules.language_policy_version===(authored?'kai-language-v1':LANGUAGE_POLICY_VERSION)&&data.rules.reply_policy_version===(authored?'kai-reply-v2':REPLY_POLICY_VERSION)&&sameObject(data.rules.weights,WEIGHTS)&&sameObject(data.rules.budget,REPLY_BUDGET),'PREPARED_RULES_DRIFT');
   assert(data.rules.safety_na_allowed===false&&data.source?.original_reference_preserved===true&&/^[a-f0-9]{64}$/.test(data.source.sha256),'INVALID_PREPARED_PROVENANCE');
   assert(Array.isArray(data.cases)&&data.cases.length>0&&new Set(data.cases.map(c=>c.id)).size===data.cases.length,'INVALID_PREPARED_CASES');
   let turns=0,proactive=0;
@@ -80,7 +82,15 @@ export function checkPreparedDataset(data) {
       if(authored)checkAuthoredTurn(c,t);
       language.observe(t.input.text,{turn_id:`turn-${t.turn}`,source_event_id:`prepared-${t.turn}`,context_version:t.turn+1});
       const computed=language.snapshot(),preview=t.language_preview.policy;
-      assert(computed.english_support===preview.english_support&&JSON.stringify(computed.known_expressions)===JSON.stringify(preview.known_expressions??[])&&computed.preference===(preview.preference??'auto')&&computed.comprehension===(preview.comprehension??'unknown'),'PREPARED_LANGUAGE_CONTEXT_LEAK');
+      if(!authored)assert(computed.english_support===preview.english_support&&JSON.stringify(computed.known_expressions)===JSON.stringify(preview.known_expressions??[])&&computed.preference===(preview.preference??'auto')&&computed.comprehension===(preview.comprehension??'unknown'),'PREPARED_LANGUAGE_CONTEXT_LEAK');
+      else {
+        const known=preview?.known_expressions??[];
+        assert(modes.includes(preview?.english_support)&&Array.isArray(known)&&known.length<=12&&new Set(known).size===known.length&&known.every(k=>text(k)&&(profile.known_expressions.includes(k)||c.turns.slice(0,i+1).some(prior=>prior.input.text.includes(k))))&&['auto','zh','zh_en'].includes(preview.preference??'auto')&&['unknown','beginner','comfortable'].includes(preview.comprehension??'unknown'),'PREPARED_LANGUAGE_CONTEXT_LEAK');
+        for(const ref of preview.known_expression_evidence??[])if(ref.source==='student_current_session'){
+          const n=Number(/^prepared-(\d+)$/.exec(ref.source_event_id??'')?.[1]);
+          assert(Number.isInteger(n)&&n>=1&&n<=t.turn&&c.turns[n-1].input.text.includes(ref.value),'PREPARED_LANGUAGE_CONTEXT_LEAK');
+        }
+      }
       const p=e.proactive;
       assert(p&&p.idle_event===false&&text(p.signal)&&text(p.requirement)&&['student_utterance','none'].includes(p.event)&&((p.signal==='未指定主动检查')===(p.event==='none')),'PREPARED_IDLE_INVENTED');
       if(p.event==='student_utterance')proactive++;
