@@ -110,6 +110,25 @@ test('help on another topic does not reactivate or claim the original lesson goa
   assert.equal(say('football').new_points,0);
 });
 
+test('paused goal is absent from sent instructions and a generic new-topic sentence cannot resume it',()=>{
+  for(const mode of ['sports','mission']) {
+    const {session,say}=learner(mode);say('我不想练习');
+    assert.ok(!session.instructions().includes('当前目标：'));assert.ok(!session.instructions().includes(mission.targets[0]));
+    const help=say('这个句子怎么说？');assert.equal(help.teaching_paused,true);assert.equal(help.goal_id,null);
+    say('我喜欢足球');assert.equal(session.stage,'conversation');assert.equal(session.view().decision.teaching_paused,true);
+    say('我想练习');assert.equal(session.view().decision.teaching_paused,false);
+    assert.ok(session.instructions().includes(mode==='sports'?'当前目标：':mission.targets[0]));
+  }
+});
+
+test('farewell pauses the goal and continuing conversation does not implicitly authorize old practice',()=>{
+  const {session,say}=learner();const end=say('I need to go.');assert.equal(end.action,'CLOSE');assert.equal(end.goal_id,null);assert.equal(end.teaching_paused,true);
+  assert.equal(session.stage,'closing');assert.ok(!session.instructions().includes('当前目标：'));
+  const resumed=say('我还想聊一下');assert.equal(resumed.new_points,0);assert.equal(resumed.teaching_paused,true);assert.equal(session.stage,'conversation');
+  assert.equal(say('继续练习').teaching_paused,false);
+  for(const text of ['别结束聊天','不要说再见','Goodbye 是什么意思？'])assert.notEqual(learner().say(text).action,'CLOSE',text);
+});
+
 test('ending is advisory, quotes/translation questions cannot control the session',()=>{
   for(const text of ['再见。','我不聊了。','Goodbye Kai.','End the conversation.','I have to go. Can we chat tomorrow?']) {
     const {session,say}=learner();const d=say(text);assert.equal(d.action,'CLOSE');assert.equal(d.new_points,0);

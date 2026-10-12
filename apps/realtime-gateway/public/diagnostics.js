@@ -27,11 +27,11 @@ names.add('teaching.decision');names.add('teaching.response');
 for(const name of ['context.queued','context.confirmation.ignored'])names.add(name);
 numeric.add('current_decision_context_version');
 numeric.add('current_state_version');
-Object.assign(enums,{context_policy_version:['kai-context-v1'],context_scope:['initial','subsequent_inputs']});
+Object.assign(enums,{context_policy_version:['kai-context-v1','kai-context-v2'],context_scope:['initial','subsequent_inputs']});
 enums.reason.push('wrong_version','no_pending');
 for(const key of ['applied_context_version','decision_context_version','new_points','turn_count','teaching_cooldown'])numeric.add(key);
 for(const key of ['decision_context_matched','goal_attempt_observed','teaching_paused','clarification_pending'])boolean.add(key);
-Object.assign(enums,{teaching_policy_version:['kai-teaching-v1'],action:['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE'],decision_reason:['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first'],mode:['sports','mission','free'],interaction:['chat','teach'],support_level:['none','choice','model']});
+Object.assign(enums,{teaching_policy_version:['kai-teaching-v1','kai-teaching-v2'],action:['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE'],decision_reason:['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first'],mode:['sports','mission','free'],interaction:['chat','teach'],support_level:['none','choice','model']});
 export function metadata(fields={}) {
   const out={};
   if(!fields || typeof fields!=='object' || Array.isArray(fields))return out;

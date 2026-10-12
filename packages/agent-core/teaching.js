@@ -38,7 +38,7 @@ export class TeachingSession {
     const attempt=this.learning.recordFinal(event,decision);
     if(attempt) {
       this.evidence.push(attempt);
-      if(decision.action!=='CLOSE')this.stage='practice';
+      if(decision.action!=='CLOSE'&&!decision.teaching_paused)this.stage='practice';
     }
     return true;
   }
