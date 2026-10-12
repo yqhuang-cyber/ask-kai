@@ -22,7 +22,7 @@ Object.assign(enums,{caption_mode:['waiting_audio','playing','paused','text_only
 names.add('summary.finalized');
 for(const key of ['summary_attempts','summary_items'])numeric.add(key);
 boolean.add('summary_partial');
-Object.assign(enums,{summary_policy_version:['kai-summary-v1'],summary_focus:['practice_observed','target_text_observed','conversation_only','insufficient','unavailable'],summary_outcome:['ended','failed']});
+Object.assign(enums,{summary_policy_version:['kai-summary-v1','kai-summary-v2'],summary_focus:['practice_observed','target_text_observed','conversation_only','insufficient','unavailable'],summary_outcome:['ended','failed']});
 names.add('teaching.decision');names.add('teaching.response');
 for(const name of ['context.queued','context.confirmation.ignored'])names.add(name);
 numeric.add('current_decision_context_version');

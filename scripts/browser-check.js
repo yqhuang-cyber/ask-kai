@@ -107,10 +107,12 @@ try {
   },packet);
   for(const mode of ['sports','mission','free']) {
     const packet=summaryFixture({mode,sessionId:`browser-${mode}`});await showSummary(packet);
-    assert.equal(await page.locator('#session-summary .summary-card').count(),1);
-    assert.equal(await page.locator('#session-summary h3').first().textContent(),'我喜欢足球');
-    assert.match(await page.locator('#session-summary .pinyin').textContent(),/wǒ xǐ huān zú qiú/);
-    assert.equal(await page.locator('#session-summary .summary-card [lang=en]').textContent(),'I like football.');
+    assert.equal(await page.locator('#session-summary .summary-learning-grid .summary-card').count(),1);
+    assert.equal(await page.locator('#session-summary .summary-learning-grid h3').textContent(),'我喜欢足球');
+    assert.match(await page.locator('#session-summary .summary-learning-grid .pinyin').textContent(),/wǒ xǐ huān zú qiú/);
+    assert.equal(await page.locator('#session-summary .summary-learning-grid [lang=en]').textContent(),'I like football.');
+    assert.equal(await page.locator('#session-summary .summary-recap h4').textContent(),'我喜欢足球');
+    assert.match(await page.locator('#session-summary .summary-topics').textContent(),/运动/);
     assert.match(await page.locator('#session-summary .summary-label').textContent(),/表达尝试 · 1 次/);
     assert.equal(await page.locator('#session-summary .summary-review').count(),1);
     assert.match(await page.locator('#session-summary').textContent(),/工程测试数据/);
@@ -123,9 +125,9 @@ try {
   await page.setViewportSize({width:1280,height:900});await page.locator('#session-summary').screenshot({path:'.local/browser-check/summary-desktop.png'});
   for(const options of [{mode:'free',practice:false},{empty:true},{mode:'mission',unsupported:true}]) {
     const packet=summaryFixture(options);await showSummary(packet);
-    assert.equal(await page.locator('#session-summary .summary-card').count(),0);assert.equal(await page.locator('#session-summary .summary-review').count(),0);
+    assert.equal(await page.locator('#session-summary .summary-learning-grid .summary-card').count(),0);assert.equal(await page.locator('#session-summary .summary-review').count(),0);
     if(options.unsupported)assert.match(await page.locator('#session-summary').textContent(),/当前目标暂未自动评估/);
-    if(options.mode==='free')assert.match(await page.locator('#session-summary').textContent(),/本轮以交流为主/);
+    if(options.mode==='free'){assert.match(await page.locator('#session-summary').textContent(),/本轮以交流为主/);assert.match(await page.locator('#session-summary .summary-topics').textContent(),/天气/);}
     if(options.empty)assert.equal(await page.locator('#session-summary').getAttribute('data-focus'),'insufficient');
   }
   await showSummary(summaryFixture({mode:'free',textOnly:true}));assert.match(await page.locator('#session-summary .summary-label').textContent(),/尚无尝试记录/);

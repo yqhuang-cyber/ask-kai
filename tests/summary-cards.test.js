@@ -21,10 +21,17 @@ test('partial facts stay marked partial; suppressed data never projects points e
   const v=project(p);assert.equal(v.focus,'unavailable');assert.deepEqual(v.items,[]);assert.equal(v.goal,null);assert.equal(v.review,null);
 });
 test('unknown versions, foreign session/mode, unsourced refs and inconsistent counts are rejected',()=> {
-  const mutations=[p=>p.summary.schema_version=2,p=>p.summary.policy_version='unknown',p=>p.session_id='foreign',p=>p.summary.session_id='foreign',p=>p.summary.mode='free',p=>p.summary.assessment.mastery_assessed=true,
+  const mutations=[p=>p.summary.schema_version=99,p=>p.summary.policy_version='unknown',p=>p.session_id='foreign',p=>p.summary.session_id='foreign',p=>p.summary.mode='free',p=>p.summary.assessment.mastery_assessed=true,
     p=>p.summary.learning_items[0].attempt_refs=[],p=>p.summary.learning_items[0].attempt_refs[0].session_id='foreign',p=>p.summary.learning_items[0].attempt_count=10,p=>p.summary.counts.attempts=-1,
     p=>p.summary.learning_items.push(p.summary.learning_items[0]),p=>p.summary.review_suggestions[0].expression_id='missing',p=>p.summary.learning_items[0]=null,p=>p.summary.learning_items[0].attempt_refs=[null],p=>p.summary.goals=[null],p=>{p.summary.goals=[];delete p.summary.learning_items[0].goal_id;},p=>p.summary.review_suggestions=[null]];
   for(const mutate of mutations){const p=summaryFixture();mutate(p);assert.equal(projectSummary(p,{sessionId:'fixture-summary',mode:'sports'}),null);}
+});
+
+test('legacy summaries remain displayable and v2 recaps require matching session sources without projecting identifiers',()=>{
+  const legacy=summaryFixture();legacy.summary.schema_version=1;legacy.summary.policy_version='kai-summary-v1';delete legacy.summary.conversation_recap;assert.ok(project(legacy));
+  const p=summaryFixture(),v=project(p);assert.deepEqual(v.recap.topics,['运动']);assert.equal(v.recap.expressions[0].text,'我喜欢足球');
+  assert.ok(!JSON.stringify(v.recap).includes('source_event_id'));
+  p.summary.conversation_recap.expressions[0].source_refs[0].session_id='foreign';assert.equal(project(p),null);
 });
 test('wrong or missing forwarded text provenance cannot become a target-only card',()=> {
   for(const mutate of [p=>p.summary.learning_items[0].target_text_refs=[],p=>p.summary.learning_items[0].target_text_refs[0].playback_confirmed=true,p=>p.summary.learning_items[0].target_text_refs[0].source_event_ids=[],p=>p.summary.learning_items[0].target_text_refs[0].scope='heard']) {

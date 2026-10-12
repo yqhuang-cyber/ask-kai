@@ -158,6 +158,9 @@ export function evaluateRecorded(bundle,judgements) {
   report.summary_coverage={observed_snapshots:bundle.cases.filter(c=>c.summary).length,empty_learning_snapshots:bundle.cases.filter(c=>c.summary&&!(c.summary.learning_items?.length)).length,
     partial_collection_snapshots:bundle.cases.filter(c=>c.summary&&c.collection_status!=='collected').length,learning_items:bundle.cases.reduce((n,c)=>n+(c.summary?.learning_items?.length??0),0),
     score_scope:'source_fidelity_contract_not_pedagogical_coverage'};
+  report.summary_coverage.conversation_recap_snapshots=bundle.cases.filter(c=>c.summary?.conversation_recap?.topics?.length||c.summary?.conversation_recap?.expressions?.length).length;
+  report.summary_coverage.recap_topics=bundle.cases.reduce((n,c)=>n+(c.summary?.conversation_recap?.topics?.length??0),0);
+  report.summary_coverage.recap_student_expressions=bundle.cases.reduce((n,c)=>n+(c.summary?.conversation_recap?.expressions?.length??0),0);
   report.attribution_counts={};for(const r of results)for(const value of Object.values(r.finding_attribution??{}))report.attribution_counts[value]=(report.attribution_counts[value]??0)+1;
   report.issue_groups=aggregateIssues(bundle,report);return report;
 }

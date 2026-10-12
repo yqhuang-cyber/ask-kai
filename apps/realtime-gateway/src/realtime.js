@@ -244,6 +244,9 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             if(risk.restricted){restrict(risk,packet.event);return;}
           }
           if(packet.event.type==='response.audio.chunk' && !firstAudio && replyAt!==null){firstAudio=true;metrics?.observe(providerKind,'first_audio_ms',performance.now()-replyAt);}
+          // Register accepted input/request provenance after safety, before a
+          // final releases held teacher text. Plans alone remain no evidence.
+          const acceptedTeaching=teaching.accept(packet.event);
           if(outputGate && ['user.partial','user.final'].includes(event.type)) {
             if(event.type==='user.final' || !runtime.finalTurns.has(event.turn_id)) {
               const candidate=captureSpeech(event.turn_id);
@@ -257,7 +260,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             }
           }
           if (packet.event.type==='response.cancelled') {clearTimeout(pendingCancel.get(packet.event.response_id)?.timer);pendingCancel.delete(packet.event.response_id);}
-          if(teaching.accept(packet.event)) {
+          if(acceptedTeaching) {
             const view=teaching.view(),decision=view.decision;
             const language=teaching.languageSnapshot();
             diagnose('language.decision',{turn_id:event.turn_id,context_version:teaching.version,language_policy_version:language.policy_version,english_support:language.english_support,language_reason:language.reason,known_expression_count:language.known_expressions.length});

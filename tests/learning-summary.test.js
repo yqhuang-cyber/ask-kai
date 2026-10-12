@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { TeachingSession } from '../packages/agent-core/teaching.js';
-import { SUMMARY_POLICY_VERSION,SUMMARY_LIMITS } from '../packages/agent-core/learning-summary.js';
+import { SUMMARY_POLICY_VERSION,SUMMARY_SCHEMA_VERSION,SUMMARY_LIMITS } from '../packages/agent-core/learning-summary.js';
 import { ExperienceTrace } from '../apps/realtime-gateway/public/diagnostics.js';
 import { startMockBackend } from '../apps/hskai-mock/src/backend.js';
 import { MOCK_MISSION } from '../apps/hskai-mock/src/server.js';
@@ -63,6 +63,21 @@ test('free chat can record a subsequent direct attempt with the actual prior sca
   assert.equal(attempt.scaffold_ref,item.target_text_refs[0].ref_id);assert.equal(attempt.pronunciation_assessed,false);assert.equal(s.review_suggestions.length,1);
   assert.equal(s.review_suggestions[0].reason,'attempt_not_assessed');assert.equal(s.assessment.mastery_assessed,false);
 });
+
+test('free recap records curated student expressions separately from practice, without copying raw details',()=>{
+  const x=unit('free'),student=x.say('我喜欢音乐。 PRIVATE_DETAIL');x.reply(['PRIVATE_TEACHER_DETAIL']);const s=x.finish();
+  assert.equal(s.learning_items.length,0);assert.equal(s.counts.attempts,0);assert.deepEqual(s.conversation_recap.topics.map(t=>t.label),['兴趣爱好']);
+  const entry=s.conversation_recap.expressions[0];assert.equal(entry.text,'我喜欢音乐');assert.equal(entry.kind,'student_text_observed');assert.equal(entry.source_refs[0].source_event_id,student.event_id);assert.equal(s.conversation_recap.correctness_assessed,false);assert.ok(!JSON.stringify(s).includes('PRIVATE'));
+  const quote=unit('free');quote.say('他说“我喜欢音乐”。');assert.equal(quote.finish().conversation_recap.expressions.length,0);
+});
+
+test('general free expressions need a complete forwarded scaffold and later actual input; unsupported text stays outside the directory',()=>{
+  const x=unit('free');x.say('What is apple in Chinese?');const r=x.reply(['“苹','果”。 Apple.']);const learner=x.say('苹果。');const s=x.finish();
+  assert.equal(s.learning_items[0].id,'apple');assert.equal(s.counts.attempts,1);assert.equal(s.learning_items[0].attempt_refs[0].source_event_id,learner.event_id);assert.equal(s.learning_items[0].attempt_refs[0].scaffold_source.response_id,r.start.response_id);
+  assert.equal(s.learning_items[0].content_source.directory_version,'kai-expression-directory-v1');assert.equal(s.review_suggestions.length,1);
+  const unknown=unit('free');unknown.say('How do I say violin in Chinese?');unknown.reply(['小提琴。 Violin.']);unknown.say('小提琴。');assert.equal(unknown.finish().learning_items.length,0);
+  const cancelled=unit('free');cancelled.say('What is apple in Chinese?');const ids={turn_id:'t1',response_id:'old'};cancelled.forward(cancelled.event('response.started',undefined,ids));cancelled.forward(cancelled.event('response.text.delta','苹果。',ids));cancelled.teaching.forward({type:'output.stop',response_id:'old'});cancelled.forward(cancelled.event('response.done',undefined,ids));cancelled.say('苹果。');assert.equal(cancelled.finish().counts.attempts,0);
+});
 test('quoted, questioned, negated, partial, foreign and duplicate student expressions cannot earn attempts',()=> {
   for(const mode of ['sports','mission','free']) {
     const x=unit(mode);if(mode==='free'){x.say('How do I say football in Chinese?');x.reply();}
@@ -121,6 +136,7 @@ test('failed ends retain accepted partial facts; safety/revocation suppress all 
   for(const reason of ['safety_restricted','authorization_revoked']) {
     const x=unit();x.say('我喜欢足球');x.reply();const restricted=x.finish({outcome:'failed',endReason:reason});
     assert.equal(restricted.focus,'unavailable');assert.equal(restricted.counts.attempts,0);assert.deepEqual(restricted.goals,[]);assert.deepEqual(restricted.learning_items,[]);assert.deepEqual(restricted.review_suggestions,[]);
+    assert.deepEqual(restricted.conversation_recap.topics,[]);assert.deepEqual(restricted.conversation_recap.expressions,[]);
   }
 });
 test('summaries/diagnostics omit raw student/model text, preference data and owner identity',()=> {
@@ -139,7 +155,7 @@ test('all three gateway entry modes send one sourced summary before closing via 
     const {provider,packets,ws}=await open(ticket);provider.emit('session.ready');provider.emit('user.final',{text:mode==='free'?'今天很热':'我喜欢足球'},{turn_id:'t1'});
     ws.send(JSON.stringify({type:'session.end'}));await once(ws,'close');
     const summaries=packets.filter(p=>p.type==='teaching.summary');assert.equal(summaries.length,1);const packet=summaries[0],s=packet.summary;
-    assert.equal(s.schema_version,1);assert.equal(s.policy_version,SUMMARY_POLICY_VERSION);assert.equal(s.session_id,ticket.session_id);assert.equal(s.mode,mode);assert.equal(s.business_source,'mock_hskai');assert.equal(s.voice.kind,'synthetic');
+    assert.equal(s.schema_version,SUMMARY_SCHEMA_VERSION);assert.equal(s.policy_version,SUMMARY_POLICY_VERSION);assert.equal(s.session_id,ticket.session_id);assert.equal(s.mode,mode);assert.equal(s.business_source,'mock_hskai');assert.equal(s.voice.kind,'synthetic');
     assert.equal(s.counts.attempts,mode==='free'?0:1);assert.equal(s.end_reason,'student_end');assert.ok(packets.indexOf(packet)<packets.findIndex(p=>p.type==='session.closed'));assert.equal(provider.closed,true);
   }
 });

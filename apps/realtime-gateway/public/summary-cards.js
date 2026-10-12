@@ -4,14 +4,24 @@ const focuses=new Set(['practice_observed','target_text_observed','conversation_
 const id=v=>typeof v==='string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
 const count=(v,max=1000)=>Number.isSafeInteger(v) && v>=0 && v<=max;
 const line=(v,max=160)=>typeof v==='string' && v.length>0 && v.length<=max;
-const empty={focus:'unavailable',headline:{zh:'本轮总结暂不可用。',en:'This session summary is unavailable.'},items:[],review:null,goal:null,partial:false,synthetic:false,mock:false};
+const empty={focus:'unavailable',headline:{zh:'本轮总结暂不可用。',en:'This session summary is unavailable.'},items:[],recap:{topics:[],expressions:[]},review:null,goal:null,partial:false,synthetic:false,mock:false};
+function projectRecap(recap,sessionId,finalTurns) {
+  if(!recap||recap.schema_version!==1||recap.source!=='accepted_student_final'||recap.correctness_assessed!==false||recap.complete_inventory!==false||!Array.isArray(recap.topics)||!Array.isArray(recap.expressions)||recap.topics.length>4||recap.expressions.length>4)return null;
+  const topics={sports:'运动',food:'日常饮食',hobbies:'兴趣爱好',weather:'天气'};
+  const validRefs=row=>count(row.observation_count)&&row.observation_count>0&&row.observation_count<=finalTurns&&Array.isArray(row.source_refs)&&row.source_refs.length>0&&row.source_refs.length<=5&&row.source_refs.length<=row.observation_count&&new Set(row.source_refs.map(r=>r?.source_event_id)).size===row.source_refs.length&&row.source_refs.every(r=>r&&r.session_id===sessionId&&id(r.turn_id)&&id(r.source_event_id)&&r.scope==='accepted_final_asr');
+  if(new Set(recap.topics.map(t=>t?.id)).size!==recap.topics.length||new Set(recap.expressions.map(t=>t?.id)).size!==recap.expressions.length)return null;
+  if(recap.topics.some(t=>!t||!Object.hasOwn(topics,t.id)||t.label!==topics[t.id]||!validRefs(t)))return null;
+  if(recap.expressions.some(e=>!e||!id(e.id)||!line(e.text,100)||!line(e.pinyin,100)||!line(e.english,120)||e.kind!=='student_text_observed'||e.content_source?.kind!=='ask-kai-authored-expression-directory'||e.content_source.directory_version!=='kai-expression-directory-v1'||!validRefs(e)))return null;
+  return {topics:recap.topics.map(t=>t.label),expressions:recap.expressions.map(e=>({text:e.text,pinyin:e.pinyin,english:e.english,observations:e.observation_count}))};
+}
 export function projectSummary(packet,{sessionId,mode}) {
   const s=packet?.summary;
-  if(packet?.type!=='teaching.summary' || packet.session_id!==sessionId || !id(sessionId) || !Object.hasOwn(modes,mode) || s?.session_id!==sessionId || s.mode!==mode || s.schema_version!==1 || s.policy_version!=='kai-summary-v1' || !focuses.has(s.focus))return null;
+  if(packet?.type!=='teaching.summary' || packet.session_id!==sessionId || !id(sessionId) || !Object.hasOwn(modes,mode) || s?.session_id!==sessionId || s.mode!==mode || !(s.schema_version===1&&s.policy_version==='kai-summary-v1'||s.schema_version===2&&s.policy_version==='kai-summary-v2') || !focuses.has(s.focus))return null;
   if(!['ended','failed'].includes(s.outcome) || typeof s.partial!=='boolean' || !['mock_hskai','external_hskai','unconfigured'].includes(s.business_source) || !['not_connected','synthetic','real_provider'].includes(s.voice?.kind) || s.voice.real_experience_accepted!==false)return null;
   if(!count(s.counts?.attempts) || !count(s.counts.student_final_turns) || !count(s.counts.forwarded_completed_replies,10000) || !line(s.headline?.zh) || !line(s.headline.en))return null;
   if(!Array.isArray(s.goals) || s.goals.length>1 || !Array.isArray(s.learning_items) || s.learning_items.length>4 || !Array.isArray(s.review_suggestions) || s.review_suggestions.length>1 || s.assessment?.mastery_assessed!==false || s.assessment.pronunciation_assessed!==false || s.assessment.independent_use_assessed!==false)return null;
   if(s.focus==='unavailable')return {...structuredClone(empty),mode,reason:s.end_reason};
+  const recap=s.schema_version===2?projectRecap(s.conversation_recap,sessionId,s.counts.student_final_turns):{topics:[],expressions:[]};if(!recap)return null;
   const goal=s.goals[0];if(s.goals.length && (!goal || !id(goal.id) || !line(goal.label,100) || typeof goal.attempt_rule_supported!=='boolean'))return null;
   const seen=new Set(),items=[];let total=0;
   for(const item of s.learning_items) {
@@ -30,7 +40,7 @@ export function projectSummary(packet,{sessionId,mode}) {
     if(suggestion.goal_id!==goal?.id || suggestion.optional!==true || !['attempt_not_assessed','target_text_without_attempt'].includes(suggestion.reason))return null;
     const item=items.find(i=>i.id===suggestion.expression_id);if(!item)return null;review={...item};
   }
-  return {mode,focus:s.focus,headline:{zh:s.headline.zh,en:s.headline.en},items:s.focus==='insufficient'?[]:items,review:s.focus==='insufficient'?null:review,
+  return {mode,focus:s.focus,headline:{zh:s.headline.zh,en:s.headline.en},items:s.focus==='insufficient'?[]:items,recap:s.focus==='insufficient'?{topics:[],expressions:[]}:recap,review:s.focus==='insufficient'?null:review,
     goal:goal?{label:goal.label,supported:goal.attempt_rule_supported}:null,partial:s.partial || s.outcome==='failed',synthetic:s.voice.kind==='synthetic',mock:s.business_source==='mock_hskai'};
 }
 export class SummaryState {
@@ -61,7 +71,14 @@ export class SummaryCards {
     else {
       if(data.goal)this.root.append(element('p',`本轮对话目标：${data.goal.label}`,'summary-goal'));
       if(data.goal && !data.goal.supported)bilingual(this.root,'当前目标暂未自动评估，未据此判断学习结果。','This target has not been assessed; no learning result is inferred.');
-      const grid=element('div',undefined,'summary-grid');
+      if(data.recap?.topics.length)this.root.append(element('p',`本轮提到的话题：${data.recap.topics.join('、')}`,'summary-topics'));
+      if(data.recap?.expressions.length){
+        const recap=element('section',undefined,'summary-recap');recap.append(element('h3','本轮说到的表达'));
+        const entries=element('div',undefined,'summary-grid');
+        for(const expression of data.recap.expressions){const card=element('article',undefined,'summary-card');card.append(element('h4',expression.text));card.append(element('p',expression.pinyin,'pinyin'));const english=element('p',expression.english,'summary-en');english.lang='en';card.append(english);entries.append(card);}
+        recap.append(entries);bilingual(recap,'根据本轮识别文字整理，不代表已掌握或发音评估。','From recognized text in this session; this is not a mastery or pronunciation assessment.');this.root.append(recap);
+      }
+      const grid=element('div',undefined,'summary-grid summary-learning-grid');
       for(const item of data.items){
         const card=element('article',undefined,'summary-card');card.append(element('p',item.attempts?`表达尝试 · ${item.attempts} 次`:'回复中的表达 · 尚无尝试记录','summary-label'));
         card.append(element('h3',item.text));card.append(element('p',item.pinyin,'pinyin'));const translation=element('p',item.english,'summary-en');translation.lang='en';card.append(translation);grid.append(card);

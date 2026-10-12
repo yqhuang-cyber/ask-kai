@@ -1,8 +1,10 @@
 import { validateEvent } from '../contracts/events.js';
 import { SPORTS_LESSON } from './lessons.js';
 import { sportsExpression } from './natural-teaching.js';
+import { GENERAL_EXPRESSIONS,EXPRESSION_DIRECTORY_VERSION,RECAP_TOPICS,directExpression,forwardedExpressionRanges,expressionRequest } from './summary-directory.js';
 
-export const SUMMARY_POLICY_VERSION='kai-summary-v1';
+export const SUMMARY_POLICY_VERSION='kai-summary-v2';
+export const SUMMARY_SCHEMA_VERSION=2;
 export const SUMMARY_LIMITS=Object.freeze({reply_chars:4096,text_events:256,refs_per_item:5,view_attempts:20,forward_events:10000});
 // Versioned authored expressions already covered by the sports attempt rule.
 // This is a bounded POC vocabulary, not inferred HSK alignment or a general judge.
@@ -12,6 +14,8 @@ export const SUMMARY_EXPRESSIONS=Object.freeze([
   {id:'likes-running',text:'我喜欢跑步',pinyin:'wǒ xǐ huān pǎo bù',english:'I like running.'},
   {id:'likes-swimming',text:'我喜欢游泳',pinyin:'wǒ xǐ huān yóu yǒng',english:'I like swimming.'}
 ].map(Object.freeze));
+const directory=[...SUMMARY_EXPRESSIONS,...GENERAL_EXPRESSIONS];
+const sourceRef=event=>({session_id:event.session_id,turn_id:event.turn_id,source_event_id:event.event_id,scope:'accepted_final_asr'});
 const missionAliases=new Set(['用「我喜欢……」表达喜好','用「我喜欢……」说说喜欢的运动。','表达喜好']);
 function missionRule(target) {
   const literal=sportsExpression(target.replace(/[。！!]$/u,''));
@@ -41,6 +45,7 @@ export class LearningSummary {
     this.requests=new Map();this.items=new Map();this.scaffolds=new Map();
     this.forwardEvents=new Set();this.responseIds=new Set();this.active=null;this.completedReplies=0;
     this.unassessedReplies=0;
+    this.recapTopics=new Map();this.recapExpressions=new Map();
     this.mission=mission?structuredClone(mission):null;
     this.rule=mode==='mission'?missionRule(mission.targets[0]):{supported:true,literal:null};
     this.goal=mode==='free'?null:{id:mode==='sports'?SPORTS_LESSON.goal.id:'mission-target-1',label:mode==='sports'?SPORTS_LESSON.goal.label:mission.targets[0],
@@ -48,21 +53,27 @@ export class LearningSummary {
       attempt_rule_supported:this.rule.supported};
   }
   item(expression) {
-    const authored=SUMMARY_EXPRESSIONS.find(e=>e.text===expression);if(!authored)return null;
-    if(!this.items.has(authored.id))this.items.set(authored.id,{...authored,goal_id:this.mode==='free'?'observed-likes':this.goal.id,
-      content_source:{kind:SPORTS_LESSON.source,lesson_version:SPORTS_LESSON.version,rule_version:SUMMARY_POLICY_VERSION},target_text_count:0,target_text_refs:[]});
+    const authored=directory.find(e=>e.text===expression);if(!authored||!this.items.has(authored.id)&&this.items.size>=4)return null;
+    if(!this.items.has(authored.id))this.items.set(authored.id,{...authored,goal_id:this.mode==='free'?'observed-expressions':this.goal.id,
+      content_source:this.mode==='free'?{kind:'ask-kai-authored-expression-directory',directory_version:EXPRESSION_DIRECTORY_VERSION,rule_version:SUMMARY_POLICY_VERSION}:{kind:SPORTS_LESSON.source,lesson_version:SPORTS_LESSON.version,rule_version:SUMMARY_POLICY_VERSION},target_text_count:0,target_text_refs:[]});
     return this.items.get(authored.id);
   }
-  matches(expression) {return this.rule.supported && (!this.rule.literal || this.rule.literal===expression);}
+  matches(expression) {return this.rule.supported && (this.mode==='free'||SUMMARY_EXPRESSIONS.some(e=>e.text===expression)) && (!this.rule.literal || this.rule.literal===expression);}
+  observeStudent(event) {
+    const add=(map,id,value)=>{if(!map.has(id)){if(map.size>=4)return;map.set(id,{...value,observation_count:0,source_refs:[]});}const row=map.get(id);row.observation_count++;retained(row.source_refs,sourceRef(event));};
+    for(const topic of RECAP_TOPICS)if(topic.pattern.test(event.payload.text))add(this.recapTopics,topic.id,{id:topic.id,label:topic.label});
+    for(const entry of directory)if(directExpression(event.payload.text,entry))add(this.recapExpressions,entry.id,{id:entry.id,text:entry.text,pinyin:entry.pinyin,english:entry.english,kind:'student_text_observed',content_source:{kind:'ask-kai-authored-expression-directory',directory_version:EXPRESSION_DIRECTORY_VERSION}});
+  }
   recordFinal(event,decision) {
     if(this.closed)return null;
     this.finalTurns++;
-    if(decision.action==='TEACH_TARGET')this.requests.set(event.turn_id,{source_event_id:event.event_id,context_version:decision.context_version});
-    const expression=sportsExpression(event.payload.text);if(!expression || !this.matches(expression))return null;
+    this.observeStudent(event);
+    if(decision.action==='TEACH_TARGET'||expressionRequest(event.payload.text))this.requests.set(event.turn_id,{source_event_id:event.event_id,context_version:decision.context_version});
+    const expression=sportsExpression(event.payload.text)??(this.mode==='free'?GENERAL_EXPRESSIONS.find(e=>directExpression(event.payload.text,e))?.text:null);if(!expression || !this.matches(expression))return null;
     const scaffold=this.scaffolds.get(expression);
     if(this.mode==='free' && (!scaffold || scaffold.input_order>=this.finalTurns))return null;
-    const item=this.item(expression);
-    return {kind:'attempted',goal_id:this.mode==='free'?'observed-likes':this.goal.id,expression_id:item.id,session_id:this.sessionId,turn_id:event.turn_id,source_event_id:event.event_id,
+    const item=this.item(expression);if(!item)return null;
+    return {kind:'attempted',goal_id:this.mode==='free'?'observed-expressions':this.goal.id,expression_id:item.id,session_id:this.sessionId,turn_id:event.turn_id,source_event_id:event.event_id,
       rule_version:'sports-expression-attempt-v2',lesson_version:SPORTS_LESSON.version,
       scaffolding:this.mode==='free'?'model_text_available':'start_tip_available',scaffold_ref:this.mode==='free'?scaffold.ref_id:null,
       scaffold_source:this.mode==='free'?structuredClone(scaffold.source):null,pronunciation_assessed:false};
@@ -96,10 +107,12 @@ export class LearningSummary {
     if(this.mode==='free' && !request)return;
     // Require a whole affirmative expression with a boundary, not a keyword.
     const pattern=/(?:^|[。！!，,；;：:\n“「"\s])(我(?:很)?喜欢(?:踢足球|打篮球|足球|篮球|跑步|游泳))(?=[。！!.,，；;”」"]|$)/gu;
+    const observations=[...reply.text.matchAll(pattern)].map(match=>({expression:sportsExpression(match[1]),from:match.index+match[0].length-match[1].length,to:match.index+match[0].length}));
+    if(this.mode==='free')for(const entry of GENERAL_EXPRESSIONS)for(const range of forwardedExpressionRanges(reply.text,entry))observations.push({expression:entry.text,...range});
     const seen=new Set();
-    for(const match of reply.text.matchAll(pattern)) {
-      const expression=sportsExpression(match[1]);if(!expression || !this.matches(expression) || seen.has(expression))continue;
-      seen.add(expression);const item=this.item(expression),from=match.index+match[0].length-match[1].length,to=from+match[1].length;
+    for(const {expression,from,to} of observations) {
+      if(!expression || !this.matches(expression) || seen.has(expression))continue;
+      seen.add(expression);const item=this.item(expression);if(!item)continue;
       const ref={ref_id:`text-${done.response_id}-${item.id}`,kind:'target_text_forwarded',session_id:this.sessionId,turn_id:reply.turn,response_id:reply.id,
         source_event_ids:reply.segments.filter(s=>s.to>from && s.from<to).map(s=>s.event_id),completion_event_id:done.event_id,
         request_event_id:request?.source_event_id??null,rule_version:SUMMARY_POLICY_VERSION,scope:'gateway_forwarded_text',playback_confirmed:false,interrupted:false};
@@ -125,15 +138,16 @@ export class LearningSummary {
         refs_truncated:attempts.length>refs.length || item.target_text_count>item.target_text_refs.length});
     }
     const focus=suppressed?'unavailable':!this.finalTurns?'insufficient':items.some(i=>i.attempt_count)?'practice_observed':items.length?'target_text_observed':'conversation_only';
-    const goals=suppressed?[]:this.goal?[this.goal]:items.length?[{id:'observed-likes',label:'用「我喜欢……」表达喜好',source:{kind:SPORTS_LESSON.source,lesson_version:SPORTS_LESSON.version},attempt_rule_supported:true}]:[];
+    const goals=suppressed?[]:this.goal?[this.goal]:items.length?[{id:'observed-expressions',label:'本轮有来源的中文表达',source:{kind:'ask-kai-authored-expression-directory',directory_version:EXPRESSION_DIRECTORY_VERSION},attempt_rule_supported:true}]:[];
     const review=items.length?[{goal_id:goals[0].id,expression_id:items.find(i=>i.attempt_count)?.id??items[0].id,reason:items.some(i=>i.attempt_count)?'attempt_not_assessed':'target_text_without_attempt',optional:true}]:[];
-    this.result=structuredClone({schema_version:1,policy_version:SUMMARY_POLICY_VERSION,session_id:this.sessionId,mode:this.mode,outcome,end_reason:endReason,partial:outcome==='failed' || endReason==='transport_closed',focus,
+    const recap={schema_version:1,source:'accepted_student_final',topics:suppressed?[]:[...this.recapTopics.values()],expressions:suppressed?[]:[...this.recapExpressions.values()],correctness_assessed:false,complete_inventory:false};
+    this.result=structuredClone({schema_version:SUMMARY_SCHEMA_VERSION,policy_version:SUMMARY_POLICY_VERSION,session_id:this.sessionId,mode:this.mode,outcome,end_reason:endReason,partial:outcome==='failed' || endReason==='transport_closed',focus,
       business_source:['mock_hskai','external_hskai','unconfigured'].includes(businessSource)?businessSource:'unconfigured',
       voice:{kind:!ready?'not_connected':providerKind==='doubao'?'real_provider':'synthetic',provider_ready_observed:ready,real_experience_accepted:false},
       counts:{student_final_turns:suppressed?0:this.finalTurns,forwarded_completed_replies:suppressed?0:this.completedReplies,attempts:suppressed?0:evidence.length},
-      headline:headlines[focus],goals,learning_items:items,review_suggestions:review,coverage:{rule_scope:'authored_sports_likes_v1',unassessed_replies:suppressed?0:this.unassessedReplies,complete_learning_inventory:false},
+      headline:headlines[focus],goals,learning_items:items,conversation_recap:recap,review_suggestions:review,coverage:{rule_scope:this.mode==='free'?EXPRESSION_DIRECTORY_VERSION:'authored_sports_likes_v1',unassessed_replies:suppressed?0:this.unassessedReplies,complete_learning_inventory:false},
       assessment:{mastery_assessed:false,pronunciation_assessed:false,independent_use_assessed:false},
       notice:'仅记录本轮有来源的目标文本与最终识别尝试；不证明听到、独立使用、掌握或发音准确。'});
-    this.items.clear();return structuredClone(this.result);
+    this.items.clear();this.recapTopics.clear();this.recapExpressions.clear();return structuredClone(this.result);
   }
 }
