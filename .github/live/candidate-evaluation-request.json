@@ -1,10 +1,10 @@
 {
   "version": 1,
   "kind": "ask_kai_candidate_evaluation",
-  "request_id": "candidate-2026-10-12-04",
-  "stage": "05-04",
-  "agent_revision": "5a8aab51a928b98f08a2d222b8904bee4521ca3a",
-  "parent_agent_revision": "97b3163f43ef6388be92834f9c7cad4d3325de72",
+  "request_id": "candidate-2026-10-12-05",
+  "stage": "05-05",
+  "agent_revision": "80d51f84cfc6b4eb75ab8750696600bd95195680",
+  "parent_agent_revision": "5a8aab51a928b98f08a2d222b8904bee4521ca3a",
   "allowed_runtime_changes": [
     "apps/realtime-gateway/public/diagnostics.js",
     "apps/realtime-gateway/src/realtime.js",
@@ -18,9 +18,10 @@
   "batch_count": 1,
   "duration_ms": 1200000,
   "case_ids": [
-    "ask-kai-v2-006",
-    "ask-kai-v2-027",
-    "ask-kai-v2-035"
+    "ask-kai-v2-018",
+    "ask-kai-v2-029",
+    "ask-kai-v2-030",
+    "ask-kai-v2-033"
   ],
   "rerun_of": null,
   "input_fixture_run": null
