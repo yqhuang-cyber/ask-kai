@@ -45,6 +45,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [测试覆盖及验收边界](docs/testing.md)
 - [逐步实施与当前进度](docs/implementation-plan.md)
 - [Tutor Agent Harness Review：现状、pi 借鉴与建议（归档，暂不实施）](docs/tutor-agent-harness-review.md)
+- [基于 Pi、从第一天完整设计的 Tutor Harness（仅设计，暂不实施）](docs/pi-ideal-tutor-harness-design.md)
 - [当前体验 P0：Task 01 基线、诊断入口及测试场景](docs/experience-baseline.md)
 - [当前体验 P0：Task 02 慢速默认、Web 语速选择与本地试听](docs/speech-pace.md)
 - [当前体验 P0：Task 03 等待学生、打断确认与取消竞态](docs/turn-taking.md)
