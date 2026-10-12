@@ -4,6 +4,7 @@ import { createGateway } from '../../realtime-gateway/src/server.js';
 import { startMockBackend } from '../../hskai-mock/src/backend.js';
 import { createDoubaoProvider,validateSeeduplexProfile } from '../../../packages/provider-doubao/seeduplex.js';
 import { profileMemory,comparableText } from './multiturn-plan.js';
+import { CollectionEvidence,observeMemoryPort } from './collection-evidence.js';
 
 // Starts the same gateway, authorization ports, reducer, teaching, safety and
 // summary projection as Web. Fixture overrides exist only in this CLI process.
@@ -11,7 +12,10 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
   providerFactory,providerKind='doubao',turnTimeoutMs=45000,contextTimeoutMs=5000,protocolProbe=false}={}) {
   if(providerKind==='doubao')validateSeeduplexProfile(profile,{protocolProbe});
   else if(providerKind!=='test'||typeof providerFactory!=='function')throw new Error('INVALID_EVAL_PROVIDER');
+  const evidence=new CollectionEvidence();
   const backend=await startMockBackend({initialMemory:profileMemory(initialProfile),mission:null});
+  const memoryAudit=observeMemoryPort(backend.memoryPort);
+  let diagnosticStart=0,inputEvidence=null;
   let server,ws,pump,current,closed=false,failure=null,ready=false,summary=null,terminal=null,latestState=null;
   let queued=Buffer.alloc(0),position=0,appliedVersion=1;
   const wake=new Set(),diagnostics=[],replies=new Map(),finals=new Map();
@@ -33,9 +37,17 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
     await backend.close();
   };
   try {
-    server=createGateway({bridge:backend.bridge,memoryPort:backend.memoryPort,safeguardingPort:backend.safeguardingPort,privacyPort:backend.privacyPort,pocPort:backend.pocPort,
+    server=createGateway({bridge:backend.bridge,memoryPort:memoryAudit.port,safeguardingPort:backend.safeguardingPort,privacyPort:backend.privacyPort,pocPort:backend.pocPort,
       providerKind,speechPaceSupported:true,contextTimeoutMs,readyTimeoutMs:10000,
-      providerFactory:providerFactory??(ticket=>createDoubaoProvider({profile,env,speechPace:ticket.speech_pace,protocolProbe}))});
+      providerFactory:ticket=>{
+        const provider=(providerFactory??(ticket=>createDoubaoProvider({profile,env,speechPace:ticket.speech_pace,protocolProbe})))(ticket);
+        const open=provider.open.bind(provider);
+        provider.open=options=>open({...options,onEvent:packet=>{
+          if(packet.event)evidence.event('provider_adapter',packet.event.type,packet.event);
+          if(packet.control)evidence.event('provider_adapter',packet.control,packet);
+          options.onEvent(packet);
+        }});return provider;
+      }});
     server.listen(0,'127.0.0.1');await once(server,'listening');
     const origin=`http://127.0.0.1:${server.address().port}`;
     const post=async(path,body,cookie)=>{
@@ -61,6 +73,9 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
           diagnostics.push(packet.row);
         }
         const e=packet.event;
+        if(e)evidence.event('gateway_client',e.type,e);
+        if(['session.failed','session.closed','teaching.context.applied','teaching.summary'].includes(packet.type))evidence.event('gateway_client',packet.type);
+        if(packet.type==='diagnostics.event'&&packet.row?.name==='speech.candidate')evidence.event('gateway_client','speech.candidate',packet.row.fields);
         if(e?.type==='session.ready') {
           if((providerKind==='doubao'&&(!packet.provider_connected||packet.synthetic))||(providerKind==='test'&&!packet.synthetic))throw new Error('EVAL_PROVIDER_KIND_MISMATCH');
           ready=true;
@@ -94,10 +109,15 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
     const tick=()=>{
       if(closed||failure||ws.readyState!==WebSocket.OPEN)return;
       try {
-        const frame=Buffer.alloc(640);
+        const frame=Buffer.alloc(640),offset=position;
         if(position<queued.length){queued.copy(frame,0,position,Math.min(position+640,queued.length));position+=640;}
         if(ws.bufferedAmount>65536)throw new Error('EVAL_INPUT_BACKPRESSURE');
-        ws.send(frame);notify();pump=setTimeout(tick,20);
+        const audioStart=Math.max(offset,3200),audioEnd=Math.min(offset+640,queued.length);
+        const sent=inputEvidence&&audioEnd>audioStart?queued.subarray(audioStart,audioEnd):Buffer.alloc(0);
+        const owner=inputEvidence;
+        ws.send(frame,error=>{if(owner&&sent.length)evidence.flushed(owner,sent.length,error);});
+        if(owner&&sent.length)evidence.enqueue(owner,sent);
+        notify();pump=setTimeout(tick,20);
       }catch{fail('EVAL_INPUT_PUMP_FAILED');}
     };tick();
     return {
@@ -108,12 +128,13 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
           input_source:audio.source,input_audio_sha256:audio.sha256,input_audio_duration_ms:audio.duration_ms,
           reply_complete:r?.completed===true,playback_measured:false,asr_surface_match:f?comparableText(f.text)===comparableText(input.text):null,
           dependency_review:input.dependency.type==='prior_reply_semantics'?'required':'not_required',
-          context_dependency:structuredClone(input.dependency)};
+          context_dependency:structuredClone(input.dependency),diagnostics:diagnostics.slice(diagnosticStart),collection_evidence:evidence.snapshot(input.turn)};
       },
       async turn(input,audio) {
         if(failure)throw new Error(failure);
         await wait(()=>position>=queued.length&&appliedVersion===(latestState?.context_version??1));
-        current=input.turn;const diagnosticStart=diagnostics.length;
+        current=input.turn;diagnosticStart=diagnostics.length;
+        inputEvidence=evidence.begin(input.turn,audio.bytes);
         queued=Buffer.concat([Buffer.alloc(3200),audio.bytes]);position=0;
         await wait(()=>{
           const output=[...replies.values()].filter(r=>r.case_turn===current);
@@ -132,9 +153,10 @@ export async function openAgentHarness({profile,env=process.env,initialProfile,s
         await wait(()=>appliedVersion===(latestState?.context_version??1));
         result.next_turn_context_version=appliedVersion;result.context_update_confirmed=true;
         result.diagnostics=diagnostics.slice(diagnosticStart);
-        current=null;return result;
+        result.collection_evidence=evidence.snapshot(input.turn);
+        evidence.finishTurn();current=null;return result;
       },
-      async finish(){await stop();return {summary,session_terminal:terminal,failure};},
+      async finish(){await stop();return {summary,session_terminal:terminal,failure,collection_evidence:evidence.snapshotSession(),memory_audit:memoryAudit.snapshot()};},
       close:stop
     };
   }catch(error){await stop();throw error;}

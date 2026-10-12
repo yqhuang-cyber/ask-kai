@@ -16,6 +16,7 @@ import { TEACHING_POLICY_VERSION } from '../../../packages/agent-core/natural-te
 import { SUMMARY_POLICY_VERSION } from '../../../packages/agent-core/learning-summary.js';
 import { SeeduplexProvider } from '../../../packages/provider-doubao/seeduplex.js';
 import { observeTrialProvider } from './actions-multiturn.js';
+import { COLLECTION_EVIDENCE_VERSION } from './collection-evidence.js';
 
 export function scopedEvaluationProfile(profile) {
   if(profile.review_scope!=='static_session_connect_only'||profile.realtime?.reviewed!==false||profile.realtime?.ordered_acks_reviewed!==false||profile.auth?.env!=='DOUBAO_API_KEY')throw new Error('INVALID_EVALUATION_PROBE_PROFILE');
@@ -32,7 +33,8 @@ export function validateBatchRequest(request,{baseline,data,dataSha,profileBytes
 }
 
 export async function runEvaluationBatch({data,dataSha,cases,profile,env,directory,baselineInfo,signal,onProgress=()=>{},
-  prepare=prepareInputAudio,collect=runMultiturn,readInputs=readAudioManifest,synthesize=synthesizeInput}={}) {
+  prepare=prepareInputAudio,collect=runMultiturn,readInputs=readAudioManifest,synthesize=synthesizeInput,observationScope='baseline_collection'}={}) {
+  if(!['baseline_collection','task02_independent_diagnostic'].includes(observationScope))throw new Error('INVALID_OBSERVATION_SCOPE');
   const scoped=scopedEvaluationProfile(profile);
   if(!preflight(profile,env).live_eligible)throw new Error('SERVER_CREDENTIAL_REQUIRED');
   const observations={version:1,kind:'ask-kai-multiturn-observations',run_id:`batch-${randomUUID()}`,execution:'recorded_real_model',
@@ -40,9 +42,11 @@ export async function runEvaluationBatch({data,dataSha,cases,profile,env,directo
     dataset_version:data.dataset_version,dataset_sha256:dataSha,audio_manifest_sha256:null,model_version:profile.session_create.session.model,
     profile_sha256:sha256(Buffer.from(JSON.stringify(scoped))),policy_versions:{persona:PERSONA_VERSION,language:LANGUAGE_POLICY_VERSION,reply:REPLY_POLICY_VERSION,teaching:TEACHING_POLICY_VERSION,summary:SUMMARY_POLICY_VERSION,rubric:RUBRIC_VERSION},
     history_source:'actual_provider_session_only',references_sent_to_model:false,soft_goals_sent_to_model:false,protocol_probe:true,runtime_profile_scope:'protocol_smoke',
+    collection_evidence_version:COLLECTION_EVIDENCE_VERSION,observation_scope:observationScope,historical_baseline_replaced:false,
     scores_present:false,judge_calls:0,browser_audio_tested:false,real_experience_accepted:false,cases:[]};
   const report=()=>({version:1,kind:'ask-kai-batch-collection-report',run_id:observations.run_id,...baselineInfo,
-    runner_revision:env.GITHUB_SHA,input_tts_transport_version:INPUT_TTS_TRANSPORT_VERSION,dataset_sha256:dataSha,model_version:observations.model_version,selected_cases:cases.length,
+    runner_revision:env.GITHUB_SHA,observation_scope:observationScope,collection_evidence_version:COLLECTION_EVIDENCE_VERSION,
+    input_tts_transport_version:INPUT_TTS_TRANSPORT_VERSION,dataset_sha256:dataSha,model_version:observations.model_version,selected_cases:cases.length,
     selected_turns:cases.reduce((s,c)=>s+c.turns.length,0),completed_cases:observations.cases.filter(c=>c.status==='collected').length,
     collected_turns:observations.cases.reduce((s,c)=>s+c.turns.filter(t=>t.reply_complete).length,0),
     status:observations.cases.length===cases.length&&observations.cases.every(c=>c.status==='collected')?'observations_collected':'incomplete',

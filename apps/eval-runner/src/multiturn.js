@@ -11,6 +11,7 @@ import { SUMMARY_POLICY_VERSION } from '../../../packages/agent-core/learning-su
 import { openAgentHarness } from './agent-harness.js';
 import { sha256 } from './multiturn-plan.js';
 import { atomicPrivateJson } from './private-artifacts.js';
+import { COLLECTION_EVIDENCE_VERSION } from './collection-evidence.js';
 
 export function runPreflight({cases,profile,env={},inputs,worktreeClean=true,prepareAudio=false,protocolProbe=false}={}) {
   const blockers=[];
@@ -57,7 +58,7 @@ export async function runMultiturn({cases,inputs,profile,env,signal,candidateRev
     policy_versions:{persona:PERSONA_VERSION,language:LANGUAGE_POLICY_VERSION,reply:REPLY_POLICY_VERSION,teaching:TEACHING_POLICY_VERSION,summary:SUMMARY_POLICY_VERSION,rubric:RUBRIC_VERSION},
     history_source:'actual_provider_session_only',references_sent_to_model:false,soft_goals_sent_to_model:false,
     protocol_probe:protocolProbe,runtime_profile_scope:profile?.realtime?.review_scope??'normal_realtime',
-    scores_present:false,judge_calls:0,browser_audio_tested:false,real_experience_accepted:false,cases:[]};
+    collection_evidence_version:COLLECTION_EVIDENCE_VERSION,scores_present:false,judge_calls:0,browser_audio_tested:false,real_experience_accepted:false,cases:[]};
   const report=()=>({version:1,kind:'ask-kai-multiturn-run-report',run_id:runId,execution:observations.execution,
     candidate_revision:candidateRevision,dataset_version:datasetVersion,dataset_sha256:datasetSha256,
     model_version:observations.model_version,policy_versions:observations.policy_versions,
@@ -90,12 +91,12 @@ export async function runMultiturn({cases,inputs,profile,env,signal,candidateRev
         await checkpoint(observations,report());
         onProgress({case_id:c.id,turn:t.turn,state:'collected'});
       }
-      const final=await session.finish();result.summary=final.summary;result.session_terminal=final.session_terminal;
+      const final=await session.finish();result.summary=final.summary;result.session_terminal=final.session_terminal;result.collection_evidence=final.collection_evidence??null;result.memory_audit=final.memory_audit??null;
       if(final.failure||final.session_terminal!=='session.closed'||!final.summary)throw new Error(final.failure??'EVAL_SUMMARY_MISSING');
       result.status='collected';
     }catch(error){
       result.status='failed';result.failure=/^[A-Z_]{1,80}$/.test(error.message)?error.message:'CASE_FAILED';
-      if(session){try{const final=await session.finish();result.summary=final.summary;result.session_terminal=final.session_terminal;}catch{}}
+      if(session){try{const final=await session.finish();result.summary=final.summary;result.session_terminal=final.session_terminal;result.collection_evidence=final.collection_evidence??null;result.memory_audit=final.memory_audit??null;}catch{}}
     }
     finally{await session?.close();}
     await checkpoint(observations,report());
