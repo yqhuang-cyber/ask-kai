@@ -27,12 +27,15 @@ export class CollectionEvidence {
   begin(turn,bytes) {
     const row={turn,queued_at_ms:this.at(),audio:measureInputPcm(bytes),enqueued_bytes:0,flushed_bytes:0,
       first_audio_enqueue_at_ms:null,last_audio_enqueue_at_ms:null,transport_flushed_at_ms:null,
+      enqueue_intervals:{count:0,total_ms:0,min_ms:null,max_ms:null,over_40ms:0},
       enqueued_sha256:null,events:[],event_counts:{},truncated:false,hash:createHash('sha256')};
     this.turns.set(turn,row);this.current=turn;return row;
   }
   enqueue(row,bytes) {
     if(!bytes.length)return;
-    row.first_audio_enqueue_at_ms??=this.at();row.last_audio_enqueue_at_ms=this.at();
+    const at=this.at();
+    if(row.last_audio_enqueue_at_ms!==null){const gap=at-row.last_audio_enqueue_at_ms,stats=row.enqueue_intervals;stats.count++;stats.total_ms+=gap;stats.min_ms=Math.min(stats.min_ms??gap,gap);stats.max_ms=Math.max(stats.max_ms??gap,gap);if(gap>40)stats.over_40ms++;}
+    row.first_audio_enqueue_at_ms??=at;row.last_audio_enqueue_at_ms=at;
     row.enqueued_bytes+=bytes.length;row.hash.update(bytes);
     if(row.enqueued_bytes===row.audio.bytes){row.enqueued_sha256=row.hash.digest('hex');this.event('collector','input.enqueued');}
   }

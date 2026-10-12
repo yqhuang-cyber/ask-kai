@@ -35,6 +35,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 
 ### 文档入口
 
+- [收尾 Task 03：根因验证案例范围与预注册对照计划](docs/task03-root-cause-plan.md)
 - [收尾 Task 02：采集证据结果（011 完整；040 多 ASR 留证；只改评测）](docs/eval-results/2026-10-12-task02-evidence.md)
 - [独立采集诊断工具与证据边界](docs/collection-evidence.md)
 - [Ask Kai Agent 产品需求 v1.1](docs/prd/ask-kai-agent-prd-v1.1.md)
