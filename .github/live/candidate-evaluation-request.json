@@ -1,7 +1,7 @@
 {
   "version": 1,
   "kind": "ask_kai_candidate_evaluation",
-  "request_id": "candidate-2026-10-12-02",
+  "request_id": "candidate-2026-10-12-03",
   "stage": "05-03",
   "agent_revision": "97b3163f43ef6388be92834f9c7cad4d3325de72",
   "parent_agent_revision": "6d3e549e6337bad5b9956445fb20885f463d71a4",
@@ -26,6 +26,6 @@
     "ask-kai-language-07",
     "ask-kai-language-08"
   ],
-  "rerun_of": null,
-  "input_fixture_run": null
+  "rerun_of": 38270660766,
+  "input_fixture_run": 38270660766
 }
