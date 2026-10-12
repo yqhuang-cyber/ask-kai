@@ -13,10 +13,10 @@ export function selectEvaluationAttempts(observations,{replacementRunIds=[]}={})
   }
   return observations.map(o=>({...o,cases:o.cases.filter(c=>selected.get(c.case_id).o===o)}));
 }
-export function fullEvaluationReport(data,observations,{datasetSha256,judgements,agentRevision,runtimeDigest,replacementRunIds=[]}={}) {
+export function fullEvaluationReport(data,observations,{datasetSha256,judgements,agentRevision,runtimeDigest,verificationKind='baseline',replacementRunIds=[]}={}) {
   const all=selectCases(data,{includeLanguage:true,limit:100});
   const attempts=selectEvaluationAttempts(observations,{replacementRunIds});
-  const bundle=adaptRecordedObservations(data,attempts,{datasetSha256,caseIds:all.map(c=>c.id),agentRevision,runtimeDigest});
+  const bundle=adaptRecordedObservations(data,attempts,{datasetSha256,caseIds:all.map(c=>c.id),agentRevision,runtimeDigest,verificationKind});
   const reviews=judgements??reviewTemplate(bundle),report=evaluateRecorded(bundle,reviews);
   report.attempts=observations.flatMap(o=>o.cases.map(c=>({run_id:o.run_id,runner_revision:o.candidate_revision,case_id:c.case_id,status:c.status,failure:c.failure,
     selected:attempts.find(a=>a.run_id===o.run_id).cases.some(r=>r.case_id===c.case_id)})));
@@ -30,7 +30,7 @@ export function fullEvaluationReport(data,observations,{datasetSha256,judgements
   return {bundle,judgements:reviews,report,markdown:renderEvaluationReport(report)};
 }
 export function renderEvaluationReport(r) {
-  const c=r.coverage,lines=['# Ask Kai 固定基线评测报告','',`Agent 基线：\`${r.agent_revision??'未核验'}\`；数据集：\`${r.dataset_version}\`。`,
+  const c=r.coverage,lines=[`# Ask Kai ${r.evaluation_contract_kind==='candidate'?'候选版本':'固定基线'}评测报告`,'',`Agent 版本：\`${r.agent_revision??'未核验'}\`；数据集：\`${r.dataset_version}\`。`,
     `执行：${r.execution}；评分来源：${r.judge_source}／${r.judge_version}。`,'',
     `收集完成 ${c.collected_cases}/${c.expected_cases} 案；有效回复 ${c.eligible_turns}/${c.expected_turns} 轮；已评分 ${c.scored_turns}/${c.expected_turns} 轮；原案例可比 ${c.comparable_turns}/${c.expected_turns} 轮；总结已评分 ${c.scored_summaries}/${c.expected_cases}。`,
     `实际输入平均分：${r.mean_actual_input_score===null?'未评分':r.mean_actual_input_score.toFixed(2)}；原案例可比平均分：${r.mean_authored_case_score===null?'未评分':r.mean_authored_case_score.toFixed(2)}。`,

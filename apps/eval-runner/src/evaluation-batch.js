@@ -34,7 +34,8 @@ export function validateBatchRequest(request,{baseline,data,dataSha,profileBytes
 
 export async function runEvaluationBatch({data,dataSha,cases,profile,env,directory,baselineInfo,signal,onProgress=()=>{},
   prepare=prepareInputAudio,collect=runMultiturn,readInputs=readAudioManifest,synthesize=synthesizeInput,observationScope='baseline_collection'}={}) {
-  if(!['baseline_collection','task02_independent_diagnostic'].includes(observationScope))throw new Error('INVALID_OBSERVATION_SCOPE');
+  if(!['baseline_collection','task02_independent_diagnostic','candidate_collection'].includes(observationScope))throw new Error('INVALID_OBSERVATION_SCOPE');
+  if(observationScope==='candidate_collection'&&(baselineInfo.candidate_verified!==true||baselineInfo.evaluation_contract_kind!=='candidate'||baselineInfo.baseline_verified!==false))throw new Error('VERIFIED_CANDIDATE_REQUIRED');
   const scoped=scopedEvaluationProfile(profile);
   if(!preflight(profile,env).live_eligible)throw new Error('SERVER_CREDENTIAL_REQUIRED');
   const observations={version:1,kind:'ask-kai-multiturn-observations',run_id:`batch-${randomUUID()}`,execution:'recorded_real_model',
@@ -80,7 +81,7 @@ export async function runEvaluationBatch({data,dataSha,cases,profile,env,directo
     await save();await atomicPrivateJson(join(directory,'protocol-diagnostics.json'),{kind:'evaluation_protocol_structure',raw_values_retained:false,rows:protocolDiagnostics});
     onProgress({case_id:c.id,state:row.status,failure:row.failure});
   }
-  const bundle=adaptRecordedObservations(data,[observations],{datasetSha256:dataSha,caseIds:cases.map(c=>c.id),agentRevision:baselineInfo.agent_revision,runtimeDigest:baselineInfo.runtime_digest});
+  const bundle=adaptRecordedObservations(data,[observations],{datasetSha256:dataSha,caseIds:cases.map(c=>c.id),agentRevision:baselineInfo.agent_revision,runtimeDigest:baselineInfo.runtime_digest,verificationKind:observationScope==='candidate_collection'?'candidate':'baseline'});
   const judgements=reviewTemplate(bundle),scores=evaluateRecorded(bundle,judgements);
   await atomicPrivateJson(join(directory,'scoring-input.json'),bundle);await atomicPrivateJson(join(directory,'judgements.json'),judgements);
   await atomicPrivateJson(join(directory,'score-report.json'),scores);await save();

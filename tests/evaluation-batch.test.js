@@ -8,10 +8,14 @@ import { runEvaluationBatch,scopedEvaluationProfile,validateBatchRequest } from 
 import { sha256,selectCases } from '../apps/eval-runner/src/multiturn-plan.js';
 const dataBytes=await readFile('docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json'),data=JSON.parse(dataBytes),profileBytes=await readFile('docs/protocol/seeduplex-connect.profile.json'),profile=JSON.parse(profileBytes),baseline=JSON.parse(await readFile(BASELINE_PATH));
 test('fixed baseline permits evaluation changes and rejects runtime/dependency/data/profile drift',async()=>{
-  const info=await verifyEvaluationBaseline({baseline,dataBytes,profileBytes});assert.equal(info.baseline_verified,true);
-  await assert.rejects(verifyEvaluationBaseline({baseline,dataBytes:Buffer.from('changed'),profileBytes}),/INPUT_DRIFT/);
-  const key=Object.keys(baseline.runtime_files)[0];await assert.rejects(verifyEvaluationBaseline({baseline,dataBytes,profileBytes,read:(p,...args)=>p===key?Buffer.from('changed'):readFile(p,...args)}),/RUNTIME_DRIFT/);
-  await assert.rejects(verifyEvaluationBaseline({baseline,dataBytes,profileBytes,files:()=>[]}),/FILE_SET_DRIFT/);
+  // Fixed archived manifest is not rewritten when the candidate runtime changes.
+  // Exercise the original guard with isolated original bytes and drift probes.
+  const key='packages/agent-core/original-fixture.js',bytes=Buffer.from('original runtime');
+  const pinned={...baseline,runtime_files:{[key]:sha256(bytes)}},read=(p,...args)=>p===key?bytes:readFile(p,...args),files=()=>[key];
+  const info=await verifyEvaluationBaseline({baseline:pinned,dataBytes,profileBytes,read,files});assert.equal(info.baseline_verified,true);
+  await assert.rejects(verifyEvaluationBaseline({baseline:pinned,dataBytes:Buffer.from('changed'),profileBytes,read,files}),/INPUT_DRIFT/);
+  await assert.rejects(verifyEvaluationBaseline({baseline:pinned,dataBytes,profileBytes,read:(p,...args)=>p===key?Buffer.from('changed'):readFile(p,...args),files}),/RUNTIME_DRIFT/);
+  await assert.rejects(verifyEvaluationBaseline({baseline:pinned,dataBytes,profileBytes,read,files:()=>[]}),/FILE_SET_DRIFT/);
 });
 test('balanced batches include all 48 cases and 255 turns exactly once; retry selection never includes successful cases implicitly',()=>{
   const plan=planEvaluationBatches(data);assert.equal(plan.length,8);assert.equal(new Set(plan.flatMap(b=>b.case_ids)).size,48);assert.equal(plan.reduce((s,b)=>s+b.turns,0),255);

@@ -23,24 +23,27 @@ function requirements(t,kind) {
 }
 
 // Only reviewer input: no references or requirements are sent to the Agent.
-export function adaptRecordedObservations(data,observations,{datasetSha256,caseIds=[],agentRevision,runtimeDigest}={}) {
+export function adaptRecordedObservations(data,observations,{datasetSha256,caseIds=[],agentRevision,runtimeDigest,verificationKind='baseline'}={}) {
   checkPreparedDataset(data);
   assert(/^[a-f0-9]{64}$/.test(datasetSha256??''),'SCORING_DATASET_HASH_REQUIRED');
   assert(Array.isArray(observations)&&observations.length>0,'OBSERVATIONS_REQUIRED');
   const all=selectCases(data,{includeLanguage:true,limit:100}),specs=new Map([...data.cases,...data.language_scenarios].map(c=>[c.id,c]));
   const selected=caseIds.length?all.filter(c=>caseIds.includes(c.id)):all.filter(c=>observations.some(o=>o.cases?.some(r=>r.case_id===c.id)));
   assert(selected.length>0&&new Set(caseIds).size===caseIds.length&&(!caseIds.length||selected.length===caseIds.length),'INVALID_SCORING_SELECTION');
-  const rows=new Map(),sourceRuns=new Map(),sourceObservations=new Map(),runs=[];let execution,modelVersion,profileHash,policyVersions;
+  const rows=new Map(),sourceRuns=new Map(),sourceObservations=new Map(),runs=[];let execution,modelVersion,profileHash,policyVersions,identity;
   for(const o of observations) {
     assert(o?.version===1&&o.kind==='ask-kai-multiturn-observations'&&['recorded_real_model','synthetic_fixture'].includes(o.execution)&&o.dataset_sha256===datasetSha256&&o.dataset_version===data.dataset_version&&o.history_source==='actual_provider_session_only'&&o.references_sent_to_model===false&&o.soft_goals_sent_to_model===false&&/^[a-f0-9]{40}$/.test(o.candidate_revision??'')&&Array.isArray(o.cases),'INVALID_RECORDED_OBSERVATIONS');
-    if(agentRevision)assert(o.agent_revision===agentRevision&&o.runtime_digest===runtimeDigest&&o.baseline_verified===true,'OBSERVED_AGENT_BASELINE_MISMATCH');
+    if(agentRevision)assert(o.agent_revision===agentRevision&&o.runtime_digest===runtimeDigest&&(verificationKind==='candidate'?o.candidate_verified===true&&o.evaluation_contract_kind==='candidate'&&o.baseline_verified===false:o.baseline_verified===true),'OBSERVED_AGENT_BASELINE_MISMATCH');
+    const observedIdentity=[o.agent_revision??null,o.runtime_digest??null,o.evaluation_contract_kind??'baseline',o.candidate_verified===true];
+    if(identity)assert(equal(identity,observedIdentity),'MIXED_AGENT_IDENTITIES');else identity=observedIdentity;
     if(execution)assert(execution===o.execution&&modelVersion===o.model_version&&profileHash===o.profile_sha256&&equal(policyVersions,o.policy_versions),'MIXED_EVALUATION_VERSIONS');
     execution=o.execution;modelVersion=o.model_version;profileHash=o.profile_sha256;policyVersions=o.policy_versions;
     assert(!runs.some(r=>r.run_id===o.run_id),'DUPLICATE_OBSERVATION_RUN');runs.push({run_id:o.run_id,runner_revision:o.candidate_revision,input_tts_transport_version:o.input_tts_transport_version??'production-decoder-64k'});
     for(const c of o.cases){assert(specs.has(c.case_id)&&!rows.has(c.case_id),'DUPLICATE_OR_UNKNOWN_OBSERVED_CASE');rows.set(c.case_id,c);sourceRuns.set(c.case_id,o.run_id);sourceObservations.set(c.case_id,o);}
   }
   const bundle={version:1,kind:'ask-kai-recorded-scoring-input',dataset_version:data.dataset_version,dataset_sha256:datasetSha256,
-    execution,agent_revision:agentRevision??null,runtime_digest:runtimeDigest??null,model_version:modelVersion,profile_sha256:profileHash,
+    execution,agent_revision:agentRevision??identity[0],runtime_digest:runtimeDigest??identity[1],model_version:modelVersion,profile_sha256:profileHash,
+    evaluation_contract_kind:identity[2],candidate_verified:identity[3],
     policy_versions:policyVersions,rubric_version:RUBRIC_VERSION,weights:{...WEIGHTS},runs,units:[],cases:[],browser_audio_tested:false,real_experience_accepted:false};
   for(const c of selected) {
     const spec=specs.get(c.id),row=rows.get(c.id),history=[];
@@ -136,7 +139,8 @@ export function evaluateRecorded(bundle,judgements) {
   const scored=results.filter(r=>r.scores),comparable=scored.filter(r=>r.authored_case_comparable);
   const mean=rows=>rows.length?rows.reduce((s,r)=>s+r.score,0)/rows.length:null;
   const report={version:1,kind:'ask-kai-recorded-score-report',artifact_sha256:bundle.artifact_sha256,execution:bundle.execution,agent_revision:bundle.agent_revision,
-    runtime_digest:bundle.runtime_digest,dataset_version:bundle.dataset_version,dataset_sha256:bundle.dataset_sha256,model_version:bundle.model_version,
+    runtime_digest:bundle.runtime_digest,dataset_version:bundle.dataset_version,dataset_sha256:bundle.dataset_sha256,model_version:bundle.model_version,profile_sha256:bundle.profile_sha256,
+    evaluation_contract_kind:bundle.evaluation_contract_kind??'baseline',candidate_verified:bundle.candidate_verified===true,
     rubric_version:RUBRIC_VERSION,weights:{...WEIGHTS},judge_source:judgements.source,judge_version:judgements.judge_version,
     review_calibration_version:judgements.review_calibration_version??null,
     review_mode:judgements.review_mode??null,external_judge_calls:judgements.external_judge_calls??null,

@@ -10,7 +10,7 @@ try {
   const {data,sha256:datasetSha256}=await boundedJson(DEFAULT_PREPARED_DATASET),observations=[];
   for(const path of opts.observations.split(','))observations.push((await boundedJson(path)).data);
   const result=fullEvaluationReport(data,observations,{datasetSha256,judgements:opts.judgements?(await boundedJson(opts.judgements)).data:undefined,
-    replacementRunIds:opts['replacement-runs']?.split(',')??[],agentRevision:observations[0].agent_revision,runtimeDigest:observations[0].runtime_digest});
+    replacementRunIds:opts['replacement-runs']?.split(',')??[],agentRevision:observations[0].agent_revision,runtimeDigest:observations[0].runtime_digest,verificationKind:observations[0].evaluation_contract_kind==='candidate'?'candidate':'baseline'});
   const directory=await privateRunDirectory(opts.out);for(const [name,value] of [['scoring-input.json',result.bundle],['judgements.json',result.judgements],['score-report.json',result.report]])await atomicPrivateJson(join(directory,name),value);
   await writeFile(join(directory,'report.md'),result.markdown,{flag:'wx',mode:0o600});
   console.log(JSON.stringify({coverage:result.report.coverage,complete_scoring:result.report.complete_scoring,content_scored:result.report.content_scored,real_experience_accepted:false}));
