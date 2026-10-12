@@ -1,5 +1,5 @@
 import { validateMemoryRecord } from '../hskai-bridge/identity.js';
-export const LANGUAGE_POLICY_VERSION='kai-language-v2';
+export const LANGUAGE_POLICY_VERSION='kai-language-v3';
 export const ENGLISH_SUPPORT_MODES=Object.freeze(['required','adaptive','off']);
 
 export const LANGUAGE_INSTRUCTIONS=`语言支架策略 ${LANGUAGE_POLICY_VERSION}：始终先说中文；英文是帮助理解的支架，不是每句话必配的模板。
@@ -79,7 +79,10 @@ export class LanguageSupport {
     else if(comprehension?.value==='comfortable' || known.length){english_support='adaptive';reason=comprehension?.value==='comfortable'?'reported_comprehension':'known_expressions';}
     return {policy_version:LANGUAGE_POLICY_VERSION,english_support,reason,preference:preference?.value??'auto',preference_source:preference?.source??'default',request_scope:this.replyRequest?'reply':this.preference?'session':sessionPreference?'profile':'default',session_preference:sessionPreference?.value??'auto',help_scope:this.needsHelp?'reply':'none',comprehension:comprehension?.value??'unknown',comprehension_source:comprehension?.source??'default',known_expressions:known,known_expression_evidence:knownEvidence,known_sources:[...new Set(knownEvidence.map(k=>k.source))],source_turn_id:this.turn?.turn_id??null,source_event_id:this.turn?.source_event_id??null,context_version:this.turn?.context_version??1,advisory:true};
   }
-  instructions(){return `${LANGUAGE_INSTRUCTIONS}\n本轮语言状态（JSON 数据）：${JSON.stringify(this.snapshot())}`;}
+  instructions(){
+    const {english_support,preference,session_preference,request_scope,help_scope,comprehension,known_expressions,source_turn_id}=this.snapshot();
+    return `${LANGUAGE_INSTRUCTIONS}\n本轮语言状态（JSON 数据）：${JSON.stringify({english_support,preference,session_preference,request_scope,help_scope,comprehension,known_expressions,source_turn_id})}`;
+  }
 }
 
 // Ignore provenance/version differences only when the actual support inputs

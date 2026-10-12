@@ -13,6 +13,14 @@ test('immutable context preserves source and language when a newer student reque
   assert.equal(t.contextSnapshot().language.english_support,'required');assert.equal(first.language.english_support,'off');assert.notEqual(first.hash,t.contextSnapshot().hash);
   assert.throws(()=>{first.language.preference='zh_en';},TypeError);assert.equal(initial.language.english_support,'required');
 });
+
+test('resolved language excludes superseded profile settings from the generic model memory without deleting profile evidence',()=>{
+  const now=Date.now(),memory=[{field:'support_language',value:'zh_en',source:'authorized_hskai_profile',updated_at:new Date(now).toISOString(),expires_at:new Date(now+86400000).toISOString()}];
+  const session=new TeachingSession({sessionId:'s1',mode:'free',memory});session.accept(final('t1','Please speak Chinese only.'));
+  const snapshot=session.contextSnapshot();assert.equal(snapshot.language.preference,'zh');assert.equal(snapshot.language.preference_source,'student_current_session');
+  assert.ok(!snapshot.instructions.includes('"value":"zh_en"'));assert.equal(session.language.validMemory()[0].value,'zh_en');
+  assert.equal(session.memory[0].value,'zh_en');assert.equal(snapshot.language.english_support,'off');
+});
 test('pending context remains bound to its original version across newer input and delayed or duplicate confirmations',async t=>{
   const {create,open}=await setup(t),{ws,packets,provider}=await open(await(await create({mode:'free'})).json());
   ws.send(JSON.stringify({type:'diagnostics.enable'}));await until(()=>packets.some(p=>p.row?.name==='session.config'));

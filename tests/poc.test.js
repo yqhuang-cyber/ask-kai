@@ -10,6 +10,7 @@ import { readConfig } from '../apps/realtime-gateway/src/config.js';
 import { signAssertion } from '../packages/hskai-bridge/identity.js';
 import { bridgeEndpoint } from '../packages/hskai-bridge/endpoint.js';
 import { ExperienceTrace } from '../apps/realtime-gateway/public/diagnostics.js';
+import { REPLY_POLICY_VERSION } from '../packages/agent-core/reply-policy.js';
 import { setup,until } from './helpers/realtime.js';
 
 async function backendFor(t){const urls=[];const backend=await startMockBackend({fetcher:(url,options)=>{assert.equal(new URL(url).hostname,'127.0.0.1');urls.push(url);return fetch(url,options);}});t.after(()=>backend.close());return {...backend,urls};}
@@ -50,7 +51,7 @@ test('POC Mission tickets retain one-use authorization, course provenance and pr
   assert.equal((await create({mode:'mission',mission_id:'foreign'},{Cookie:cookie})).status,403);
   const response=await create({mode:'mission',mission_id:MOCK_MISSION.id},{Cookie:cookie});assert.equal(response.status,201);
   assert.equal((await create({mode:'sports'},{Cookie:cookie})).status,401);
-  const {provider,packets,ws}=await open(await response.json());assert.match(provider.input.instructions,/示例 Mission/);assert.match(provider.input.instructions,/kai-reply-v2/);
+  const {provider,packets,ws}=await open(await response.json());assert.match(provider.input.instructions,/示例 Mission/);assert.ok(provider.input.instructions.includes(REPLY_POLICY_VERSION));
   assert.ok(!packets.some(p=>p.event?.type==='session.ready'));provider.emit('session.ready');await until(()=>packets.some(p=>p.event?.type==='session.ready'));
   assert.equal(packets.find(p=>p.event?.type==='session.ready').synthetic,true);
   ws.send(JSON.stringify({type:'diagnostics.enable'}));await until(()=>packets.some(p=>p.row?.name==='backend.config'));
