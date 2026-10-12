@@ -42,9 +42,14 @@ jobs:
           merge-multiple: true
           path: .local/candidate-input-fixtures
       - name: Collect explicitly declared candidate
+        # Runtime and evaluation revisions are independent. Exact runtime bytes
+        # are checked again by the candidate contract before any provider call.
+        # This permits a fixed-PCM repeat of a prior declared candidate.
         env:
           DOUBAO_API_KEY: ${{ secrets.DOUBAO_API_KEY }}
-        run: node scripts/actions-candidate-evaluation.js ${{ matrix.batch }}
+        run: |
+          node --input-type=module -e 'import {readFileSync} from "node:fs";import {execFileSync} from "node:child_process";const r=JSON.parse(readFileSync(".github/live/candidate-evaluation-request.json"));if(!/^[a-f0-9]{40}$/.test(r.agent_revision))throw new Error("INVALID_AGENT_REVISION");execFileSync("git",["restore",`--source=${r.agent_revision}`,"--worktree","--","packages","apps/realtime-gateway","apps/hskai-mock"]);'
+          node scripts/actions-candidate-evaluation.js ${{ matrix.batch }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
