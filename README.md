@@ -4,6 +4,8 @@
 
 > **当前状态：独立 POC 的本地业务链路已可运行。** 基础工程第 1–7 步及体验 Task 01–09 已完成工程实现；普通 Web 真实纵向验收于 2026-10-12 由用户确认完成。真实内容已有首轮采集及模型辅助复核，剩余设备场景、采集缺口、人工校准与改造后回归分别保留。身份、Mission 和偏好由本地 mock 提供。详见[完整收尾 TODO](docs/poc-completion-todo.md)。
 
+**收尾 Task04 设计已完成，下一步是 Task05 的 05-01 候选版本评测契约。** [POC Harness 改造设计](docs/task04-poc-harness-design.md)明确上下文与语言请求、拒绝／收束、澄清／纠正、共享预算、回合归属及有来源总结；[分项实施与回归清单](docs/task05-implementation-tasking.md)列出九个子任务、验收范围和回滚方式。当前只交付设计，Agent 代码、作者数据及旧分数未改，Pi 完整目标架构继续作为后续参考。
+
 ## 本地运行
 
 需要 Node >=22.18（建议 Node 22 最新补丁或 Node 24）。依赖版本已固定并锁定；默认回放、规则测试和评分示例不需要豆包密钥。
@@ -35,6 +37,8 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 
 ### 文档入口
 
+- [收尾 Task04：最小 POC Harness 改造设计（设计已交付，行为待实施）](docs/task04-poc-harness-design.md)
+- [收尾 Task05：分项开发、验收与回归清单（05-01～05-09，待实施）](docs/task05-implementation-tasking.md)
 - [收尾 Task 03：根因验证结果（16 会话／40 步；支持、反证与未知原因）](docs/eval-results/2026-10-12-task03-root-cause.md)
 - [根因验证案例范围与运行前预注册计划](docs/task03-root-cause-plan.md)
 - [收尾 Task 02：采集证据结果（011 完整；040 多 ASR 留证；只改评测）](docs/eval-results/2026-10-12-task02-evidence.md)
@@ -67,7 +71,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [HSKai 接口边界与本地 mock 合同](docs/hskai-bridge.md)
 - [安全、隐私、评测与发布门槛实现](docs/release-and-eval.md)
 
-Task 09 的独立 P0 回归与内容评测工具已接入；下一步是 Task 10 的豆包连接探针、真实内容观察、事件时序和语音／设备验收。Seeduplex 专用模板为 `docs/protocol/seeduplex-profile.template.json`；通用配置式适配器仍兼容已有审核配置。两者仅实现 JSON/base64 PCM，不把内部事件名当成供应商协议。合成回放通过不能证明真实语音、取消／更新确认或字幕体验。
+原体验 Task09 的独立 P0 回归与内容评测工具已接入，真实豆包联调和普通 Web 纵向验收已有记录；原 Task10剩余设备场景与改造后回归归入收尾 Task06。当前开发顺序见[收尾 TODO](docs/poc-completion-todo.md)。Seeduplex 专用模板为 `docs/protocol/seeduplex-profile.template.json`；通用配置式适配器仍兼容已有审核配置。两者仅实现 JSON/base64 PCM，不把内部事件名当成供应商协议。合成回放通过不能证明真实语音、取消／更新确认或字幕体验。
 
 `npm run probe:preflight` 可以检查第 2 步配置，不发网络请求。真实探针需要先根据完整官方 API 核对协议配置，并在服务端配置测试密钥；提交的模板保持未核验状态，`npm run probe:live` 默认会拒绝连接。详见上方协议说明。探针与 Web 会话接口隔离，现有回放页面继续使用合成数据。
 
@@ -109,11 +113,11 @@ npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-
 
 ### 自由会话多轮运行器
 
-**当前实施顺序（2026-10-11）：先完善评测工具／运行器／评分器，固定现有 Agent 基线，再跑全量并分析修改面。** 本阶段暂缓策略时序、提示词与教学行为调整；首案发现作为问题证据保留。完整 tasking 和两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)。
+**当前实施顺序（2026-10-12）：评测工具、全量采集、评分校准、小范围根因对照和 Task04 改造设计已交付；下一项是 Task05 的 05-01 候选版本评测契约。** 随后逐类修改 Agent并回归；原冻结基线、作者数据、实际记录和旧分数保留。早期顺序及两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)，当前开发清单见[Task05](docs/task05-implementation-tasking.md)。
 
-本轮结果和[机器可读逐轮记录](docs/eval-results/2026-10-12-freechat-baseline.json)已发布：系统性策略时序、口头总结密度、动态语言选择、澄清与错误纠正、总结空态覆盖是后续对照与 Agent harness 设计候选。全部 244 轮的十维和逐项要求保留证据定位；根因仍是待验证假设，Agent 基线未改，Task 10 未完成。
+首轮结果和[机器可读逐轮记录](docs/eval-results/2026-10-12-freechat-baseline.json)已发布，244 轮保留十维、逐项要求及证据定位。后续[Task03](docs/eval-results/2026-10-12-task03-root-cause.md)确认了本轮语言识别和后台更新时序，并保留旧双语状态干扰的支持假设及反例；内容纠正、收束、澄清、密度及总结观察已纳入[Task04设计](docs/task04-poc-harness-design.md)，未定位原因继续未知。Agent 基线未改，原 Task10仍有剩余验收项。
 
-**收尾 Task 01 评分复核已交付**：[校准结果与可信问题清单](docs/eval-results/2026-10-12-task01-calibration.md)及[前后比较／逐轮结果](docs/eval-results/2026-10-12-task01-calibration.json)。同一原始记录重点复核 97 轮，147 轮沿用 v1；失败 36→20，ASR 实质偏离 42→8，另有 7 轮不确定，19 项要求不可评。没有修改 Agent、作者数据或十维权重，没有重新调用豆包／独立 Judge，未人工批准；分数变化不代表 Agent 改善。下一步收尾 Task 02 仅处理采集与证据，完整顺序见[收尾 TODO](docs/poc-completion-todo.md)。
+**收尾 Task01 评分复核已交付**：[校准结果与可信问题清单](docs/eval-results/2026-10-12-task01-calibration.md)及[前后比较／逐轮结果](docs/eval-results/2026-10-12-task01-calibration.json)。同一原始记录重点复核 97 轮，147 轮沿用 v1；失败 36→20，语音识别实质偏离 42→8，另有 7 轮不确定，19 项要求不可评。该任务没有修改 Agent、作者数据或十维权重，没有重新调用豆包／独立评分模型，未人工批准；分数变化不代表 Agent 改善。Task02／03已随后交付独立诊断，Task04设计也已交付；完整顺序见[收尾 TODO](docs/poc-completion-todo.md)。
 
 逐轮[真实记录评分适配](docs/recorded-scoring.md)已实现：`npm run eval:recorded` 生成现有十维的评分输入、逐项要求与证据模板；`npm run eval:report` 汇总完整分母、失败分类和跨案例问题。模板未填或 Judge 未配置时明确保留未评分，不把采集成功当作内容通过。批量入口和实际执行记录见该文档。
 
@@ -637,7 +641,7 @@ docs/
   test-fixtures/           # 脱敏、合成的事件样本
 ~~~
 
-下一步实施 Task 10，使用本地真实语音和设备观察，并用 Task 09 工具复核内容；每项在 main 上单独校验、提交并 push；进度以 [实施计划](docs/implementation-plan.md) 为准。
+下一步实施收尾 Task05 的 05-01 候选版本评测契约，再按[开发清单](docs/task05-implementation-tasking.md)逐类改造和回归；每项在 main 上单独校验、提交并 push。原体验 Task10剩余验收按收尾 Task06处理；进度以[实施计划](docs/implementation-plan.md)和[收尾 TODO](docs/poc-completion-todo.md)为准。
 
 PRD v1.1 已归档到 [产品需求文档](docs/prd/ask-kai-agent-prd-v1.1.md)。技术 ERD v1.0、测试与 Evaluation v1.0 及配套用例工作簿也是本路线图的设计依据，其源文件仍待归档。实施时在每个 Issue / PR 关联需求与测试 ID。
 
