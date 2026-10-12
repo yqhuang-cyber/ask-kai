@@ -23,6 +23,10 @@ for(const key of ['summary_attempts','summary_items'])numeric.add(key);
 boolean.add('summary_partial');
 Object.assign(enums,{summary_policy_version:['kai-summary-v1'],summary_focus:['practice_observed','target_text_observed','conversation_only','insufficient','unavailable'],summary_outcome:['ended','failed']});
 names.add('teaching.decision');names.add('teaching.response');
+for(const name of ['context.queued','context.confirmation.ignored'])names.add(name);
+numeric.add('current_decision_context_version');
+Object.assign(enums,{context_policy_version:['kai-context-v1'],context_scope:['initial','subsequent_inputs']});
+enums.reason.push('wrong_version','no_pending');
 for(const key of ['applied_context_version','decision_context_version','new_points','turn_count','teaching_cooldown'])numeric.add(key);
 for(const key of ['decision_context_matched','goal_attempt_observed','teaching_paused','clarification_pending'])boolean.add(key);
 Object.assign(enums,{teaching_policy_version:['kai-teaching-v1'],action:['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE'],decision_reason:['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first'],mode:['sports','mission','free'],interaction:['chat','teach'],support_level:['none','choice','model']});
@@ -35,6 +39,7 @@ export function metadata(fields={}) {
     else if(Object.hasOwn(enums,key) && enums[key].includes(value))out[key]=value;
     else if(key==='speech_pace' && ['slow','normal'].includes(value))out[key]=value;
     else if(key==='output_speed' && Number.isFinite(value) && value>=-50 && value<=100)out[key]=value;
+    else if(['context_hash','applied_context_hash'].includes(key)&&typeof value==='string'&&/^[a-f0-9]{64}$/.test(value))out[key]=value;
     else if(['response_id','turn_id'].includes(key) && typeof value==='string' && /^[a-zA-Z0-9_.:-]{1,128}$/.test(value))out[key]=value;
   }
   return out;
@@ -82,7 +87,7 @@ export class ExperienceTrace {
           reply.caption_played_pcm_ms=row.played_pcm_ms;
           reply.caption_clock_source=row.clock_source;
         }
-        if(row.name==='teaching.response')reply.teaching_context=Object.fromEntries(Object.entries(row).filter(([key])=>['applied_context_version','decision_context_version','decision_context_matched','pending_context'].includes(key)));
+        if(row.name==='teaching.response')reply.teaching_context=Object.fromEntries(Object.entries(row).filter(([key])=>['applied_context_version','applied_context_hash','context_policy_version','current_decision_context_version','decision_context_version','decision_context_matched','pending_context'].includes(key)));
         if(row.name==='reply.audit')reply.reply_audit=Object.fromEntries(Object.entries(row).filter(([key])=>['reply_policy_version','language_policy_version','english_support','language_context_matched','audit_complete','audit_truncated','chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs','budget_exceeded','language_order_issue','english_support_issue','question_budget_exceeded','translation_review_required','language_support_review_required','teaching_density_review_required'].includes(key)));
       }
     }

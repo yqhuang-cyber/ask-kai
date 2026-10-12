@@ -43,7 +43,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       let lastResponse = null;
       const pendingCancel = new Map();
       const speechCandidates=new Map();
-      let appliedVersion=1,appliedDecision=null,appliedLanguage=teaching.languageSnapshot(),pendingContext=null;
+      let appliedContext=teaching.contextSnapshot();
+      let appliedVersion=1,appliedDecision=null,appliedLanguage=appliedContext.language,pendingContext=null;
       let diagnostics=false;
       const replyStats=new Map();
       const diagnose=(name,fields={})=>{
@@ -96,11 +97,10 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       ws.on('pong',()=>{alive=true;});
       const flushContext = () => {
         if(ended || !ready || runtime.active || pendingCancel.size || pendingContext || appliedVersion===teaching.version)return;
-        const version=teaching.version;
-        const decision=teaching.view().decision;
-        diagnose('context.requested',{context_version:version,turn_id:decision?.turn_id});
-        pendingContext={version,decision,language:teaching.languageSnapshot(),timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
-        try{provider.updateContext({version,instructions:teaching.instructions()});}catch{finish('PROVIDER_CONTEXT_FAILED');}
+        const snapshot=teaching.contextSnapshot(),version=snapshot.version,decision=snapshot.decision;
+        diagnose('context.requested',{context_version:version,turn_id:decision?.turn_id,context_hash:snapshot.hash,context_policy_version:snapshot.policy_version,context_scope:snapshot.scope});
+        pendingContext={version,decision,language:snapshot.language,snapshot,timer:setTimeout(()=>finish('CONTEXT_ACK_TIMEOUT'),contextTimeoutMs)};
+        try{provider.updateContext({version,instructions:snapshot.instructions});}catch{finish('PROVIDER_CONTEXT_FAILED');}
       };
       const cancelSent=id=> {
         const pending=pendingCancel.get(id);if(!pending || pending.timer!==undefined)return;
@@ -179,7 +179,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       try {
         provider = providerFactory(ticket);
         if(provider.speechStartKind==='asr_candidate')outputGate=new TurnOutputGate({send,fail:finish,observe:diagnose,graceMs:replyGraceMs,maxWaitMs:turnWaitMs});
-        provider.open({sessionId:ticket.session_id,instructions:teaching.instructions(),onFailure:code=>finish(code),onEvent:packet=> {
+        provider.open({sessionId:ticket.session_id,instructions:appliedContext.instructions,onFailure:code=>finish(code),onEvent:packet=> {
           if (ended || restricted) return;
           if(packet.control==='user.speech.candidate') {
             if(!ready || !/^[a-zA-Z0-9_-]{1,128}$/.test(packet.turn_id??'') || runtime.finalTurns.has(packet.turn_id))return;
@@ -195,7 +195,8 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
           }
           if (packet.control==='user.speech.started') {diagnose('user.speech.started',{turn_id:packet.turn_id,source:'provider_speech_start',active:!!runtime.active});if(ready)interrupt(undefined,'provider_speech_start');return;}
           if(packet.control==='context.updated') {
-            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedVersion=packet.version;appliedDecision=pendingContext.decision;appliedLanguage=pendingContext.language;pendingContext=null;diagnose('context.applied',{context_version:appliedVersion,turn_id:appliedDecision?.turn_id});send({type:'teaching.context.applied',version:appliedVersion});flushContext();}
+            if(pendingContext && packet.version===pendingContext.version){clearTimeout(pendingContext.timer);appliedContext=pendingContext.snapshot;appliedVersion=packet.version;appliedDecision=appliedContext.decision;appliedLanguage=appliedContext.language;pendingContext=null;diagnose('context.applied',{context_version:appliedVersion,turn_id:appliedDecision?.turn_id,context_hash:appliedContext.hash,context_policy_version:appliedContext.policy_version});send({type:'teaching.context.applied',version:appliedVersion,context_hash:appliedContext.hash});flushContext();}
+            else diagnose('context.confirmation.ignored',{reason:pendingContext?'wrong_version':'no_pending'});
             return;
           }
           if (!packet.event) return;
@@ -219,7 +220,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             // Snapshot at the first accepted response-start notification, which
             // can arrive after generation began. This proves ACK/turn matching,
             // not model compliance or that already generated audio used it.
-            diagnose('teaching.response',{...ids,applied_context_version:appliedVersion,decision_context_version:appliedDecision?.context_version,decision_context_matched:appliedDecision?.turn_id===event.turn_id,pending_context:!!pendingContext});
+            diagnose('teaching.response',{...ids,applied_context_version:appliedVersion,applied_context_hash:appliedContext.hash,context_policy_version:appliedContext.policy_version,current_decision_context_version:teaching.version,decision_context_version:appliedDecision?.context_version,decision_context_matched:appliedDecision?.turn_id===event.turn_id,pending_context:!!pendingContext});
           }
           if(['user.partial','user.final'].includes(event.type))diagnose(event.type,{...ids,chars:Array.from(event.payload.text).length});
           const stats=replyStats.get(event.response_id);
@@ -262,6 +263,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             diagnose('language.decision',{turn_id:event.turn_id,context_version:teaching.version,language_policy_version:language.policy_version,english_support:language.english_support,language_reason:language.reason,known_expression_count:language.known_expressions.length});
             diagnose('teaching.decision',{turn_id:decision.turn_id,context_version:decision.context_version,teaching_policy_version:decision.policy_version,mode:decision.mode,action:decision.action,decision_reason:decision.reason,interaction:decision.interaction,support_level:decision.support_level,new_points:decision.new_points,turn_count:decision.turn_count,goal_attempt_observed:decision.goal_attempt_observed,teaching_paused:decision.teaching_paused,clarification_pending:decision.clarification_pending,teaching_cooldown:decision.teaching_cooldown});
             send({type:'teaching.state',...view});
+            diagnose('context.queued',{context_version:teaching.version,turn_id:decision.turn_id});
           }
           const projected={type:'event',event:packet.event,audio:packet.audio,sample_rate:packet.sample_rate,provider_connected:ready && providerKind==='doubao',synthetic:providerKind!=='doubao'};
           if(outputGate && ['response.started','response.text.delta','response.audio.chunk','response.done'].includes(event.type))outputGate.push(projected);else send(projected);
