@@ -4,6 +4,8 @@
 
 ## 当前基线
 
+2026-10-12 收尾 Task 01 已完成模型辅助重点校准，见[复核结果与前后比较](eval-results/2026-10-12-task01-calibration.md)。原 48 案观测、Agent 基线及作者数据不变；97 轮重点重审、147 轮沿用，独立 Judge/人工批准仍无。用户另行确认普通 Web 真实纵向验收完成；其记录与固定作者音频评测的设备字段分别保留。[完整 POC 收尾 TODO](poc-completion-todo.md)使用独立的01–10编号。
+
 基线为 GitHub main 提交 `6661d7ba3ecf7f3eef8f23f74c5d625cb8f457e2`，tree `c80a3f5d158dbef588cd8aefa68250c4ba3a891c`。它包含此前已提交的 ASR 协议字段和累计识别快照修复；本阶段不自动回滚这些修复，也不新增 Agent 行为修改。[基线清单](eval-baselines/freechat-v3.1-baseline.json)保存版本关系；运行器已实现 E01 校验；46 个运行文件、依赖锁、数据与原 profile 均保持冻结。
 
 待测 Agent、提示词、语言／教学策略、画像解释、工具权限、状态机、豆包适配器、Web 交互和 mock HSKai 契约保持这一基线。模型、声音、速度、profile、数据集、学生脚本及音频版本分别记录，不能因评测工具提交 SHA 变化，就认定 Agent 已变更。模型服务本身仍可能产生随机输出；同版本重复运行也不保证相同回答。

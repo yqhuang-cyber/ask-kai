@@ -8,6 +8,8 @@ The user explicitly prioritizes evaluation tooling, collection and scoring befor
 
 ## Independent POC scope (2026-10-09)
 
+2026-10-12 closeout Task 01: reviewer-only calibration and comparison tooling are implemented. Reassessed 97 observed units; carried forward 147 v1 units on the identical immutable bundle. Failed turns changed from 36 to 20, material ASR differences from 42 to 8, with seven uncertain turns and nineteen unassessable criteria. This changes review interpretation, not Agent quality, runtime or rubric weights. Independent Judge calls and human approval remain zero/false. The user has separately confirmed ordinary Web vertical acceptance. See [calibration results](eval-results/2026-10-12-task01-calibration.md) and the [integrated closeout TODO](poc-completion-todo.md).
+
 The user clarified that this is an independent Ask Kai Agent POC. Default
 business interfaces now use the repository's local mock HSKai HTTP service;
 no `wohuipteltd/HSKai` checkout, BFF deployment or business database is needed.

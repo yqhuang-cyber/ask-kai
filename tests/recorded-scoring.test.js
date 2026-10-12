@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { adaptRecordedObservations,reviewTemplate,evaluateRecorded } from '../apps/eval-runner/src/recorded-scoring.js';
 import { runRecordedJudge } from '../apps/eval-runner/src/recorded-judge.js';
+import { REVIEW_CALIBRATION_VERSION } from '../apps/eval-runner/src/review-calibration.js';
+import { compareRecordedReviews } from '../apps/eval-runner/src/review-comparison.js';
 import { sha256,selectCases } from '../apps/eval-runner/src/multiturn-plan.js';
 import { WEIGHTS } from '../apps/eval-runner/src/content.js';
 const bytes=await readFile(new URL('../docs/eval-datasets/freechat-v3.1/ask-kai-freechat-eval-v3.1.json',import.meta.url)),data=JSON.parse(bytes),hash=sha256(bytes);
@@ -78,4 +80,50 @@ test('Judge failure retains pending checkpoint and continues subsequent units; m
   const judge=async u=>{calls++;if(calls===2)throw new Error('private upstream error');return {...fixture.units.find(j=>j.unit_id===u.id),human_review_approved:true};};
   const r=await runRecordedJudge(b,judge,{judgeVersion:'fixture-v1',checkpoint:async()=>saves++});assert.equal(calls,4);assert.equal(saves,5);assert.equal(r.report.coverage.scored_turns,3);
   assert.equal(r.judgements.units[1].judge_failure,'JUDGE_CALL_OR_SCHEMA_FAILED');assert.equal(r.report.human_review_approved,false);
+});
+
+function calibrated(bundle,review=judgement(bundle)) {
+  review.review_calibration_version=REVIEW_CALIBRATION_VERSION;
+  for(const j of review.units) {
+    const u=bundle.units.find(u=>u.id===j.unit_id);
+    j.asr_review={reason:'Fixture student meaning reviewed independently of the reply.',evidence:[{turn:u.turn,role:'student',start:0,end:u.actual.student.length}]};
+    j.finding_attribution={};j.calibration_notes={};
+    for(const [d,s]of Object.entries(j.scores))if(s<2)j.finding_attribution[`dimension:${d}`]='content_observation';
+    for(const c of j.criteria)if(c.score!==2)j.finding_attribution[`criterion:${c.id}`]=c.score===null?'missing_evidence':'content_observation';
+  }
+  return review;
+}
+test('calibrated review requires independently scoped ASR evidence and complete low-score attribution',()=>{
+  const b=adapt(observation()),j=judgement(b);j.units[0].scores.intent=1;
+  const c=calibrated(b,j);assert.equal(evaluateRecorded(b,c).attribution_counts.content_observation,1);
+  const missing=structuredClone(c);missing.units[0].finding_attribution={};assert.throws(()=>evaluateRecorded(b,missing),/ATTRIBUTION/);
+  const circular=structuredClone(c);circular.units[0].asr_review.evidence[0].role='kai';assert.throws(()=>evaluateRecorded(b,circular),/ASR_REVIEW/);
+});
+test('capability and missing-input findings stay null, never numeric passes or content failures',()=>{
+  const b=adapt(observation()),j=judgement(b);j.units[0].criteria[0].score=null;j.units[0].criteria[0].evidence=[];
+  const c=calibrated(b,j),id=`criterion:${c.units[0].criteria[0].id}`;c.units[0].finding_attribution[id]='capability_scope';
+  assert.equal(evaluateRecorded(b,c).coverage.scored_criteria,evaluateRecorded(b,judgement(b)).coverage.scored_criteria-1);
+  c.units[0].criteria[0].score=1;c.units[0].criteria[0].evidence=[{turn:1,role:'kai',start:0,end:b.units[0].actual.kai.length}];assert.throws(()=>evaluateRecorded(b,c),/REQUIRES_NULL/);
+});
+test('summary review cannot cite uncollected turns or invent a scored missing summary',()=>{
+  const o=observation();o.cases[0].turns[2].reply_complete=false;o.cases[0].status='failed';
+  const b=adapt(o),j=judgement(b);j.units=j.units.filter(x=>b.units.find(u=>u.id===x.unit_id).eligible);
+  j.summaries[0].evidence_turns=[3];assert.throws(()=>evaluateRecorded(b,j),/SUMMARY_EVIDENCE/);
+  j.summaries[0].evidence_turns=[];assert.throws(()=>evaluateRecorded(b,j),/SUMMARY_EVIDENCE/);
+  j.summaries[0].evidence_turns=[1,2];assert.equal(evaluateRecorded(b,j).summary_coverage.partial_collection_snapshots,1);
+  const empty=observation();empty.cases[0].summary=null;const missing=adapt(empty);assert.throws(()=>evaluateRecorded(missing,judgement(missing)),/SUMMARY_EVIDENCE/);
+});
+test('review comparison binds both versions to identical observations and reports score/ASR changes',()=>{
+  const b=adapt(observation()),before=judgement(b),after=calibrated(b);
+  before.units[0].asr_semantics='meaning_changed';after.units[0].scores.progress=1;after.units[0].finding_attribution['dimension:progress']='rubric_constraint';
+  const {comparison}=compareRecordedReviews(b,before,after);assert.equal(comparison.changed_units,1);assert.equal(comparison.observations_changed,false);
+  assert.equal(comparison.changes[0].asr.after,'equivalent');assert.equal(comparison.changes[0].dimensions[0].dimension,'progress');
+  assert.equal(JSON.stringify(comparison).includes(b.units[0].actual.kai),false);
+  after.summaries[0].score=1;assert.equal(compareRecordedReviews(b,before,after).comparison.summary_changes[0].after_score,1);
+  const altered=structuredClone(after);altered.artifact_sha256='c'.repeat(64);assert.throws(()=>compareRecordedReviews(b,before,altered),/JUDGEMENTS/);
+});
+test('review attribution cannot excuse a criterion-triggered critical failure',()=>{
+  const b=adapt(observation()),j=judgement(b),c=j.units[0].criteria.find(c=>b.units[0].requirements.criteria.find(r=>r.id===c.id).kind==='critical');
+  c.score=0;const after=calibrated(b,j);after.units[0].finding_attribution[`criterion:${c.id}`]='unresolved';
+  const r=evaluateRecorded(b,after);assert.equal(r.results[0].critical_failure,true);assert.equal(r.results[0].blocked,true);
 });

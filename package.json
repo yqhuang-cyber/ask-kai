@@ -27,7 +27,8 @@
     "release:check": "node scripts/release-check.js --require-ready",
     "test:browser": "node scripts/browser-check.js",
     "eval:recorded": "node --env-file-if-exists=.env scripts/recorded-score.js",
-    "eval:report": "node scripts/evaluation-report.js"
+    "eval:report": "node scripts/evaluation-report.js",
+    "eval:review:compare": "node scripts/compare-recorded-reviews.js"
   },
   "dependencies": {
     "@langchain/core": "1.2.14",

@@ -61,4 +61,8 @@ npm run eval:report -- \
 
 ## 2026-10-12 全范围首轮结果
 
+后续已完成[Task 01 重点复核与校准](eval-results/2026-10-12-task01-calibration.md)，保留 v1 原记录和结果。`kai-recorded-review-v2` 不修改 `kai-content-v3` 十维或 Agent。校准版的每个低分/null需 `finding_attribution`，每轮 ASR 解释需只引用学生文本的 `asr_review`；原要求的解释变化保存在 `calibration_notes`。不可评范围类要求必须 null，不能生成数字通过。总结引用必须来自实际可评分轮次，来源诚实与学习条目覆盖分开报告。
+
+`npm run eval:review:compare -- --input INPUT --before V1 --after V2 --out NEW_DIRECTORY` 校验同一个绑定输入并保存比较、前报告和后报告。它不采集、不调用 Agent 或 Judge、不覆盖旧文件。新数字表示评分校准，不表示模型改进；97 轮重点重审、147 轮沿用以及独立审核缺口均明确保留。
+
 已尝试 40 个原始案例和 8 个语言对照，失败案独立新会话重跑，最终 47/48 案完整、244/255 轮有实际回复并完成模型辅助离线审阅。011 案仍缺 11 轮，11 项要求证据不足；独立 Judge API 调用 0 次、人工批准 false。逐轮要求、实际历史、证据位置、基线与全部失败尝试均独立保留，原数据和 Agent 未修改。见[完整结果与后续修改候选](eval-results/2026-10-12-freechat-baseline.md)及[机器可读结果](eval-results/2026-10-12-freechat-baseline.json)。这不是完整评分或 Task 10 的 Web／设备验收。

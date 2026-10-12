@@ -2,6 +2,7 @@ import { scoreCase,WEIGHTS,RUBRIC_VERSION } from './content.js';
 import { checkPreparedDataset } from './prepared-dataset.js';
 import { selectCases,profileMemory,sha256,comparableText } from './multiturn-plan.js';
 import { measureReply } from '../../../packages/agent-core/reply-policy.js';
+import { REVIEW_CALIBRATION_VERSION,validateCalibratedTurn } from './review-calibration.js';
 
 const assert=(ok,code)=>{if(!ok)throw new Error(code);};
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -100,6 +101,7 @@ export function evaluateRecorded(bundle,judgements) {
   assert(bundle.kind==='ask-kai-recorded-scoring-input'&&sha256(Buffer.from(JSON.stringify(original)))===bundle.artifact_sha256,'SCORING_ARTIFACT_CHANGED');
   assert(judgements?.kind==='ask-kai-recorded-judgements'&&judgements.version===1&&judgements.artifact_sha256===bundle.artifact_sha256&&['human','model','synthetic_example'].includes(judgements.source)&&/^[A-Za-z0-9_.-]{1,100}$/.test(judgements.judge_version??''),'INVALID_RECORDED_JUDGEMENTS');
   assert(bundle.execution!=='recorded_real_model'||judgements.source!=='synthetic_example','FIXTURE_SCORE_ON_REAL_RUN');
+  assert(judgements.review_calibration_version===undefined||judgements.review_calibration_version===REVIEW_CALIBRATION_VERSION,'UNKNOWN_REVIEW_CALIBRATION');
   const eligible=bundle.units.filter(u=>u.eligible),byId=new Map((judgements.units??[]).map(j=>[j.unit_id,j]));
   assert(byId.size===judgements.units?.length&&[...byId.keys()].every(id=>eligible.some(u=>u.id===id)),'UNKNOWN_OR_DUPLICATE_JUDGEMENT');
   const results=bundle.units.map(u=>{
@@ -114,6 +116,7 @@ export function evaluateRecorded(bundle,judgements) {
     for(const d of dimensions)validateEvidence(j.dimension_evidence[d],u);
     assert(Array.isArray(j.criteria)&&j.criteria.length===u.requirements.criteria.length&&new Set(j.criteria.map(c=>c.id)).size===j.criteria.length,'CRITERIA_JUDGEMENTS_REQUIRED');
     for(const c of j.criteria){assert(u.requirements.criteria.some(r=>r.id===c.id)&&[0,1,2,null].includes(c.score)&&nonempty(c.reason)&&c.reason.length<=500,'INVALID_CRITERION_SCORE');if(c.score!==null)validateEvidence(c.evidence,u);}
+    if(judgements.review_calibration_version)validateCalibratedTurn(u,j,validateEvidence);
     const critical=j.critical_failure||j.criteria.some(c=>c.score===0&&u.requirements.criteria.find(r=>r.id===c.id).kind==='critical');
     const scored=scoreCase(u.case,{...j,case_id:u.id,critical_failure:critical,human_review_approved:judgements.source==='human'&&j.human_review_approved===true});
     const comparable=j.asr_semantics==='equivalent'&&['valid','not_required'].includes(j.context_verdict);
@@ -121,16 +124,22 @@ export function evaluateRecorded(bundle,judgements) {
     return {...base,status:scored.blocked||criteriaFailed||dimensions.some(d=>scored.scores[d]===0)?'failed':scored.needs_review||criteriaReview||!comparable||dimensions.some(d=>scored.scores[d]===1)?'review':'passed',
       scores:scored.scores,score:scored.score,critical_failure:critical,blocked:scored.blocked,handoff_required:scored.handoff_required,handoff_delivered:scored.handoff_delivered,
       dimension_evidence:j.dimension_evidence,criteria:j.criteria,asr_semantics:j.asr_semantics,context_verdict:j.context_verdict,
+      ...(judgements.review_calibration_version?{asr_review:j.asr_review,finding_attribution:j.finding_attribution,calibration_notes:j.calibration_notes??{}}:{}),
       authored_case_comparable:comparable,needs_review:!comparable||scored.needs_review||criteriaReview,reason:j.reason??null};
   });
   const sumRows=judgements.summaries??[],summaryIds=new Set(sumRows.map(s=>s.case_id));
   assert(summaryIds.size===sumRows.length&&sumRows.every(s=>bundle.cases.some(c=>c.case_id===s.case_id)),'INVALID_SUMMARY_REVIEWS');
-  for(const s of sumRows)if(s.status==='scored'){assert([0,1,2].includes(s.score)&&nonempty(s.reason)&&Array.isArray(s.evidence_turns)&&s.evidence_turns.every(n=>Number.isInteger(n)&&n>=1&&n<=bundle.cases.find(c=>c.case_id===s.case_id).expected_turns),'INVALID_SUMMARY_EVIDENCE');}
+  for(const s of sumRows)if(s.status==='scored'){
+    const c=bundle.cases.find(c=>c.case_id===s.case_id),observed=bundle.units.filter(u=>u.case_id===s.case_id&&u.eligible).map(u=>u.turn);
+    assert(c.summary&&[0,1,2].includes(s.score)&&nonempty(s.reason)&&Array.isArray(s.evidence_turns)&&new Set(s.evidence_turns).size===s.evidence_turns.length&&(!observed.length||s.evidence_turns.length>0)&&s.evidence_turns.every(n=>observed.includes(n)),'INVALID_SUMMARY_EVIDENCE');
+  }
   const scored=results.filter(r=>r.scores),comparable=scored.filter(r=>r.authored_case_comparable);
   const mean=rows=>rows.length?rows.reduce((s,r)=>s+r.score,0)/rows.length:null;
   const report={version:1,kind:'ask-kai-recorded-score-report',artifact_sha256:bundle.artifact_sha256,execution:bundle.execution,agent_revision:bundle.agent_revision,
     runtime_digest:bundle.runtime_digest,dataset_version:bundle.dataset_version,dataset_sha256:bundle.dataset_sha256,model_version:bundle.model_version,
     rubric_version:RUBRIC_VERSION,weights:{...WEIGHTS},judge_source:judgements.source,judge_version:judgements.judge_version,
+    review_calibration_version:judgements.review_calibration_version??null,
+    review_mode:judgements.review_mode??null,external_judge_calls:judgements.external_judge_calls??null,
     coverage:{expected_cases:bundle.cases.length,expected_turns:results.length,eligible_turns:eligible.length,scored_turns:scored.length,comparable_turns:comparable.length,
       expected_criteria:bundle.units.filter(u=>u.eligible).reduce((n,u)=>n+u.requirements.criteria.length,0),scored_criteria:scored.reduce((n,r)=>n+r.criteria.filter(c=>c.score!==null).length,0),
       pending_turns:results.filter(r=>r.status==='pending').length,unassessable_turns:results.filter(r=>r.status==='unassessable').length,
@@ -139,6 +148,10 @@ export function evaluateRecorded(bundle,judgements) {
     collection_failures:bundle.cases.filter(c=>c.collection_status!=='collected').map(c=>({case_id:c.case_id,status:c.collection_status,failure:c.collection_failure})),
     content_scored:scored.length>0,complete_scoring:scored.length===results.length&&sumRows.filter(s=>s.status==='scored').length===bundle.cases.length&&scored.every(r=>r.criteria.every(c=>c.score!==null)),
     human_review_approved:false,real_experience_accepted:false,browser_audio_tested:false};
+  report.summary_coverage={observed_snapshots:bundle.cases.filter(c=>c.summary).length,empty_learning_snapshots:bundle.cases.filter(c=>c.summary&&!(c.summary.learning_items?.length)).length,
+    partial_collection_snapshots:bundle.cases.filter(c=>c.summary&&c.collection_status!=='collected').length,learning_items:bundle.cases.reduce((n,c)=>n+(c.summary?.learning_items?.length??0),0),
+    score_scope:'source_fidelity_contract_not_pedagogical_coverage'};
+  report.attribution_counts={};for(const r of results)for(const value of Object.values(r.finding_attribution??{}))report.attribution_counts[value]=(report.attribution_counts[value]??0)+1;
   report.issue_groups=aggregateIssues(bundle,report);return report;
 }
 export function aggregateIssues(bundle,report) {
@@ -151,6 +164,7 @@ export function aggregateIssues(bundle,report) {
     if(r.timing.response_context.some(c=>c.decision_context_matched===false))add('current_turn_policy_timing',r,'diagnostics.teaching.response');
     if(r.surface_hints?.budget_exceeded)add('reply_budget_surface',r,'surface_audit');
     if(r.scores)for(const d of dimensions)if(r.scores[d]<2)add(`content_${d}`,r,r.dimension_evidence[d]);
+    for(const [key,value]of Object.entries(r.finding_attribution??{}))add(`finding_${value}`,r,key);
   }
   for(const s of report.summaries)if(s.status==='scored'&&s.score<2)add('summary_content',s,s.evidence_turns);
   return [...groups.values()].map(g=>({...g,case_ids:[...g.case_ids],case_count:g.case_ids.size,occurrence_count:g.occurrences.length,

@@ -2,7 +2,7 @@
 
 这是一个独立运行的 Web POC，面向 HSK 1 初学者提供实时中文对话。身份、课程和偏好沿用 HSKai 接口边界，由本仓库的本地 mock 服务提供；无需对接 `wohuipteltd/HSKai`。学生可以自由聊天、围绕主题练习，或在完成 Mission 后继续对话。Kai 的语音由豆包实时全双工模型生成；Ask Kai 服务负责教学目标、会话状态、个性化、安全策略和学习证据。
 
-> **当前状态：独立 POC 的本地业务链路已可运行。** 基础工程第 1–7 步及当前体验 P0 的 Task 01–09 已完成工程实现；Task 10 真实语音／设备验收和真实内容观察仍待完成，详见下方进度表。身份、Mission 和偏好由本地 mock 提供；真实对话仍需豆包密钥与已核验的协议配置。工程测试通过不代表真实语音体验已验收。
+> **当前状态：独立 POC 的本地业务链路已可运行。** 基础工程第 1–7 步及体验 Task 01–09 已完成工程实现；普通 Web 真实纵向验收于 2026-10-12 由用户确认完成。真实内容已有首轮采集及模型辅助复核，剩余设备场景、采集缺口、人工校准与改造后回归分别保留。身份、Mission 和偏好由本地 mock 提供。详见[完整收尾 TODO](docs/poc-completion-todo.md)。
 
 ## 本地运行
 
@@ -108,6 +108,8 @@ npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-
 **当前实施顺序（2026-10-11）：先完善评测工具／运行器／评分器，固定现有 Agent 基线，再跑全量并分析修改面。** 本阶段暂缓策略时序、提示词与教学行为调整；首案发现作为问题证据保留。完整 tasking 和两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)。
 
 本轮结果和[机器可读逐轮记录](docs/eval-results/2026-10-12-freechat-baseline.json)已发布：系统性策略时序、口头总结密度、动态语言选择、澄清与错误纠正、总结空态覆盖是后续对照与 Agent harness 设计候选。全部 244 轮的十维和逐项要求保留证据定位；根因仍是待验证假设，Agent 基线未改，Task 10 未完成。
+
+**收尾 Task 01 评分复核已交付**：[校准结果与可信问题清单](docs/eval-results/2026-10-12-task01-calibration.md)及[前后比较／逐轮结果](docs/eval-results/2026-10-12-task01-calibration.json)。同一原始记录重点复核 97 轮，147 轮沿用 v1；失败 36→20，ASR 实质偏离 42→8，另有 7 轮不确定，19 项要求不可评。没有修改 Agent、作者数据或十维权重，没有重新调用豆包／独立 Judge，未人工批准；分数变化不代表 Agent 改善。下一步收尾 Task 02 仅处理采集与证据，完整顺序见[收尾 TODO](docs/poc-completion-todo.md)。
 
 逐轮[真实记录评分适配](docs/recorded-scoring.md)已实现：`npm run eval:recorded` 生成现有十维的评分输入、逐项要求与证据模板；`npm run eval:report` 汇总完整分母、失败分类和跨案例问题。模板未填或 Judge 未配置时明确保留未评分，不把采集成功当作内容通过。批量入口和实际执行记录见该文档。
 
