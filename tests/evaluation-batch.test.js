@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile,mkdtemp,rm } from 'node:fs/promises';
+import { readFile,writeFile,mkdir,mkdtemp,rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { BASELINE_PATH,verifyEvaluationBaseline,planEvaluationBatches } from '../apps/eval-runner/src/eval-baseline.js';
@@ -16,6 +16,21 @@ test('fixed baseline permits evaluation changes and rejects runtime/dependency/d
   await assert.rejects(verifyEvaluationBaseline({baseline:pinned,dataBytes:Buffer.from('changed'),profileBytes,read,files}),/INPUT_DRIFT/);
   await assert.rejects(verifyEvaluationBaseline({baseline:pinned,dataBytes,profileBytes,read:(p,...args)=>p===key?Buffer.from('changed'):readFile(p,...args),files}),/RUNTIME_DRIFT/);
   await assert.rejects(verifyEvaluationBaseline({baseline:pinned,dataBytes,profileBytes,read,files:()=>[]}),/FILE_SET_DRIFT/);
+});
+
+test('candidate replay validates and copies exact authored PCM without synthesizing or silently repairing missing input',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'kai-replay-batch-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const cases=selectCases(data,{limit:1}),c=cases[0],fixtures=join(root,'inputs'),caseDir=join(fixtures,c.id);
+  await mkdir(caseDir,{recursive:true});const bytes=Buffer.alloc(640);bytes.writeInt16LE(20);
+  const entries=[];for(const turn of c.turns){const path=`${turn.turn}.pcm`;await writeFile(join(caseDir,path),bytes);entries.push({case_id:c.id,turn:turn.turn,path,source:'authored_tts',bytes:bytes.length,sha256:sha256(bytes),script_sha256:sha256(Buffer.from(turn.text))});}
+  await writeFile(join(caseDir,'audio-manifest.json'),JSON.stringify({version:1,kind:'ask-kai-eval-input-audio',dataset_sha256:sha256(dataBytes),format:'pcm_s16le',sample_rate:16000,channels:1,entries}));
+  let calls=0;const info={agent_revision:baseline.agent_revision,runtime_digest:'c'.repeat(64),baseline_verified:false,candidate_verified:true,evaluation_contract_kind:'candidate'};
+  const collect=async({inputs})=>{calls++;assert.deepEqual(inputs.get(`${c.id}/1`).bytes,bytes);return {observations:{cases:[{case_id:c.id,entry:'free',kind:c.kind,initial_profile:c.initial_profile,expected_turns:c.turns.length,status:'collected',failure:null,turns:c.turns.map(t=>({turn:t.turn,script_input:t.text,input_source:'authored_tts',actual_student_transcript:t.text,actual_kai:'你好。',reply_complete:true})),summary:{focus:'conversation_only'},session_terminal:'session.closed'}]}};};
+  const run=async(name,extra={})=>{const directory=join(root,name);await mkdir(directory);return runEvaluationBatch({data,dataSha:sha256(dataBytes),cases,profile,env:{DOUBAO_API_KEY:'fixture-only-key',GITHUB_SHA:'a'.repeat(40)},directory,baselineInfo:info,observationScope:'candidate_collection',replayInputsRoot:fixtures,prepare:async()=>assert.fail('replay must not synthesize'),collect,...extra});};
+  const good=await run('good');assert.equal(good.report.completed_cases,1);assert.equal(good.observations.cases[0].input_audio_origin,'replayed_authored_tts');
+  assert.deepEqual(await readFile(join(root,'good',c.id,'turn-1.pcm')),bytes);
+  await writeFile(join(caseDir,'1.pcm'),Buffer.alloc(640));const bad=await run('bad');assert.equal(bad.report.completed_cases,0);assert.equal(bad.observations.cases[0].failure,'AUDIO_HASH_MISMATCH');assert.equal(calls,1);
+  await assert.rejects(run('old',{observationScope:'baseline_collection'}),/CANDIDATE_INPUT_REPLAY_REQUIRED/);
 });
 test('balanced batches include all 48 cases and 255 turns exactly once; retry selection never includes successful cases implicitly',()=>{
   const plan=planEvaluationBatches(data);assert.equal(plan.length,8);assert.equal(new Set(plan.flatMap(b=>b.case_ids)).size,48);assert.equal(plan.reduce((s,b)=>s+b.turns,0),255);

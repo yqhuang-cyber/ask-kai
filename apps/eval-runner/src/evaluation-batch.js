@@ -1,4 +1,4 @@
-import { mkdir,readFile } from 'node:fs/promises';
+import { mkdir,readFile,writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { selectCases,readAudioManifest,sha256 } from './multiturn-plan.js';
@@ -33,9 +33,10 @@ export function validateBatchRequest(request,{baseline,data,dataSha,profileBytes
 }
 
 export async function runEvaluationBatch({data,dataSha,cases,profile,env,directory,baselineInfo,signal,onProgress=()=>{},
-  prepare=prepareInputAudio,collect=runMultiturn,readInputs=readAudioManifest,synthesize=synthesizeInput,observationScope='baseline_collection'}={}) {
+  prepare=prepareInputAudio,collect=runMultiturn,readInputs=readAudioManifest,synthesize=synthesizeInput,observationScope='baseline_collection',replayInputsRoot=null}={}) {
   if(!['baseline_collection','task02_independent_diagnostic','candidate_collection'].includes(observationScope))throw new Error('INVALID_OBSERVATION_SCOPE');
   if(observationScope==='candidate_collection'&&(baselineInfo.candidate_verified!==true||baselineInfo.evaluation_contract_kind!=='candidate'||baselineInfo.baseline_verified!==false))throw new Error('VERIFIED_CANDIDATE_REQUIRED');
+  if(replayInputsRoot&&observationScope!=='candidate_collection')throw new Error('CANDIDATE_INPUT_REPLAY_REQUIRED');
   const scoped=scopedEvaluationProfile(profile);
   if(!preflight(profile,env).live_eligible)throw new Error('SERVER_CREDENTIAL_REQUIRED');
   const observations={version:1,kind:'ask-kai-multiturn-observations',run_id:`batch-${randomUUID()}`,execution:'recorded_real_model',
@@ -68,9 +69,24 @@ export async function runEvaluationBatch({data,dataSha,cases,profile,env,directo
     let phase='input_audio_preparation';
     try {
       const caseDir=join(directory,c.id);await mkdir(caseDir,{mode:0o700});
-      await prepare({cases:[c],datasetSha256:dataSha,profile:scoped,env,directory:caseDir,signal,timeoutMs:45000,protocolProbe:true,onProgress,
+      if(!replayInputsRoot)await prepare({cases:[c],datasetSha256:dataSha,profile:scoped,env,directory:caseDir,signal,timeoutMs:45000,protocolProbe:true,onProgress,
         synthesize:async args=>{const hash=sha256(Buffer.from(args.text));if(!audioCache.has(hash))audioCache.set(hash,await synthesize({...args,createProvider:options=>observer(options,c.id,'authored_input_tts')}));return audioCache.get(hash);}});
-      const inputs=await readInputs(join(caseDir,'audio-manifest.json'),[c],{datasetSha256:dataSha});
+      const manifestPath=join(replayInputsRoot?join(replayInputsRoot,c.id):caseDir,'audio-manifest.json');
+      let inputs=await readInputs(manifestPath,[c],{datasetSha256:dataSha});
+      row.input_audio_origin=replayInputsRoot?'replayed_authored_tts':'synthesized_within_batch_cache';
+      // Replayed bytes are validated first, then saved under canonical paths.
+      // The new artifact remains independently replayable; no teacher record is read.
+      if(replayInputsRoot) {
+        const entries=[];
+        for(const turn of c.turns) {
+          const input=inputs.inputs.get(`${c.id}/${turn.turn}`),path=`turn-${turn.turn}.pcm`;
+          await writeFile(join(caseDir,path),input.bytes,{mode:0o600,flag:'wx'});
+          entries.push({case_id:c.id,turn:turn.turn,path,source:input.source,bytes:input.bytes.length,sha256:input.sha256,script_sha256:sha256(Buffer.from(turn.text))});
+        }
+        await atomicPrivateJson(join(caseDir,'audio-manifest.json'),{version:1,kind:'ask-kai-eval-input-audio',dataset_sha256:dataSha,format:'pcm_s16le',sample_rate:16000,channels:1,entries});
+        row.input_fixture_manifest_sha256=inputs.manifest_sha256;
+        inputs=await readInputs(join(caseDir,'audio-manifest.json'),[c],{datasetSha256:dataSha});
+      }
       row.audio_manifest_sha256=inputs.manifest_sha256;phase='agent_collection';
       const result=await collect({cases:[c],inputs:inputs.inputs,profile:scoped,env,signal,candidateRevision:env.GITHUB_SHA,datasetVersion:data.dataset_version,
         datasetSha256:dataSha,manifestSha256:inputs.manifest_sha256,protocolProbe:true,turnTimeoutMs:45000,onProgress,

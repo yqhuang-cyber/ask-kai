@@ -26,7 +26,9 @@ npm run eval:candidate -- verify \
 
 [候选评测工作流](../.github/workflows/candidate-evaluation.yml)和 `scripts/actions-candidate-evaluation.js`只在 main 的专用 `.github/live/candidate-evaluation-request.json`变更或显式启动时运行。05-01不创建请求文件，普通代码提交与日常持续集成不调用真实豆包。
 
-请求绑定版本1、`ask_kai_candidate_evaluation`、唯一运行编号、05子任务、实现／父提交、全部允许运行文件变更、原数据与profile哈希、案例列表、8个批次、每批20分钟预算及明确的重跑来源。案例为空表示48案；指定列表则只跑所列整案。最大并行2批；失败留证并继续其他案例，不自动重试，不使用参考前文。
+请求绑定版本1、`ask_kai_candidate_evaluation`、唯一运行编号、05子任务、实现／父提交、全部允许运行文件变更、原数据与profile哈希、案例列表、1～8个批次、每批20分钟预算及明确的重跑来源。案例为空表示48案；指定列表则只跑所列整案。最大并行2批；失败留证并继续其他案例，不自动重试，不使用参考前文。
+
+语言对照使用一个批次，同文字在该批内复用同一合成PCM。显式 `input_fixture_run` 可引用先前候选运行：只读取并验证输入manifest及PCM，重新保存已校验音频；不读取Kai回复。缺失、脚本／数据／音频哈希不符即记录采集失败，不偷偷重合成。全量运行的不同批次仍可能有不同合成音频，不宣称原历史基线同音频。
 
 已有GitHub Secret `DOUBAO_API_KEY`供工作流使用；本入口不配置或调用独立评分模型。学生脚本经合成音频进入相同Agent网关和本地mock，每案实际Kai前文由供应商会话生成。新合成音频及manifest与记录保留为私有Artifact7天，以支持后续按字节回归；没有录制真实学习者。
 

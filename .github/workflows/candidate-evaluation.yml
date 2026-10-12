@@ -6,6 +6,7 @@ on:
     paths: ['.github/live/candidate-evaluation-request.json']
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: poc-candidate-evaluation
   cancel-in-progress: false
@@ -28,6 +29,18 @@ jobs:
         with:
           node-version: 24
       - run: npm ci --ignore-scripts
+      - name: Read fixed input run
+        id: fixture
+        run: |
+          node --input-type=module -e 'import {readFileSync,appendFileSync} from "node:fs"; const r=JSON.parse(readFileSync(".github/live/candidate-evaluation-request.json")); const id=r.input_fixture_run; if(id!=null) {if(!Number.isSafeInteger(id)||id<1)throw new Error("INVALID_INPUT_FIXTURE_RUN");appendFileSync(process.env.GITHUB_OUTPUT,`run_id=${id}\n`);}'
+      - uses: actions/download-artifact@v4
+        if: steps.fixture.outputs.run_id != ''
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.fixture.outputs.run_id }}
+          pattern: candidate-*
+          merge-multiple: true
+          path: .local/candidate-input-fixtures
       - name: Collect explicitly declared candidate
         env:
           DOUBAO_API_KEY: ${{ secrets.DOUBAO_API_KEY }}
