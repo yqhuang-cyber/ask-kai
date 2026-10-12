@@ -1,7 +1,7 @@
 {
   "version": 1,
   "kind": "ask_kai_candidate_evaluation",
-  "request_id": "candidate-2026-10-12-06",
+  "request_id": "candidate-2026-10-13-01",
   "stage": "05-09",
   "agent_revision": "93b5cfff6a6c7ef256aa43a553bcd696974a1773",
   "parent_agent_revision": "25c69703f1afab4166551cf76b3f32ef1264eb22",
@@ -19,9 +19,13 @@
   ],
   "dataset_sha256": "8d32f2b2729fcc5a01875781ab1f28db12d8c07e5cd2ecf0d8848f959542406a",
   "profile_sha256": "dc1a5bbd61c67969313f85286af1b872591a732225d55487302e3bc561bfafc0",
-  "batch_count": 8,
+  "batch_count": 1,
   "duration_ms": 1200000,
-  "case_ids": [],
-  "rerun_of": null,
-  "input_fixture_run": null
+  "case_ids": [
+    "ask-kai-v2-010",
+    "ask-kai-v2-011",
+    "ask-kai-v2-018"
+  ],
+  "rerun_of": 38275000717,
+  "input_fixture_run": 38275000717
 }
