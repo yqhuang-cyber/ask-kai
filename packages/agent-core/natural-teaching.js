@@ -1,12 +1,14 @@
 // Conservative, session-local rules over validated final ASR; not a semantic judge.
-export const TEACHING_POLICY_VERSION='kai-teaching-v2';
+export const TEACHING_POLICY_VERSION='kai-teaching-v3';
 export const TEACHING_COOLDOWN_TURNS=2;
 export const TEACHING_ACTIONS=Object.freeze(['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE']);
-export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
+export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
 export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY_VERSION}：每个完整学生回合只选一个主要动作，先回应当前意图，再考虑目标。
 学生明确结束：只简短告别，不追加问题、练习邀请、下次任务或口头知识点复盘；“如果你愿意可以再练”也属于邀请。当前语言规则同样适用于告别。不要把提到“再见”、翻译请求或引语当成结束。结束按钮立即停止，口头告别不关闭学生麦克风；学生明确继续后接住当前话题。
 学生拒绝练习或换题：直接接住当前内容，暂停原目标，不示范旧目标、不要求理由、不邀请重试。只有学生明确求助于原目标或恢复该练习才重新激活。新话题或“这个词／句子”的表达求助只处理该表达，不激活旧目标；提到旧关键词、正确目标句或普通聊天也不构成恢复许可。
-意思不清楚：先问一个简短澄清问题，不猜意图、不先纠错；如果仍不清楚，给低压回应并等待，不连续追问。单词、英文或混合回答都有效，不等于表达能力差。
+先用实际前文理解学生所指，再决定是否澄清；“这个／that”不是必须澄清的关键词。如果所指对象或词义在实际前文已明确，直接接住，不重复确认。翻译、表达求助中的多义词缺少必要对象／含义时，先问一个短问题，暂不给猜测式翻译；如 bank 未说明含义，不能擅自选银行。
+意思仍不清楚：只问一个容易回答的澄清问题，不同时解释多个可能意思、不猜意图、不先纠错；连续仍不清楚时给低压回应并等待，不轮番追问。学生明确含义后才给相关示范。只使用实际会话中的前文；参考答案、未来输入、画像兴趣不能补成学生意图。单词、英文或混合回答都有效，不等于表达能力差。
+纠正契约：意思明确且表达正确时直接交流，不制造错误。“喜欢＋名词”和“喜欢＋动词短语”都成立，例如“我喜欢音乐”无需补动词；扩展示范不是必需修正。只针对实际输入中能确认、且影响当前意思的错误给一次轻柔修正，保留学生原意；不确定转写或含义先确认。学生拒绝纠错后不要继续测试。不要把转写、重复、教师示范或供应商音频当成发音评估，也不声称掌握或独立使用。
 主题对话只围绕一个主要目标；Mission 只取可信任务的第一个目标，承接到生活，不照读所有目标；开放对话以交流为先，不预设运动目标。明确求助可给一个与当前表达相关的短示范；普通问题先回答，不附加知识点。
 学生已尝试目标句：转入内容交流，减少支架，不反复让学生跟读；最终转写不能证明掌握或发音。只有相关短答案且学生愿意时才轻量引出目标。一次至多一个新点、一个短示范；主动引导同一目标最多一次，之后由学生求助决定。
 教学或示范后至少隔两个完整学生回合再引入新点；中间继续交流、接住求助或给低压选择，避免重复解释。不给沉默安排定时催促。
@@ -25,6 +27,7 @@ const practiceIntent=/(?:继续(?:练习|学习|复习)|我(?:想|要|愿意)(?:
 const helpIntent=/(?:中文怎么(?:说|讲)|怎么用中文(?:说|讲)|这(?:个)?(?:句子|词|表达)怎么说|教我(?:说|一句|中文)|不会说|说不出来)|\b(?:how (?:do|can|would) (?:i|you|we) say|how to say|teach me|help me say)\b/iu;
 const languageQuestion=/(?:什么意思|是什么(?:意思)?|怎么说|怎么讲)|\b(?:what does\b.*\bmean|how (?:do|can|would) (?:i|you|we) say|how to say)\b/iu;
 const unclearInput=/^(?:那个|这个|那个什么|不知道|我不知道|不确定|听不懂|什么意思|你说什么|没听清|嗯|啊|呃|what|huh|i don'?t know|not sure|it|that|this)[。.!！?？\s]*$/iu;
+const referenceInput=/^(?:那个|这个|it|that|this)[。.!！?？\s]*$/iu;
 const questionInput=/[?？]|(?:为什么|什么时候|怎么|什么|如何|哪里|哪儿|吗[。！!\s]*$)|^(?:what|why|when|where|who|how|can|do|does|is|are|will|would|could)\b/iu;
 const sportsWord=/(?:足球|篮球|跑步|游泳)|\b(?:football|soccer|basketball|running|swimming)\b/iu;
 const preferenceCue=/^(?:(?:我)?(?:很)?喜欢)?(?:足球|篮球|跑步|游泳)[。.!！\s]*$|^(?:(?:i (?:really )?like|i love)(?: playing)? )?(?:football|soccer|basketball|running|swimming)[。.!！\s]*$/iu;
@@ -41,7 +44,7 @@ export class NaturalTeaching {
     this.goal=mode==='sports'?{id:'express-likes',source:'ask-kai-authored-curriculum'}:mode==='mission'?{id:'mission-target-1',source:'authorized-hskai-mission'}:null;
     this.likesGoal=mode==='sports' || (mode==='mission' && /我喜欢|表达喜好/.test(mission.targets[0]));
     this.turns=0;this.paused=false;this.clarificationPending=false;this.goalAttempted=false;
-    this.lastTeachingTurn=null;this.autoTeachingUsed=false;this.decision=null;
+    this.lastTeachingTurn=null;this.autoTeachingUsed=false;this.decision=null;this.priorInputTurn=null;
   }
   select(event,contextVersion) {
     this.turns++;
@@ -53,6 +56,7 @@ export class NaturalTeaching {
     const cooldown=this.lastTeachingTurn===null?0:Math.max(0,TEACHING_COOLDOWN_TURNS+1-(this.turns-this.lastTeachingTurn));
     const attempted=!!this.goal && this.likesGoal && sportsAttempt(event.payload.text);
     if(attempted)this.goalAttempted=true;
+    const referenceTurn=referenceInput.test(text)?this.priorInputTurn:null;
     let action='RESPOND',reason='conversation_first',support='none';
     if(ended){this.paused=true;action='CLOSE';reason='student_end';}
     else if(declined || changed){this.paused=true;reason=declined?'student_declined':'student_changed_topic';}
@@ -60,6 +64,7 @@ export class NaturalTeaching {
       if(relatedHelp || practice)this.paused=false;
       if(unclearInput.test(text) || !text) {
         if(this.clarificationPending){reason='clarification_limit';support='choice';}
+        else if(referenceTurn){reason='prior_context_reference';}
         else{action='CLARIFY_INTENT';reason='unclear_input';support='choice';}
       } else if(help || practice) {
         reason=help?'student_requested_help':'student_requested_practice';
@@ -75,14 +80,17 @@ export class NaturalTeaching {
     // Keep the clarification limit until a substantive answer or new intent,
     // rather than alternating repeated requests to clarify.
     this.clarificationPending=reason==='clarification_limit' || action==='CLARIFY_INTENT';
+    if(ended||declined||changed)this.priorInputTurn=null;
+    else if(text&&!unclearInput.test(text))this.priorInputTurn=event.turn_id;
     if(action==='TEACH_TARGET')this.lastTeachingTurn=this.turns;
     const goal=ended || this.paused || help && !relatedHelp?null:this.goal;
     this.decision={policy_version:TEACHING_POLICY_VERSION,session_id:event.session_id,source_event_id:event.event_id,turn_id:event.turn_id,context_version:contextVersion,turn_count:this.turns,mode:this.mode,action,reason,interaction:action==='TEACH_TARGET'?'teach':'chat',support_level:support,new_points:action==='TEACH_TARGET'?1:0,goal_id:goal?.id??null,goal_source:goal?.source??null,goal_attempt_observed:this.goalAttempted,teaching_paused:this.paused,clarification_pending:this.clarificationPending,teaching_cooldown:action==='TEACH_TARGET'?TEACHING_COOLDOWN_TURNS:cooldown,advisory:true};
+    this.decision.reference_context_turn_id=referenceTurn;
     return {...this.decision};
   }
   context() {
     if(!this.decision)return '尚无已确认学生回合；按当前输入选择动作。';
-    const {action,reason,support_level,turn_count,teaching_paused,clarification_pending,teaching_cooldown,goal_attempt_observed,goal_id,context_version,turn_id}=this.decision;
-    return `以下 JSON 仅为最近一次已确认话轮的状态；不要求下一轮重复该动作。学生最新意图优先：${JSON.stringify({action,reason,support_level,turn_count,teaching_paused,clarification_pending,teaching_cooldown,goal_attempt_observed,goal_id,context_version,source_turn_id:turn_id})}`;
+    const {action,reason,support_level,turn_count,teaching_paused,clarification_pending,teaching_cooldown,goal_attempt_observed,goal_id,context_version,turn_id,reference_context_turn_id}=this.decision;
+    return `以下 JSON 仅为最近一次已确认话轮的状态；不要求下一轮重复该动作。reference_context_turn_id仅提示已有实际前文，不证明指代明确；是否澄清仍检查实际会话。学生最新意图优先：${JSON.stringify({action,reason,support_level,turn_count,teaching_paused,clarification_pending,teaching_cooldown,goal_attempt_observed,goal_id,context_version,source_turn_id:turn_id,reference_context_turn_id})}`;
   }
 }

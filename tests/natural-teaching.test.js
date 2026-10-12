@@ -78,6 +78,13 @@ test('ambiguity asks once then waits; substantive answers clear clarification st
   assert.equal(say('不确定').action,'CLARIFY_INTENT');
 });
 
+test('bare references use only prior accepted input while unresolved clarification remains bounded',()=>{
+  const {say}=learner('free');assert.equal(say('that').action,'CLARIFY_INTENT');assert.equal(say('this').reason,'clarification_limit');
+  say('我喜欢音乐');const ref=say('that');assert.equal(ref.reason,'prior_context_reference');assert.equal(ref.reference_context_turn_id,'t3');assert.equal(ref.new_points,0);
+  assert.equal(learner('free').say('that').reference_context_turn_id,null);
+  say('我不想练习');assert.equal(say('这个').action,'CLARIFY_INTENT');
+});
+
 test('short acknowledgements/English answers do not automatically imply ambiguity or a teaching need',()=>{
   for(const text of ['yes','no','okay','ok','好的']) {
     const {say}=learner();const d=say(text);assert.equal(d.action,'RESPOND',text);assert.equal(d.new_points,0,text);
