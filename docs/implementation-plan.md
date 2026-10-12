@@ -1,5 +1,7 @@
 # Incremental delivery
 
+2026-10-12 收尾 Task 03 完成本轮预注册根因对照：4主案、16新会话／40输入步骤均有效，直接复用 Task 02音频。只中文请求均识别为off但有2次仍带英文；ACK后置既有违规也有6个遵守反例，旧双语上下文干扰有支持，精确因果未完全隔离。040／036残段与Hmm超时本轮未复现，旧根因不冒充已修复。Agent、原基线与评分未改；下一项是 Task 04最小 POC Harness设计。见[结果](eval-results/2026-10-12-task03-root-cause.md)和[预注册范围](task03-root-cause-plan.md)。
+
 2026-10-12 收尾 Task 02 已交付评测侧采集证据及独立真实诊断，未改 Agent：5 案／32 轮中 29 轮有效，011 完整，036 跨轮残段未复现，040 多 ASR 停止留证。失败片段计完整／进入评分的问题已修正；内部记忆与实际播放继续未覆盖。旧基线与 Task 01 分数保持原样，下一项是 Task 03 根因验证。见[Task 02 报告](eval-results/2026-10-12-task02-evidence.md)和[完整收尾 TODO](poc-completion-todo.md)。
 
 ## Evaluation before Agent changes (2026-10-11)
