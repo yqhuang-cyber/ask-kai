@@ -3,9 +3,9 @@ import { SPORTS_LESSON } from './lessons.js';
 import { sportsExpression } from './natural-teaching.js';
 import { GENERAL_EXPRESSIONS,EXPRESSION_DIRECTORY_VERSION,RECAP_TOPICS,directExpression,forwardedExpressionRanges,expressionRequest } from './summary-directory.js';
 
-export const SUMMARY_POLICY_VERSION='kai-summary-v2';
+export const SUMMARY_POLICY_VERSION='kai-summary-v3';
 export const SUMMARY_SCHEMA_VERSION=2;
-export const SUMMARY_LIMITS=Object.freeze({reply_chars:4096,text_events:256,refs_per_item:5,view_attempts:20,forward_events:10000});
+export const SUMMARY_LIMITS=Object.freeze({reply_chars:4096,text_events:256,refs_per_item:5,view_attempts:20,forward_events:10000,pending_replies:8});
 // Versioned authored expressions already covered by the sports attempt rule.
 // This is a bounded POC vocabulary, not inferred HSK alignment or a general judge.
 export const SUMMARY_EXPRESSIONS=Object.freeze([
@@ -42,7 +42,7 @@ function retained(refs,value) {
 export class LearningSummary {
   constructor({sessionId,mode,mission}) {
     Object.assign(this,{sessionId,mode});this.closed=false;this.finalTurns=0;
-    this.requests=new Map();this.items=new Map();this.scaffolds=new Map();
+    this.finalTurnIds=new Set();this.pendingReplies=new Map();this.requests=new Map();this.items=new Map();this.scaffolds=new Map();
     this.forwardEvents=new Set();this.responseIds=new Set();this.active=null;this.completedReplies=0;
     this.unassessedReplies=0;
     this.recapTopics=new Map();this.recapExpressions=new Map();
@@ -66,9 +66,15 @@ export class LearningSummary {
   }
   recordFinal(event,decision) {
     if(this.closed)return null;
-    this.finalTurns++;
+    this.finalTurns++;this.finalTurnIds.add(event.turn_id);
     this.observeStudent(event);
     if(decision.action==='TEACH_TARGET'||expressionRequest(event.payload.text))this.requests.set(event.turn_id,{source_event_id:event.event_id,context_version:decision.context_version});
+    const attempt=this.attemptFromFinal(event);
+    const pending=this.pendingReplies.get(event.turn_id);
+    if(pending){this.pendingReplies.delete(event.turn_id);if(this.requests.has(event.turn_id))this.observeReply(pending.reply,pending.done);}
+    return attempt;
+  }
+  attemptFromFinal(event) {
     const expression=sportsExpression(event.payload.text)??(this.mode==='free'?GENERAL_EXPRESSIONS.find(e=>directExpression(event.payload.text,e))?.text:null);if(!expression || !this.matches(expression))return null;
     const scaffold=this.scaffolds.get(expression);
     if(this.mode==='free' && (!scaffold || scaffold.input_order>=this.finalTurns))return null;
@@ -104,7 +110,15 @@ export class LearningSummary {
   }
   observeReply(reply,done) {
     const request=this.requests.get(reply.turn);
-    if(this.mode==='free' && !request)return;
+    if(this.mode==='free' && !request){
+      if(!this.finalTurnIds.has(reply.turn)) {
+        // Completed forwarded text may precede final ASR; keep only a bounded owned lane.
+        if(this.pendingReplies.has(reply.turn))return;
+        if(this.pendingReplies.size>=SUMMARY_LIMITS.pending_replies){this.pendingReplies.delete(this.pendingReplies.keys().next().value);this.unassessedReplies++;}
+        this.pendingReplies.set(reply.turn,{reply,done});
+      }
+      return;
+    }
     // Require a whole affirmative expression with a boundary, not a keyword.
     const pattern=/(?:^|[。！!，,；;：:\n“「"\s])(我(?:很)?喜欢(?:踢足球|打篮球|足球|篮球|跑步|游泳))(?=[。！!.,，；;”」"]|$)/gu;
     const observations=[...reply.text.matchAll(pattern)].map(match=>({expression:sportsExpression(match[1]),from:match.index+match[0].length-match[1].length,to:match.index+match[0].length}));
@@ -121,6 +135,7 @@ export class LearningSummary {
     }
   }
   stop(id) {
+    for(const [turn,pending] of this.pendingReplies)if(!id || pending.reply.id===id)this.pendingReplies.delete(turn);
     if(!id || this.active?.id===id)this.active=null;
     for(const [expression,scaffold] of this.scaffolds)if(!id || scaffold.response_id===id)this.scaffolds.delete(expression);
     for(const item of this.items.values())for(const ref of item.target_text_refs)if(!id || ref.response_id===id)ref.interrupted=true;
@@ -128,7 +143,7 @@ export class LearningSummary {
   finalize({evidence,outcome='ended',endReason='student_end',businessSource='unconfigured',providerKind='test',ready=false}) {
     if(this.result)return structuredClone(this.result);
     if(!['ended','failed'].includes(outcome) || !endReasons.has(endReason))throw new Error('INVALID_SUMMARY_END');
-    this.closed=true;this.active=null;this.requests.clear();this.scaffolds.clear();
+    this.closed=true;this.active=null;this.unassessedReplies+=this.pendingReplies.size;this.pendingReplies.clear();this.finalTurnIds.clear();this.requests.clear();this.scaffolds.clear();
     const suppressed=['authorization_revoked','safety_restricted'].includes(endReason);
     const items=[];
     if(!suppressed)for(const item of this.items.values()) {

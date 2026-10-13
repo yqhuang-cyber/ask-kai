@@ -16,7 +16,7 @@ function projectRecap(recap,sessionId,finalTurns) {
 }
 export function projectSummary(packet,{sessionId,mode}) {
   const s=packet?.summary;
-  if(packet?.type!=='teaching.summary' || packet.session_id!==sessionId || !id(sessionId) || !Object.hasOwn(modes,mode) || s?.session_id!==sessionId || s.mode!==mode || !(s.schema_version===1&&s.policy_version==='kai-summary-v1'||s.schema_version===2&&s.policy_version==='kai-summary-v2') || !focuses.has(s.focus))return null;
+  if(packet?.type!=='teaching.summary' || packet.session_id!==sessionId || !id(sessionId) || !Object.hasOwn(modes,mode) || s?.session_id!==sessionId || s.mode!==mode || !(s.schema_version===1&&s.policy_version==='kai-summary-v1'||s.schema_version===2&&['kai-summary-v2','kai-summary-v3'].includes(s.policy_version)) || !focuses.has(s.focus))return null;
   if(!['ended','failed'].includes(s.outcome) || typeof s.partial!=='boolean' || !['mock_hskai','external_hskai','unconfigured'].includes(s.business_source) || !['not_connected','synthetic','real_provider'].includes(s.voice?.kind) || s.voice.real_experience_accepted!==false)return null;
   if(!count(s.counts?.attempts) || !count(s.counts.student_final_turns) || !count(s.counts.forwarded_completed_replies,10000) || !line(s.headline?.zh) || !line(s.headline.en))return null;
   if(!Array.isArray(s.goals) || s.goals.length>1 || !Array.isArray(s.learning_items) || s.learning_items.length>4 || !Array.isArray(s.review_suggestions) || s.review_suggestions.length>1 || s.assessment?.mastery_assessed!==false || s.assessment.pronunciation_assessed!==false || s.assessment.independent_use_assessed!==false)return null;

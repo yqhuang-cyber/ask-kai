@@ -182,3 +182,33 @@ test('provider terminal event finalizes once; synchronous late failure during cl
   assert.equal(packets.filter(p=>p.type==='teaching.summary').length,1);const s=packets.find(p=>p.type==='teaching.summary').summary;assert.equal(s.outcome,'ended');assert.equal(s.end_reason,'provider_closed');assert.equal(s.counts.attempts,1);
   assert.ok(!packets.some(p=>p.type==='session.failed'));
 });
+
+test('completed owned text before final ASR links once and never credits the same turn as an attempt',()=>{
+  const x=unit('free'),r=x.reply(['“苹果”。 Apple.'],{turn_id:'t1',response_id:'early'});
+  const final=x.say('What is apple in Chinese?');
+  assert.equal(x.teaching.view().attempts.length,0);
+  const learner=x.say('苹果。');const s=x.finish();
+  assert.equal(s.learning_items.length,1);assert.equal(s.learning_items[0].target_text_count,1);
+  assert.equal(s.learning_items[0].target_text_refs[0].request_event_id,final.event_id);
+  assert.equal(s.learning_items[0].target_text_refs[0].completion_event_id,r.done.event_id);
+  assert.equal(s.counts.forwarded_completed_replies,1);assert.equal(s.counts.attempts,1);
+  assert.equal(s.learning_items[0].attempt_refs[0].source_event_id,learner.event_id);
+  const same=unit('free');same.reply(['可以说：我喜欢足球。'],{turn_id:'t1',response_id:'early'});
+  same.say('How do I say 我喜欢足球 in Chinese?');assert.equal(same.finish().counts.attempts,0);
+});
+test('late-final summary linking respects turn ownership, stop fences and absence of an expression request',()=>{
+  for(const kind of ['wrong-turn','stopped','ordinary','unfinished']) {
+    const x=unit('free'),ids={turn_id:kind==='wrong-turn'?'other':'t1',response_id:'early'};
+    if(kind==='unfinished'){x.forward(x.event('response.started',undefined,ids));x.forward(x.event('response.text.delta','苹果。',ids));}
+    else x.reply(['苹果。'],ids);
+    if(kind==='stopped')x.teaching.forward({type:'output.stop',response_id:'early'});
+    x.say(kind==='ordinary'?'今天不错':'What is apple in Chinese?');
+    const s=x.finish();assert.equal(s.learning_items.length,0);assert.equal(s.counts.attempts,0);
+  }
+});
+test('late-final completed reply retention is bounded and unresolved sources never become learning items',()=>{
+  const x=unit('free');
+  for(let i=0;i<SUMMARY_LIMITS.pending_replies+2;i++)x.reply(['苹果。'],{turn_id:`pending-${i}`,response_id:`r-${i}`});
+  const s=x.finish();assert.equal(s.learning_items.length,0);assert.equal(s.counts.attempts,0);
+  assert.equal(s.coverage.unassessed_replies,SUMMARY_LIMITS.pending_replies+2);
+});
