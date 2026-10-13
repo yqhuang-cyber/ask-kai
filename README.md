@@ -46,7 +46,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [收尾 Task 02：采集证据结果（011 完整；040 多 ASR 留证；只改评测）](docs/eval-results/2026-10-12-task02-evidence.md)
 - [独立采集诊断工具与证据边界](docs/collection-evidence.md)
 - [Ask Kai Agent 产品需求 v1.1](docs/prd/ask-kai-agent-prd-v1.1.md)
-- [独立 POC 启动、mock 合同与范围](docs/standalone-poc.md)
+- [独立 POC 启动、mock 接口契约与范围](docs/standalone-poc.md)
 - [独立 POC 架构决策](docs/adr/0002-standalone-poc.md)
 - [三个入口当前技术时序](#当前实现三个入口的技术时序)
 - [动态规划详细设计：三入口整体计划、逐轮计划与执行反馈（设计已交付，待实施）](docs/dynamic-planning-design.md)
@@ -72,7 +72,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [Seeduplex 官方 PDF／Demo 映射与接入步骤](docs/protocol/seeduplex-integration.md)
 - [Web 音频、网关和打断验收](docs/web-realtime.md)
 - [运动教学状态与证据](docs/teaching.md)
-- [HSKai 接口边界与本地 mock 合同](docs/hskai-bridge.md)
+- [HSKai 接口边界与本地 mock 接口契约](docs/hskai-bridge.md)
 - [安全、隐私、评测与发布门槛实现](docs/release-and-eval.md)
 
 原体验 Task09 的独立 P0 回归与内容评测工具已接入，真实豆包联调和普通 Web 纵向验收已有记录；原 Task10剩余设备场景与改造后回归归入收尾 Task06。当前开发顺序见[收尾 TODO](docs/poc-completion-todo.md)。Seeduplex 专用模板为 `docs/protocol/seeduplex-profile.template.json`；通用配置式适配器仍兼容已有审核配置。两者仅实现 JSON/base64 PCM，不把内部事件名当成供应商协议。合成回放通过不能证明真实语音、取消／更新确认或字幕体验。
@@ -461,7 +461,7 @@ sequenceDiagram
 
 时序核对代码：[Web 接收与控件](apps/realtime-gateway/public/web.js)、[HTTP 与票据入口](apps/realtime-gateway/src/server.js)、[实时状态与结束顺序](apps/realtime-gateway/src/realtime.js)、[教学会话](packages/agent-core/teaching.js)、[自然教学决策](packages/agent-core/natural-teaching.js)、[总结证据](packages/agent-core/learning-summary.js)、[本地 mock](apps/hskai-mock/src/backend.js) 和 [总结卡片](apps/realtime-gateway/public/summary-cards.js)。
 
-| 组件 | 首期实现合同 |
+| 组件 | 首期职责与接口契约 |
 | --- | --- |
 | 学生端 | Web Audio 采集与回声消除、音频队列、立即停播、麦克风持续上送、分段字幕及其清理；不持有供应商长期密钥。 |
 | POC BFF / HSKai 接口边界 | 本地 mock 提供固定虚构学习者、示例 Mission 和签名身份；网关仍验证身份、scope、同意字段和一次性票据。示例同意不是实际监护人授权。 |
@@ -564,9 +564,9 @@ flowchart TB
 | ID | 任务与交付物 | 完成判定 | 依赖 |
 | --- | --- | --- | --- |
 | F01 | 用真实开通的豆包全双工账号做协议 Spike；记录脱敏事件序列、编码、鉴权、资源 ID、识别完成、文本／音频时序、打断、配置更新、工具、配额及错误码。形成适配矩阵和事件 fixture。 | 正常、短停顿、噪声、学生打断、取消竞态、字幕晚到、异常断线均有事件样本；明确哪些能力无从验证。 | 供应商测试账号和网络 |
-| F02 | 核验本地 mock 与既有 HSKai 接口合同、身份／课程来源及运行边界。 | 独立 POC 无外部业务依赖；mock 与真实语音分别标识。 | 本仓库 |
+| F02 | 核验本地 mock 与既有 HSKai 接口契约、身份／课程来源及运行边界。 | 独立 POC 无外部业务依赖；mock 与真实语音分别标识。 | 本仓库 |
 | F03 | 核对各目标市场的上线条件与供应商合同：处理地域、留存、训练使用、分包商、删除与数据请求。给各市场建立准入开关。 | 产品、法务／隐私负责人签署实际准入决定；未确定的市场保持关闭。 | 供应商书面信息 |
-| F04 | 冻结 P0 的用户路径、首期运动主题包、Mission 数据合同、人设版本及测试环境。 | 产品／教学／研发对同一课程目标和验收案例达成一致。 | PRD 与 F02 |
+| F04 | 冻结 P0 的用户路径、首期运动主题包、Mission 数据契约、人设版本及测试环境。 | 产品／教学／研发对同一课程目标和验收案例达成一致。 | PRD 与 F02 |
 
 ### 阶段 V：一条真实、可测的纵向链路
 
@@ -612,7 +612,7 @@ flowchart TB
 
 任务可并行的地方：F01 / F02 / F03 可分别推进；V04 / V05 在 V03 后并行；A 类课程设计可与 S01 安全规则设计同步，但学生开放试用必须通过 S02 / S03 / Q04。
 
-## 5. 测试与评分合同
+## 5. 测试与评分契约
 
 **内容质量**沿用既有评分体系，10 维总权重 100%；每维评 0／1／2，N/A 仅能在案例执行前声明理由：
 
@@ -662,7 +662,7 @@ packages/
   agent-core/              # 人设、课程状态、学习证据
   provider-doubao/         # 豆包协议适配
   provider-replay/         # 合成供应商事件回放
-  hskai-bridge/            # 身份、记忆、隐私和安全端口合同
+  hskai-bridge/            # 身份、记忆、隐私和安全端口契约
   policy/                  # 工具与安全策略
 scripts/                   # 校验、浏览器检查、探针与评测入口
 tests/                     # 规则、授权、协议和 POC 集成测试
