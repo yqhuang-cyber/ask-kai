@@ -15,7 +15,7 @@ for(const key of ['audit_complete','audit_truncated','budget_exceeded','language
 enums.reply_policy_version=['kai-reply-v1','kai-reply-v2','kai-reply-v3'];
 names.add('language.decision');numeric.add('known_expression_count');
 names.add('language.reply.completed');
-Object.assign(enums,{language_policy_version:['kai-language-v1','kai-language-v2','kai-language-v3','kai-language-v4'],english_support:['required','adaptive','off'],language_reason:['beginner_or_unknown','explicit_chinese','student_help_or_new_expression','explicit_bilingual','reported_comprehension','known_expressions']});
+Object.assign(enums,{language_policy_version:['kai-language-v1','kai-language-v2','kai-language-v3','kai-language-v4','kai-language-v5'],english_support:['required','adaptive','off'],language_reason:['beginner_or_unknown','explicit_chinese','student_help_or_new_expression','explicit_bilingual','reported_comprehension','known_expressions']});
 for(const name of ['caption.mode','caption.playback'])names.add(name);
 for(const key of ['played_pcm_ms','received_pcm_ms','queued_pcm_ms','cue_at_ms','phrase_units'])numeric.add(key);
 Object.assign(enums,{caption_mode:['waiting_audio','playing','paused','text_only','complete'],caption_policy_version:['kai-captions-v1'],clock_source:['output_timestamp','context_time']});

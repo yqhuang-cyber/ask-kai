@@ -1,5 +1,5 @@
 import { validateMemoryRecord } from '../hskai-bridge/identity.js';
-export const LANGUAGE_POLICY_VERSION='kai-language-v4';
+export const LANGUAGE_POLICY_VERSION='kai-language-v5';
 export const ENGLISH_SUPPORT_MODES=Object.freeze(['required','adaptive','off']);
 
 export const LANGUAGE_INSTRUCTIONS=`语言支架策略 ${LANGUAGE_POLICY_VERSION}：始终先说中文；英文是帮助理解的支架，不是每句话必配的模板。
@@ -93,7 +93,10 @@ export class LanguageSupport {
   }
   instructions(){
     const {english_support,preference,session_preference,request_scope,help_scope,help_kind,comprehension,known_expressions,source_turn_id}=this.snapshot();
-    return `${LANGUAGE_INSTRUCTIONS}\n本轮语言状态（JSON 数据）：${JSON.stringify({state_scope:'confirmed_history',current_input_takes_precedence:true,english_support,preference,session_preference,request_scope,help_scope,help_kind,comprehension,known_expressions,source_turn_id})}`;
+    // Render only the trusted enum, never learner text, as a default instruction.
+    // A past reply-only exception is not a default for a subsequent input.
+    const defaults={zh:'只说中文，不附英文释义或复述英文原词。学生用英语提问、询问新词或一般没听懂，都不等于要求英文；先用更简单的中文。只有当前明确要求英文帮助、双语或恢复自动模式才改变这一设置。',zh_en:'中文先说，需要解释的内容紧接简短英文含义；拼音不能代替含义。当前明确只中文时，确认语本身也不附英文。',auto:'按学生实际理解需要选择英文支架；已知短承接可省，新表达或理解求助恢复必要英文。当前明确语言请求优先。'};
+    return `${LANGUAGE_INSTRUCTIONS}\n会话默认（仅在当前学生未提出明确语言变更时生效）：${defaults[session_preference]}\n本轮语言状态（JSON 数据）：${JSON.stringify({state_scope:'confirmed_history',current_input_takes_precedence:true,english_support,preference,session_preference,request_scope,help_scope,help_kind,comprehension,known_expressions,source_turn_id})}`;
   }
 }
 

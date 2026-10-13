@@ -46,3 +46,14 @@ test('quotes and reports cannot manufacture a request; expression help is distin
   const state=JSON.parse(s.language.instructions().split('本轮语言状态（JSON 数据）：')[1]);
   assert.equal(state.state_scope,'confirmed_history');assert.equal(state.current_input_takes_precedence,true);
 });
+test('a trusted Chinese default survives English questions while an explicit reply exception never becomes the next default',()=>{
+  const at=Date.now(),record=value=>({field:'support_language',value,source:'authorized_hskai_profile',updated_at:new Date(at).toISOString(),expires_at:new Date(at+86400000).toISOString()});
+  const p=new LanguageSupport({memory:[record('zh')]});
+  p.observe('How do I say a color in Chinese?',{turn_id:'color'});assert.equal(p.snapshot().english_support,'off');
+  assert.match(p.instructions(),/会话默认.*只说中文/);assert.equal(p.snapshot().help_kind,'expression');
+  p.observe('这个词加英文解释。',{turn_id:'exception'});assert.equal(p.snapshot().english_support,'required');
+  assert.match(p.instructions(),/会话默认.*只说中文/);p.completeReply('exception');assert.equal(p.snapshot().english_support,'off');
+  p.observe('Please add English translation.',{turn_id:'setting'});assert.equal(p.snapshot().session_preference,'zh_en');
+  assert.match(p.instructions(),/会话默认.*中文先说/);
+  assert.deepEqual(p.memory,[record('zh')]);
+});
