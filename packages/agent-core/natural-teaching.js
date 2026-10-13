@@ -1,9 +1,9 @@
 import { languageHelpKind } from './language-support.js';
 // Conservative, session-local rules over validated final ASR; not a semantic judge.
-export const TEACHING_POLICY_VERSION='kai-teaching-v5';
+export const TEACHING_POLICY_VERSION='kai-teaching-v6';
 export const TEACHING_COOLDOWN_TURNS=2;
 export const TEACHING_ACTIONS=Object.freeze(['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE']);
-export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','student_understanding_help','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
+export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','student_understanding_help','student_continuation_help','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
 export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY_VERSION}：每个完整学生回合只选一个主要动作，先回应当前意图，再考虑目标。
 学生明确结束：只简短告别，不追加问题、练习邀请、下次任务或口头知识点复盘；“如果你愿意可以再练”也属于邀请。当前语言规则同样适用于告别。不要把提到“再见”、翻译请求或引语当成结束。结束按钮立即停止，口头告别不关闭学生麦克风；学生明确继续后接住当前话题。
 结束与回顾同时提出时，主动作仍是结束：口头最多一句简短的实际会话回顾或告别及必要英文，不逐项读词表、拼音或新学/复习清单，不再给问题、造句或跟读任务。结束后的现有Web总结只记录有来源的内容；它尚未展示时不要说已经展示。不能因为用户请求完整复盘就把结束改成继续教学。学生说聊完了、练习结束或先到这里，也属于结束，不只识别bye。
@@ -35,6 +35,8 @@ const languageQuestion=/(?:什么意思|是什么(?:意思)?|怎么说|怎么讲
 const unclearInput=/^(?:那个|这个|那个什么|不知道|我不知道|不确定|听不懂|什么意思|你说什么|没听清|嗯|啊|呃|what|huh|i don'?t know|not sure|it|that|this)[。.!！?？\s]*$/iu;
 const referenceInput=/^(?:那个|这个|it|that|this)[。.!！?？\s]*$/iu;
 const questionInput=/[?？]|(?:为什么|什么时候|怎么|什么|如何|哪里|哪儿|吗[。！!\s]*$)|^(?:what|why|when|where|who|how|can|do|does|is|are|will|would|could)\b/iu;
+const stuckConversation=/(?:不知道(?:接下来|下一句|说什么)|没有(?:新)?(?:话题|问题))|\b(?:i (?:do not|don'?t|don’t) know (?:what|how|the next)|i (?:have )?no new (?:topic|question))\b/iu;
+const willingConversation=/(?:还想聊|愿意继续聊|还在这里)|\b(?:still (?:want|here)|happy to keep chatting|keep chatting|i['’]d enjoy|one last small step)\b/iu;
 const sportsWord=/(?:足球|篮球|跑步|游泳)|\b(?:football|soccer|basketball|running|swimming)\b/iu;
 const preferenceCue=/^(?:(?:我)?(?:很)?喜欢)?(?:足球|篮球|跑步|游泳)[。.!！\s]*$|^(?:(?:i (?:really )?like|i love)(?: playing)? )?(?:football|soccer|basketball|running|swimming)[。.!！\s]*$/iu;
 export function sportsExpression(text) {
@@ -55,6 +57,7 @@ export class NaturalTeaching {
   select(event,contextVersion) {
     this.turns++;
     const text=controlText(event.payload.text),helpKind=languageHelpKind(text),understanding=helpKind==='understanding',help=helpIntent.test(text)||helpKind==='expression',practice=practiceIntent.test(text);
+    const continuation=stuckConversation.test(text)&&willingConversation.test(text);
     const clauses=text.split(/(?<!\p{N})\.(?!\p{N})|[，,。？！!?；;\n]/u).filter(c=>!languageQuestion.test(c));
     const ended=clauses.some(c=>!endWordDiscussion.test(c.trim())&&((endIntent.test(c.trim())||explicitEnd.test(c.trim())||bareEnd.test(c.trim()))&&!questionInput.test(c.trim())||endQuestion.test(c.trim())));
     const declined=clauses.some(c=>declineIntent.test(c)),changed=clauses.some(c=>!keepTopic.test(c) && changeIntent.test(c));
@@ -62,7 +65,7 @@ export class NaturalTeaching {
     const cooldown=this.lastTeachingTurn===null?0:Math.max(0,TEACHING_COOLDOWN_TURNS+1-(this.turns-this.lastTeachingTurn));
     const attempted=!!this.goal && this.likesGoal && sportsAttempt(event.payload.text);
     if(attempted)this.goalAttempted=true;
-    const referenceTurn=referenceInput.test(text)||understanding?this.priorInputTurn:null;
+    const referenceTurn=referenceInput.test(text)||understanding||continuation?this.priorInputTurn:null;
     let action='RESPOND',reason='conversation_first',support='none';
     if(ended){this.paused=true;action='CLOSE';reason='student_end';}
     else if(declined || changed){this.paused=true;reason=declined?'student_declined':'student_changed_topic';}
@@ -72,6 +75,8 @@ export class NaturalTeaching {
         support='choice';reason='student_understanding_help';
         if(this.clarificationPending)reason='clarification_limit';
         else if(!referenceTurn)action='CLARIFY_INTENT';
+      } else if(continuation&&!help&&!practice) {
+        support='choice';reason='student_continuation_help';
       } else if(unclearInput.test(text) || !text) {
         if(this.clarificationPending){reason='clarification_limit';support='choice';}
         else if(referenceTurn){reason='prior_context_reference';}
@@ -91,9 +96,9 @@ export class NaturalTeaching {
     // rather than alternating repeated requests to clarify.
     this.clarificationPending=reason==='clarification_limit' || action==='CLARIFY_INTENT';
     if(ended||declined||changed)this.priorInputTurn=null;
-    else if(text&&!unclearInput.test(text)&&!understanding)this.priorInputTurn=event.turn_id;
+    else if(text&&!unclearInput.test(text)&&!understanding&&!continuation)this.priorInputTurn=event.turn_id;
     if(action==='TEACH_TARGET')this.lastTeachingTurn=this.turns;
-    const goal=ended || this.paused || understanding || help && !relatedHelp?null:this.goal;
+    const goal=ended || this.paused || understanding || continuation || help && !relatedHelp?null:this.goal;
     this.decision={policy_version:TEACHING_POLICY_VERSION,session_id:event.session_id,source_event_id:event.event_id,turn_id:event.turn_id,context_version:contextVersion,turn_count:this.turns,mode:this.mode,action,reason,interaction:action==='TEACH_TARGET'?'teach':'chat',support_level:support,new_points:action==='TEACH_TARGET'?1:0,goal_id:goal?.id??null,goal_source:goal?.source??null,goal_attempt_observed:this.goalAttempted,teaching_paused:this.paused,clarification_pending:this.clarificationPending,teaching_cooldown:action==='TEACH_TARGET'?TEACHING_COOLDOWN_TURNS:cooldown,advisory:true};
     this.decision.reference_context_turn_id=referenceTurn;
     return {...this.decision};
