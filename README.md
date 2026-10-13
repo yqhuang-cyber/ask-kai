@@ -49,6 +49,8 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 - [独立 POC 启动、mock 合同与范围](docs/standalone-poc.md)
 - [独立 POC 架构决策](docs/adr/0002-standalone-poc.md)
 - [三个入口当前技术时序](#当前实现三个入口的技术时序)
+- [动态规划详细设计：三入口整体计划、逐轮计划与执行反馈（设计已交付，待实施）](docs/dynamic-planning-design.md)
+- [动态规划 DP-00～DP-10 实施与验收清单（待实施）](docs/dynamic-planning-tasking.md)
 - [历史工程决策与剩余协议验证](docs/adr/0001-foundation.md)
 - [内部事件与诊断接口契约](docs/contracts.md)
 - [外部 HSKai 历史参考（不属于当前 POC 依赖）](docs/integration-hskai.md)
@@ -231,6 +233,8 @@ flowchart TB
 以下时序对应 **Task 01–09 的当前代码**，展示语音配置已核验时的正常路径。`Web` 包含学生操作、采音、播放、字幕与总结卡；`网关` 包含 BFF、HSKai Bridge、会话状态、安全检查和输出等待；`Agent Core` 是网关进程内的教学逻辑；`语音链路` 合并表示 Doubao Adapter 与豆包全双工服务。`mock HSKai` 是本仓库启动的本地 HTTP 服务。五条泳道表示责任边界，不代表五个独立部署服务。
 
 页面初始化时先读取 `/api/runtime` 和语速能力；mock 模式下，每次受保护请求之前，`authorizedFetch` 都先调用 `/api/poc/launch` 刷新签名授权。`/api/bootstrap` 从已验证的签名身份取出示例 Mission，`/api/memory` 读取授权偏好。三种入口开聊时都会重新刷新授权，服务端读取最新偏好、消费启动 nonce，再签发一次性 WebSocket 票据。浏览器只传入口、允许的语速和 Mission ID，不提供可信课程内容或学习者身份。
+
+完整方案已交付：[动态规划详细设计](docs/dynamic-planning-design.md)与[实施验收清单](docs/dynamic-planning-tasking.md)。覆盖会话整体规划、每个有效学生话轮的下一步规划，以及实际执行／观察反馈；只更新设计，运行代码仍为下述当前路径。
 
 **初始化完善要求（2026-10-13，设计待实现）：** 三个入口每次开始会话，都需要读取学生个人画像、学习画像和近期学习记录，动态生成本次会话配置。Mission 与主题对话还需结合可信课程／主题资源确定本次目标、策略与关键知识点；自由聊天根据学生能力与偏好调整交流策略，初始教学目标为空，学生主动提出的话题优先，允许没有知识点。下表分别说明现状与待补的初始化职责；后面的三张序列图仍描述当前代码，不表示动态初始化已经实现。
 
