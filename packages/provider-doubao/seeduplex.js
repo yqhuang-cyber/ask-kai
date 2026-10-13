@@ -209,10 +209,16 @@ export class SeeduplexProvider extends DoubaoJsonTransport {
         return;
       }
       if (raw.type === 'response.output_audio.delta') {
-        if (typeof raw.delta !== 'string' || raw.delta.length > 87384 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(raw.delta)) throw new Error('INVALID_PROVIDER_AUDIO');
+        if (typeof raw.delta !== 'string' || raw.delta.length > 122880 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(raw.delta)) throw new Error('INVALID_PROVIDER_AUDIO');
         const bytes = Buffer.from(raw.delta,'base64');
-        if (!bytes.length || bytes.length > 65536 || bytes.length % 2) throw new Error('INVALID_PROVIDER_AUDIO');
-        return this.emitReply('response.audio.chunk',reply,{byte_length:bytes.length,format:'pcm_s16le'},{audio:raw.delta,sample_rate:24000});
+        if (!bytes.length || bytes.length > 92160 || bytes.length % 2 || bytes.toString('base64') !== raw.delta) throw new Error('INVALID_PROVIDER_AUDIO');
+        // Bounded provider packet compatibility; internal/Web chunks remain <=64 KiB.
+        // 90 KiB decoded leaves room for ownership/header fields in the 128 KiB socket frame.
+        for(let offset=0;offset<bytes.length;offset+=65536) {
+          const chunk=bytes.subarray(offset,offset+65536);
+          this.emitReply('response.audio.chunk',reply,{byte_length:chunk.length,format:'pcm_s16le'},{audio:chunk.toString('base64'),sample_rate:24000});
+        }
+        return;
       }
       return;
     }

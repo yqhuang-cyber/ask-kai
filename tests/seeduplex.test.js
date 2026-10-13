@@ -255,3 +255,29 @@ test('Seeduplex wire events integrate through browser WSS and teaching context A
   assert.equal(packets.filter(e=>e.type==='teaching.state').at(-1).attempts[0].kind,'attempted');
   assert.ok(packets.every(p=>p.synthetic!==false)); ws.close(); await once(ws,'close');
 });
+
+test('bounded larger provider audio is split without losing PCM or changing ownership',()=>{
+  for(const size of [65536,69632,92160]) {
+    const x=setup();x.ready();x.wire(output('response.output_audio.started'));
+    const bytes=Buffer.alloc(size);for(let i=0;i<size;i++)bytes[i]=i%251;
+    x.wire(output('response.output_audio.delta',undefined,undefined,{delta:bytes.toString('base64')}));
+    const chunks=x.packets.filter(p=>p.audio),owner=x.packets.find(p=>p.event?.type==='response.started').event;
+    assert.deepEqual(Buffer.concat(chunks.map(p=>Buffer.from(p.audio,'base64'))),bytes);
+    assert.equal(chunks.length,Math.ceil(size/65536));
+    const runtime=new SessionRuntime('local-session');
+    for(const p of x.packets)if(p.event)assert.equal(runtime.ingest(p.event).accepted,true);
+    for(const p of chunks){assert.ok(p.event.payload.byte_length<=65536);assert.equal(p.event.response_id,owner.response_id);assert.equal(p.event.turn_id,owner.turn_id);}
+    assert.deepEqual(x.failures,[]);x.provider.close();
+  }
+});
+test('audio compatibility stays bounded, canonical and fenced after cancellation',()=>{
+  for(const delta of ['***','AB==',Buffer.alloc(3).toString('base64'),Buffer.alloc(92162).toString('base64')]) {
+    const x=setup();x.ready();x.wire(output('response.output_audio.started'));
+    x.wire(output('response.output_audio.delta',undefined,undefined,{delta}));
+    assert.deepEqual(x.failures,['PROVIDER_PROTOCOL_ERROR']);assert.ok(!x.packets.some(p=>p.audio));x.provider.close();
+  }
+  const x=setup();x.ready();x.wire(output('response.output_audio.started'));
+  const owner=x.packets.find(p=>p.event?.type==='response.started').event;x.provider.cancel(owner.response_id);
+  x.wire(output('response.output_audio.delta',undefined,undefined,{delta:Buffer.alloc(69632).toString('base64')}));
+  assert.ok(!x.packets.some(p=>p.audio));assert.deepEqual(x.failures,[]);x.provider.close();
+});
