@@ -15,7 +15,7 @@ for(const key of ['audit_complete','audit_truncated','budget_exceeded','language
 enums.reply_policy_version=['kai-reply-v1','kai-reply-v2','kai-reply-v3'];
 names.add('language.decision');numeric.add('known_expression_count');
 names.add('language.reply.completed');
-Object.assign(enums,{language_policy_version:['kai-language-v1','kai-language-v2','kai-language-v3'],english_support:['required','adaptive','off'],language_reason:['beginner_or_unknown','explicit_chinese','student_help_or_new_expression','explicit_bilingual','reported_comprehension','known_expressions']});
+Object.assign(enums,{language_policy_version:['kai-language-v1','kai-language-v2','kai-language-v3','kai-language-v4'],english_support:['required','adaptive','off'],language_reason:['beginner_or_unknown','explicit_chinese','student_help_or_new_expression','explicit_bilingual','reported_comprehension','known_expressions']});
 for(const name of ['caption.mode','caption.playback'])names.add(name);
 for(const key of ['played_pcm_ms','received_pcm_ms','queued_pcm_ms','cue_at_ms','phrase_units'])numeric.add(key);
 Object.assign(enums,{caption_mode:['waiting_audio','playing','paused','text_only','complete'],caption_policy_version:['kai-captions-v1'],clock_source:['output_timestamp','context_time']});
@@ -31,7 +31,7 @@ Object.assign(enums,{context_policy_version:['kai-context-v1','kai-context-v2','
 enums.reason.push('wrong_version','no_pending');
 for(const key of ['applied_context_version','decision_context_version','new_points','turn_count','teaching_cooldown'])numeric.add(key);
 for(const key of ['decision_context_matched','goal_attempt_observed','teaching_paused','clarification_pending'])boolean.add(key);
-Object.assign(enums,{teaching_policy_version:['kai-teaching-v1','kai-teaching-v2','kai-teaching-v3'],action:['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE'],decision_reason:['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first'],mode:['sports','mission','free'],interaction:['chat','teach'],support_level:['none','choice','model']});
+Object.assign(enums,{teaching_policy_version:['kai-teaching-v1','kai-teaching-v2','kai-teaching-v3','kai-teaching-v4'],action:['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE'],decision_reason:['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','student_understanding_help','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first'],mode:['sports','mission','free'],interaction:['chat','teach'],support_level:['none','choice','model']});
 export function metadata(fields={}) {
   const out={};
   if(!fields || typeof fields!=='object' || Array.isArray(fields))return out;

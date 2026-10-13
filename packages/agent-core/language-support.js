@@ -1,10 +1,13 @@
 import { validateMemoryRecord } from '../hskai-bridge/identity.js';
-export const LANGUAGE_POLICY_VERSION='kai-language-v3';
+export const LANGUAGE_POLICY_VERSION='kai-language-v4';
 export const ENGLISH_SUPPORT_MODES=Object.freeze(['required','adaptive','off']);
 
 export const LANGUAGE_INSTRUCTIONS=`语言支架策略 ${LANGUAGE_POLICY_VERSION}：始终先说中文；英文是帮助理解的支架，不是每句话必配的模板。
+每次开口前先读当前学生语音的实际意图，再决定本次支架。当前直接要求英文、只中文或说没听懂时，立即按这个要求回答，确认语本身也遵守；不能等后台状态更新或只承诺下次执行。下面的JSON是已经确认的历史状态，不是当前新输入的答案；当前请求可覆盖它，引用和讨论语言规则不改变设置。
 画像未知或初学者默认给简短、自然的英文整句解释。已知表达可只用中文；学生明确表示能听懂中文时，熟悉、容易理解的交流可省略英文。不能因为学生说过一个词、ASR 识别成功或完成课程就判定理解或掌握。
 新表达、表达求助或学生说没听懂时，恢复简短英文帮助；明确要求只用中文时先用更简单的中文解释，直到学生请求英文或恢复自动模式。zh_en 表示常规双语支持，auto 表示按理解需要，zh 表示只用中文；学生本轮直接提出的语言偏好优先于旧画像。
+必要英文要解释中文的实际含义。拼音只帮助读音，不能代替英文释义；只有“You can say”或“It is natural”加拼音，不足以帮助理解新的完整中文句。新增问题、解释和任务若需要英文，也须准确对应，不在中文之外另加内容。
+学生没听懂时，修复理解而不是评价能力：若实际上一句只有一个明确内容，用更短的中文重述同一意思并按当前偏好配英文；若不清楚哪一部分，先问一个短澄清问题。不增加新词、练习或换题，不把求助当同意继续闲聊，不说太好了或已经听懂。只中文时同样修复理解，但不用英文；明确要求英文则本次就提供。求助不改变长期理解标签。
 语言请求有作用范围：明确“这句／这次回答”的要求只影响这次回复；“接下来”或直接设置语言的要求影响当前会话；只有经授权界面保存才改变后续会话画像。一次求助不是永久需要英文的标签。
 本轮要求只用中文时，确认这个请求的回答本身也只用中文。当前学生请求优先于旧双语状态、此前翻译习惯和示例；不先承诺只中文又补英文。只中文时仍先回应意图，不增加长度或知识点。
 英文若出现，紧接它所解释的中文句，准确对应，不新增知识、问题或任务。省略英文不会增加中文句数、知识点、问题或共享长度预算。
@@ -21,12 +24,20 @@ const understood=/^(?:我)?(?:能)?听得懂中文(?:了)?$|^i (?:can )?understa
 const beginner=/^(?:我)?(?:是中文初学者|刚开始学中文)$|^i am (?:a )?(?:chinese )?beginner$/iu;
 const help=/^(?:(?:我)?(?:没|没有|不)(?:听懂|明白|理解)|听不懂|什么意思|你说什么|没听清)(?:[，,].*)?$|^(?:i (?:do not|don'?t|don’t) understand|i didn'?t understand|what does .+ mean|what do you mean)(?:[?？.!！\s]*)$/iu;
 const expressionHelp=/(?:中文怎么(?:说|讲)|怎么用中文(?:说|讲)|这(?:个)?(?:句子|词|表达)怎么说|教我(?:说|一句|中文)|不会说|说不出来|我(?:想|要)学(?:习)?(?:一个|一句|新)(?:.*)?(?:词|表达|句子|说法))|\b(?:how (?:do|can|would) (?:i|you|we) say|how to say|teach me|help me say)\b/iu;
+const understandingHelp=/^(?:(?:我)?(?:没|没有|不)(?:听懂|明白|理解)|听不懂|没听清)(?:[\p{Script=Han}\s]*|[，,].*)$|^i (?:do not|don'?t|don’t|didn'?t|didn’t|cannot|can'?t|can’t) (?:understand|get)(?:\s+(?:it|that|this|the (?:word|sentence|phrase)|what you said))?$/iu;
+const expressionSupport=/\b(?:i (?:do not|don'?t|don’t) know how to (?:say|express|combine)|how (?:do|can) i (?:add|combine|express))\b/iu;
+// Observable request type only. No target text, inferred ability or teacher claims.
+export function languageHelpKind(text) {
+  const direct=trim(unquoted(text)),clauses=direct.split(/[，,。.!！;；]/u).map(trim).filter(Boolean);
+  if(clauses.some(c=>understandingHelp.test(c)))return 'understanding';
+  return expressionHelp.test(direct)||expressionSupport.test(direct)?'expression':'none';
+}
 const onceChinese=/^(?:请)?(?:这(?:一)?句|这次(?:回答)?|这一轮|这个(?:词|表达|问题))(?:只(?:用|说|讲)中文|不要英文(?:翻译|解释)?)$|^(?:please )?(?:say|explain|answer) (?:this(?: sentence| answer| word)?|this time) (?:in )?chinese only$/iu;
 const onceEnglish=/^(?:请)?(?:(?:这(?:一)?句|这个(?:词|表达|问题)|这次(?:回答)?)(?:加(?:上)?英文(?:翻译|解释)?|用英文(?:翻译|解释))|用英文(?:翻译|解释)一下)$|^(?:please )?explain (?:this(?: word| sentence)?|it) in english$/iu;
 const scopedClause=clause=>clause.replace(/^(?:接下来|以后|从现在开始|(?:from now on|for this chat),?\s*)/iu,'').trim();
 
 export class LanguageSupport {
-  constructor({memory=[],clock=()=>Date.now()}={}){this.clock=clock;this.memory=structuredClone(memory);this.preference=null;this.comprehension=null;this.known=[];this.turn=null;this.needsHelp=false;this.replyRequest=null;}
+  constructor({memory=[],clock=()=>Date.now()}={}){this.clock=clock;this.memory=structuredClone(memory);this.preference=null;this.comprehension=null;this.known=[];this.turn=null;this.needsHelp=false;this.helpKind='none';this.replyRequest=null;}
   updateMemory(memory){
     for(const [field,state] of [['support_language','preference'],['chinese_comprehension','comprehension']]) {
       if(JSON.stringify(this.memory.find(r=>r.field===field))!==JSON.stringify(memory.find(r=>r.field===field))){this[state]=null;if(field==='support_language')this.replyRequest=null;}
@@ -56,11 +67,12 @@ export class LanguageSupport {
     // Only an explicit self-report about a bounded expression, never its use.
     const known=/^(?:我已经(?:会|学过|知道)(?:了)?[：: ]?[「“‘"]?([\p{Script=Han}]{1,16}?)[」”’"]?(?:了)?|[「“‘"]?([\p{Script=Han}]{1,16})[」”’"]?我已经(?:会|学过)(?:了)?)[。.!！\s]*$/u.exec(text.trim());
     if(known && this.known.length<12){const value=known[1]??known[2];if(!this.known.some(k=>k.value===value))this.known.push({value,...source});}
-    this.needsHelp=clauses.some(clause=>help.test(clause) || bilingual.test(clause)) || expressionHelp.test(direct);
+    this.helpKind=languageHelpKind(text);
+    this.needsHelp=this.helpKind!=='none'||clauses.some(clause=>help.test(clause) || bilingual.test(clause));
   }
   completeReply(turnId) {
     if(!turnId||this.turn?.turn_id!==turnId||!this.replyRequest&&!this.needsHelp)return false;
-    this.replyRequest=null;this.needsHelp=false;return true;
+    this.replyRequest=null;this.needsHelp=false;this.helpKind='none';return true;
   }
   snapshot() {
     const records=this.validMemory();
@@ -77,11 +89,11 @@ export class LanguageSupport {
     else if(this.needsHelp){reason='student_help_or_new_expression';}
     else if(preference?.value==='zh_en'){reason='explicit_bilingual';}
     else if(comprehension?.value==='comfortable' || known.length){english_support='adaptive';reason=comprehension?.value==='comfortable'?'reported_comprehension':'known_expressions';}
-    return {policy_version:LANGUAGE_POLICY_VERSION,english_support,reason,preference:preference?.value??'auto',preference_source:preference?.source??'default',request_scope:this.replyRequest?'reply':this.preference?'session':sessionPreference?'profile':'default',session_preference:sessionPreference?.value??'auto',help_scope:this.needsHelp?'reply':'none',comprehension:comprehension?.value??'unknown',comprehension_source:comprehension?.source??'default',known_expressions:known,known_expression_evidence:knownEvidence,known_sources:[...new Set(knownEvidence.map(k=>k.source))],source_turn_id:this.turn?.turn_id??null,source_event_id:this.turn?.source_event_id??null,context_version:this.turn?.context_version??1,advisory:true};
+    return {policy_version:LANGUAGE_POLICY_VERSION,english_support,reason,preference:preference?.value??'auto',preference_source:preference?.source??'default',request_scope:this.replyRequest?'reply':this.preference?'session':sessionPreference?'profile':'default',session_preference:sessionPreference?.value??'auto',help_scope:this.needsHelp?'reply':'none',help_kind:this.helpKind,comprehension:comprehension?.value??'unknown',comprehension_source:comprehension?.source??'default',known_expressions:known,known_expression_evidence:knownEvidence,known_sources:[...new Set(knownEvidence.map(k=>k.source))],source_turn_id:this.turn?.turn_id??null,source_event_id:this.turn?.source_event_id??null,context_version:this.turn?.context_version??1,advisory:true};
   }
   instructions(){
-    const {english_support,preference,session_preference,request_scope,help_scope,comprehension,known_expressions,source_turn_id}=this.snapshot();
-    return `${LANGUAGE_INSTRUCTIONS}\n本轮语言状态（JSON 数据）：${JSON.stringify({english_support,preference,session_preference,request_scope,help_scope,comprehension,known_expressions,source_turn_id})}`;
+    const {english_support,preference,session_preference,request_scope,help_scope,help_kind,comprehension,known_expressions,source_turn_id}=this.snapshot();
+    return `${LANGUAGE_INSTRUCTIONS}\n本轮语言状态（JSON 数据）：${JSON.stringify({state_scope:'confirmed_history',current_input_takes_precedence:true,english_support,preference,session_preference,request_scope,help_scope,help_kind,comprehension,known_expressions,source_turn_id})}`;
   }
 }
 
@@ -90,6 +102,6 @@ export class LanguageSupport {
 export function sameLanguageSupport(a,b) {
   const scoped=p=>p.request_scope==='reply'||p.help_scope==='reply';
   if(scoped(a)&&!a.source_turn_id||scoped(b)&&!b.source_turn_id)return false;
-  const inputs=p=>[p.english_support,p.preference,p.comprehension,p.known_expressions,scoped(p)?p.source_turn_id:null,p.request_scope==='reply'?'reply':p.help_scope==='reply'?'help':'ongoing'];
+  const inputs=p=>[p.english_support,p.preference,p.comprehension,p.known_expressions,p.help_kind??'none',scoped(p)?p.source_turn_id:null,p.request_scope==='reply'?'reply':p.help_scope==='reply'?'help':'ongoing'];
   return JSON.stringify(inputs(a))===JSON.stringify(inputs(b));
 }

@@ -1,8 +1,9 @@
+import { languageHelpKind } from './language-support.js';
 // Conservative, session-local rules over validated final ASR; not a semantic judge.
-export const TEACHING_POLICY_VERSION='kai-teaching-v3';
+export const TEACHING_POLICY_VERSION='kai-teaching-v4';
 export const TEACHING_COOLDOWN_TURNS=2;
 export const TEACHING_ACTIONS=Object.freeze(['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE']);
-export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
+export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','student_understanding_help','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
 export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY_VERSION}：每个完整学生回合只选一个主要动作，先回应当前意图，再考虑目标。
 学生明确结束：只简短告别，不追加问题、练习邀请、下次任务或口头知识点复盘；“如果你愿意可以再练”也属于邀请。当前语言规则同样适用于告别。不要把提到“再见”、翻译请求或引语当成结束。结束按钮立即停止，口头告别不关闭学生麦克风；学生明确继续后接住当前话题。
 学生拒绝练习或换题：直接接住当前内容，暂停原目标，不示范旧目标、不要求理由、不邀请重试。只有学生明确求助于原目标或恢复该练习才重新激活。新话题或“这个词／句子”的表达求助只处理该表达，不激活旧目标；提到旧关键词、正确目标句或普通聊天也不构成恢复许可。
@@ -48,7 +49,7 @@ export class NaturalTeaching {
   }
   select(event,contextVersion) {
     this.turns++;
-    const text=controlText(event.payload.text),help=helpIntent.test(text),practice=practiceIntent.test(text);
+    const text=controlText(event.payload.text),helpKind=languageHelpKind(text),understanding=helpKind==='understanding',help=helpIntent.test(text)||helpKind==='expression',practice=practiceIntent.test(text);
     const clauses=text.split(/[，,。？！!?；;\n]/u).filter(c=>!languageQuestion.test(c));
     const ended=clauses.some(c=>endIntent.test(c.trim()) && !questionInput.test(c.trim()));
     const declined=clauses.some(c=>declineIntent.test(c)),changed=clauses.some(c=>!keepTopic.test(c) && changeIntent.test(c));
@@ -56,13 +57,17 @@ export class NaturalTeaching {
     const cooldown=this.lastTeachingTurn===null?0:Math.max(0,TEACHING_COOLDOWN_TURNS+1-(this.turns-this.lastTeachingTurn));
     const attempted=!!this.goal && this.likesGoal && sportsAttempt(event.payload.text);
     if(attempted)this.goalAttempted=true;
-    const referenceTurn=referenceInput.test(text)?this.priorInputTurn:null;
+    const referenceTurn=referenceInput.test(text)||understanding?this.priorInputTurn:null;
     let action='RESPOND',reason='conversation_first',support='none';
     if(ended){this.paused=true;action='CLOSE';reason='student_end';}
     else if(declined || changed){this.paused=true;reason=declined?'student_declined':'student_changed_topic';}
     else {
       if(relatedHelp || practice)this.paused=false;
-      if(unclearInput.test(text) || !text) {
+      if(understanding) {
+        support='choice';reason='student_understanding_help';
+        if(this.clarificationPending)reason='clarification_limit';
+        else if(!referenceTurn)action='CLARIFY_INTENT';
+      } else if(unclearInput.test(text) || !text) {
         if(this.clarificationPending){reason='clarification_limit';support='choice';}
         else if(referenceTurn){reason='prior_context_reference';}
         else{action='CLARIFY_INTENT';reason='unclear_input';support='choice';}
@@ -81,9 +86,9 @@ export class NaturalTeaching {
     // rather than alternating repeated requests to clarify.
     this.clarificationPending=reason==='clarification_limit' || action==='CLARIFY_INTENT';
     if(ended||declined||changed)this.priorInputTurn=null;
-    else if(text&&!unclearInput.test(text))this.priorInputTurn=event.turn_id;
+    else if(text&&!unclearInput.test(text)&&!understanding)this.priorInputTurn=event.turn_id;
     if(action==='TEACH_TARGET')this.lastTeachingTurn=this.turns;
-    const goal=ended || this.paused || help && !relatedHelp?null:this.goal;
+    const goal=ended || this.paused || understanding || help && !relatedHelp?null:this.goal;
     this.decision={policy_version:TEACHING_POLICY_VERSION,session_id:event.session_id,source_event_id:event.event_id,turn_id:event.turn_id,context_version:contextVersion,turn_count:this.turns,mode:this.mode,action,reason,interaction:action==='TEACH_TARGET'?'teach':'chat',support_level:support,new_points:action==='TEACH_TARGET'?1:0,goal_id:goal?.id??null,goal_source:goal?.source??null,goal_attempt_observed:this.goalAttempted,teaching_paused:this.paused,clarification_pending:this.clarificationPending,teaching_cooldown:action==='TEACH_TARGET'?TEACHING_COOLDOWN_TURNS:cooldown,advisory:true};
     this.decision.reference_context_turn_id=referenceTurn;
     return {...this.decision};

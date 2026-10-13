@@ -1,3 +1,4 @@
+import { REPLY_INSTRUCTIONS as EVALUATION_REPLY_INSTRUCTIONS } from '../apps/eval-runner/src/evaluation-reply-v3.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -150,5 +151,5 @@ test('Judge receives shared budgets and semantic translation/density criteria wi
   let system;
   const model={withStructuredOutput:schema=>{assert.equal(schema.additionalProperties,false);return RunnableLambda.from(messages=>{system=messages[0][1];return judgement;});}};
   await createLangChainJudge(model)({case:{id:'reply-policy',turns:[{role:'kai',text:pair}]}});
-  assert.ok(system.includes(REPLY_INSTRUCTIONS));assert.match(system,/必须语义检查英文是否忠实对应中文/);assert.match(system,/最多一个新词或句型/);assert.match(system,/受控紧急安全帮助优先/);
+  assert.ok(system.includes(EVALUATION_REPLY_INSTRUCTIONS));assert.match(system,/必须语义检查英文是否忠实对应中文/);assert.match(system,/最多一个新词或句型/);assert.match(system,/受控紧急安全帮助优先/);
 });

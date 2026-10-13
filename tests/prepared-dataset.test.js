@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkPreparedDataset } from '../apps/eval-runner/src/prepared-dataset.js';
 import { WEIGHTS,RUBRIC_VERSION } from '../apps/eval-runner/src/content.js';
-import { REPLY_BUDGET,REPLY_POLICY_VERSION } from '../packages/agent-core/reply-policy.js';
-import { LANGUAGE_POLICY_VERSION } from '../packages/agent-core/language-support.js';
+import { REPLY_BUDGET,REPLY_POLICY_VERSION } from '../apps/eval-runner/src/evaluation-reply-v3.js';
+import { LANGUAGE_POLICY_VERSION } from '../apps/eval-runner/src/evaluation-language-v3.js';
 
 // Small authored synthetic fixture; no uploaded learner dialogue is committed.
 function fixture(){return {format:'ask-kai-prepared-eval',version:1,status:'prepared_not_executed',
