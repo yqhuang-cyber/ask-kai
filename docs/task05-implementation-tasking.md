@@ -1,6 +1,6 @@
 # 收尾 Task 05：分项实施与回归清单
 
-2026-10-12。依据[Task04 POC Harness设计](task04-poc-harness-design.md)形成。**05-01～05-08工程已分别提交主干，05-09全量候选采集已结束，45/48案完整、233/255轮有效，正式评分待审，Task05尚未整体验收通过。** [真实针对性回归](eval-results/2026-10-12-task05-targeted-regression.md)保留语言两次固定PCM对照、拒绝／收束及澄清／纠正成功与失败；当前319测试、三个回放和CI通过，不把工程验证算作内容放行。[候选评测](candidate-evaluation.md)、[暂停目标与收束](paused-goals-and-closing.md)、[澄清与纠正](clarification-and-correction.md)、[共享短回复](task05-short-replies.md)、[回合与呈现证据](author-turn-and-presentation-evidence.md)、[有来源总结](task05-sourced-summary.md)说明实现边界。[全量采集核查](eval-results/2026-10-13-task05-full-collection.md)列出3个采集失败与未解决内容问题。旧数据、原评分及普通Web已完成验收保留。
+2026-10-12。依据[Task04 POC Harness设计](task04-poc-harness-design.md)形成。**05-01～05-08工程已分别提交主干；05-09现有244轮评分及旧基线比较已交付：149通过、72待复核、23失败，011缺11轮及24项证据缺口保留，Task05尚未整体验收通过。** 见[正式比较](eval-results/2026-10-13-task05-formal-comparison.md)及[011／018独立诊断](eval-results/2026-10-13-task05-collection-diagnosis.md)；本轮没有Agent修改或新模型调用。 [真实针对性回归](eval-results/2026-10-12-task05-targeted-regression.md)保留语言两次固定PCM对照、拒绝／收束及澄清／纠正成功与失败；当前319测试、三个回放和CI通过，不把工程验证算作内容放行。[候选评测](candidate-evaluation.md)、[暂停目标与收束](paused-goals-and-closing.md)、[澄清与纠正](clarification-and-correction.md)、[共享短回复](task05-short-replies.md)、[回合与呈现证据](author-turn-and-presentation-evidence.md)、[有来源总结](task05-sourced-summary.md)说明实现边界。[全量采集核查](eval-results/2026-10-13-task05-full-collection.md)列出3个采集失败与未解决内容问题。旧数据、原评分及普通Web已完成验收保留。
 
 ## 1. 顺序与模块
 
@@ -49,7 +49,7 @@
 
 旧 Agent 为 `6661d7ba3ecf7f3eef8f23f74c5d625cb8f457e2`，旧基线清单 `docs/eval-baselines/freechat-v3.1-baseline.json`。现有校验会对改动后的 Agent 报运行文件漂移，05-01 必须新增受控候选契约，不能删除校验或覆盖旧清单。
 
-候选清单采用独立 kind／版本，记录候选提交及父版本、允许的改动文件、完整运行文件哈希、依赖／锁文件、数据／profile原字节哈希、模型／音色／语速、各策略与评分口径，以及输入音频来源和哈希。评测工具提交单独记录。新候选入口必须显式选择候选；该入口和版本清单尚未实现，本文不提供可执行候选命令。
+候选清单采用独立 kind／版本，记录候选提交及父版本、允许的改动文件、完整运行文件哈希、依赖／锁文件、数据／profile原字节哈希、模型／音色／语速、各策略与评分口径，以及输入音频来源和哈希。评测工具提交单独记录。新候选入口必须显式选择候选；该入口和版本清单已由05-01实现，执行说明见[候选评测](candidate-evaluation.md)；历史基线入口继续拒绝漂移。
 
 候选清单绑定已存在的实现提交，清单／报告提交另记，避免用文件内的提交号反向决定包含它的同一提交号。运行前再核对实际工作树、运行文件集合和候选清单；主干仅文档／评测工具后续提交不能冒充新的 Agent 行为版本。
 

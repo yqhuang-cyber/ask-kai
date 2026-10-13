@@ -4,7 +4,7 @@
 
 > **当前状态：独立 POC 的本地业务链路已可运行。** 基础工程第 1–7 步及体验 Task 01–09 已完成工程实现；普通 Web 真实纵向验收于 2026-10-12 由用户确认完成。真实内容已有首轮采集及模型辅助复核，剩余设备场景、采集缺口、人工校准与改造后回归分别保留。身份、Mission 和偏好由本地 mock 提供。详见[完整收尾 TODO](docs/poc-completion-todo.md)。
 
-**收尾 Task04设计已完成，Task05的05-01～05-08工程已实现，05-09全量采集已结束：45/48案完整、233/255轮有效，正式评分待审，尚未整体验收通过。** [POC Harness 改造设计](docs/task04-poc-harness-design.md)明确上下文与语言请求、拒绝／收束、澄清／纠正、共享预算、回合归属及有来源总结；[分项实施与回归清单](docs/task05-implementation-tasking.md)列出九个子任务、验收范围和回滚方式。[候选版本评测](docs/candidate-evaluation.md)已增加冻结、校验和对比入口；[上下文快照](docs/context-snapshots.md)已统一组装和来源记录；[本轮语言请求](docs/scoped-language-requests.md)已区分作用范围和一次求助；[真实针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)保留语言不稳定、告别邀请与未澄清的失败；[有来源总结](docs/task05-sourced-summary.md)已实现。Agent运行代码已进入逐类改造，作者数据及旧分数保持原样，Pi完整目标架构继续作为后续参考。
+**收尾 Task04设计已完成，Task05的05-01～05-08工程已实现，05-09现有记录正式评分及旧基线比较已完成：47/48案完整、244/255轮已评分，149通过／72待复核／23失败，Task05尚未整体验收通过。** [POC Harness 改造设计](docs/task04-poc-harness-design.md)明确上下文与语言请求、拒绝／收束、澄清／纠正、共享预算、回合归属及有来源总结；[分项实施与回归清单](docs/task05-implementation-tasking.md)列出九个子任务、验收范围和回滚方式。[候选版本评测](docs/candidate-evaluation.md)已增加冻结、校验和对比入口；[上下文快照](docs/context-snapshots.md)已统一组装和来源记录；[本轮语言请求](docs/scoped-language-requests.md)已区分作用范围和一次求助；[真实针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)保留语言不稳定、告别邀请与未澄清的失败；[有来源总结](docs/task05-sourced-summary.md)已实现。Agent运行代码已进入逐类改造，作者数据及旧分数保持原样，Pi完整目标架构继续作为后续参考。
 
 ## 本地运行
 
@@ -38,7 +38,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 ### 文档入口
 
 - [收尾 Task04：最小 POC Harness 改造设计（设计已交付，行为待实施）](docs/task04-poc-harness-design.md)
-- [收尾 Task05：分项开发、验收与回归清单（05-01～05-09，待实施）](docs/task05-implementation-tasking.md)
+- [收尾 Task05：分项开发、验收与回归清单（工程已实现，正式全量对比已交付）](docs/task05-implementation-tasking.md)
 - [收尾 Task 03：根因验证结果（16 会话／40 步；支持、反证与未知原因）](docs/eval-results/2026-10-12-task03-root-cause.md)
 - [根因验证案例范围与运行前预注册计划](docs/task03-root-cause-plan.md)
 - [收尾 Task 02：采集证据结果（011 完整；040 多 ASR 留证；只改评测）](docs/eval-results/2026-10-12-task02-evidence.md)
@@ -113,11 +113,13 @@ npm run eval:dataset:check -- docs/eval-datasets/freechat-v3.1/ask-kai-freechat-
 
 ### 自由会话多轮运行器
 
-**当前实施顺序（2026-10-12）：评测工具、全量采集、评分校准、小范围根因对照和 Task04 改造设计已交付；Task05的05-01～05-08已实现，05-09完整候选采集已结束，3案失败、正式评分待审，内容问题尚未全部通过。**；原冻结基线、作者数据、实际记录和旧分数保留。早期顺序及两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)，当前开发清单见[Task05](docs/task05-implementation-tasking.md)。
+**当前实施顺序（2026-10-13）：Task05-09现有244轮评分、旧基线比较及011／018独立诊断已交付；本轮Agent冻结，内容质量验收仍开放。** 原冻结基线、作者数据、实际记录和旧分数保留。早期顺序及两种 harness 的边界见[评测优先计划](docs/evaluation-first.md)，当前开发清单见[Task05](docs/task05-implementation-tasking.md)。
 
 首轮结果和[机器可读逐轮记录](docs/eval-results/2026-10-12-freechat-baseline.json)已发布，244 轮保留十维、逐项要求及证据定位。后续[Task03](docs/eval-results/2026-10-12-task03-root-cause.md)确认了本轮语言识别和后台更新时序，并保留旧双语状态干扰的支持假设及反例；内容纠正、收束、澄清、密度及总结观察已纳入[Task04设计](docs/task04-poc-harness-design.md)，未定位原因继续未知。旧Agent基线保留，Task05候选另按版本评测，原Task10仍有剩余验收项。
 
 **收尾 Task01 评分复核已交付**：[校准结果与可信问题清单](docs/eval-results/2026-10-12-task01-calibration.md)及[前后比较／逐轮结果](docs/eval-results/2026-10-12-task01-calibration.json)。同一原始记录重点复核 97 轮，147 轮沿用 v1；失败 36→20，语音识别实质偏离 42→8，另有 7 轮不确定，19 项要求不可评。该任务没有修改 Agent、作者数据或十维权重，没有重新调用豆包／独立评分模型，未人工批准；分数变化不代表 Agent 改善。Task02／03已随后交付独立诊断，Task04设计也已交付；完整顺序见[收尾 TODO](docs/poc-completion-todo.md)。
+
+**Task05-09候选正式结果**：[评分与旧基线对比](docs/eval-results/2026-10-13-task05-formal-comparison.md)及[机器可读逐轮分数／比较](docs/eval-results/2026-10-13-task05-formal-comparison.json)已发布。244轮全部完成十维模型辅助离线审查，1,390/1,414项要求给分、24项留缺口；011缺11轮继续不可评。旧／候选共同可比222轮，均分95.98→95.17，56轮有改善、52轮有退化（8轮混合）；018错误纠正关键失败本次未出现，动态语言、澄清及收束仍有失败。[011／018诊断](docs/eval-results/2026-10-13-task05-collection-diagnosis.md)保留超时及大包限制，不盲目重跑。评审来源为Codex模型辅助，没有独立Judge API调用或人工批准。完整逐轮理由、实际证据区间、来源审计及复算文件另交付 `Task05-09-evidence-20261013.zip`；实际逐字稿／音频不提交Git。总结新增6份教师文本及22份受限会话回顾，不等于完整学习清单或掌握。
 
 逐轮[真实记录评分适配](docs/recorded-scoring.md)已实现：`npm run eval:recorded` 生成现有十维的评分输入、逐项要求与证据模板；`npm run eval:report` 汇总完整分母、失败分类和跨案例问题。模板未填或 Judge 未配置时明确保留未评分，不把采集成功当作内容通过。批量入口和实际执行记录见该文档。
 
@@ -641,7 +643,7 @@ docs/
   test-fixtures/           # 脱敏、合成的事件样本
 ~~~
 
-Task05的05-01～05-08工程已分别校验、提交并推送main；[全量采集核查](docs/eval-results/2026-10-13-task05-full-collection.md)已发布；下一步补齐3个失败案并完成05-09正式评分与旧基线对比，再按[开发清单](docs/task05-implementation-tasking.md)处理未通过类别。[针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)列出实际成功及失败，工程通过不代表内容合格。原体验 Task10剩余验收按收尾 Task06处理；进度以[实施计划](docs/implementation-plan.md)和[收尾 TODO](docs/poc-completion-todo.md)为准。
+Task05的05-01～05-08工程已分别校验、提交并推送main；[正式评分与旧基线对比](docs/eval-results/2026-10-13-task05-formal-comparison.md)和[011／018诊断](docs/eval-results/2026-10-13-task05-collection-diagnosis.md)已交付。010／018补跑完整，011缺11轮保留；本轮不改Agent，下一阶段依跨案例结果按[开发清单](docs/task05-implementation-tasking.md)逐类修正和回归。[针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)列出实际成功及失败，工程通过不代表内容合格。原体验 Task10剩余验收按收尾 Task06处理；进度以[实施计划](docs/implementation-plan.md)和[收尾 TODO](docs/poc-completion-todo.md)为准。
 
 PRD v1.1 已归档到 [产品需求文档](docs/prd/ask-kai-agent-prd-v1.1.md)。技术 ERD v1.0、测试与 Evaluation v1.0 及配套用例工作簿也是本路线图的设计依据，其源文件仍待归档。实施时在每个 Issue / PR 关联需求与测试 ID。
 
