@@ -1,5 +1,7 @@
 # 收尾 Task 05：分项实施与回归清单
 
+2026-10-13：全量结果后的首批分类Harness修复已推主干；预注册26案／149轮最终回归中145轮正式模型辅助评分完成（103通过、29待复核、13失败），共同可比134轮均分94.60→96.44，37改善／18退化（2混合）。005／027缺4轮、12项要求null保留；Task05质量验收未通过。见[正式结果与诊断](eval-results/2026-10-13-harness-formal-comparison.md)。本次评分不改Agent，不新增供应商或独立Judge调用。动态规划设计另见其独立任务清单，未计为本轮运行实现。
+
 2026-10-12。依据[Task04 POC Harness设计](task04-poc-harness-design.md)形成。**05-01～05-08工程已分别提交主干；05-09现有244轮评分及旧基线比较已交付：149通过、72待复核、23失败，011缺11轮及24项证据缺口保留，Task05尚未整体验收通过。** 见[正式比较](eval-results/2026-10-13-task05-formal-comparison.md)及[011／018独立诊断](eval-results/2026-10-13-task05-collection-diagnosis.md)；本轮没有Agent修改或新模型调用。 [真实针对性回归](eval-results/2026-10-12-task05-targeted-regression.md)保留语言两次固定PCM对照、拒绝／收束及澄清／纠正成功与失败；当前319测试、三个回放和CI通过，不把工程验证算作内容放行。[候选评测](candidate-evaluation.md)、[暂停目标与收束](paused-goals-and-closing.md)、[澄清与纠正](clarification-and-correction.md)、[共享短回复](task05-short-replies.md)、[回合与呈现证据](author-turn-and-presentation-evidence.md)、[有来源总结](task05-sourced-summary.md)说明实现边界。[全量采集核查](eval-results/2026-10-13-task05-full-collection.md)列出3个采集失败与未解决内容问题。旧数据、原评分及普通Web已完成验收保留。
 
 ## 1. 顺序与模块
