@@ -6,6 +6,8 @@
 
 **收尾 Task04设计已完成，Task05的05-01～05-08工程已实现，05-09现有记录正式评分及旧基线比较已完成：47/48案完整、244/255轮已评分，149通过／72待复核／23失败，Task05尚未整体验收通过。** [POC Harness 改造设计](docs/task04-poc-harness-design.md)明确上下文与语言请求、拒绝／收束、澄清／纠正、共享预算、回合归属及有来源总结；[分项实施与回归清单](docs/task05-implementation-tasking.md)列出九个子任务、验收范围和回滚方式。[候选版本评测](docs/candidate-evaluation.md)已增加冻结、校验和对比入口；[上下文快照](docs/context-snapshots.md)已统一组装和来源记录；[本轮语言请求](docs/scoped-language-requests.md)已区分作用范围和一次求助；[真实针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)保留语言不稳定、告别邀请与未澄清的失败；[有来源总结](docs/task05-sourced-summary.md)已实现。Agent运行代码已进入逐类改造，作者数据及旧分数保持原样，Pi完整目标架构继续作为后续参考。
 
+**2026-10-13：已根据全量跨案例结果修改 Harness，分类推送主干。** 语言、收束、教学密度、歧义澄清、音频兼容和总结时序修复已实现；338个测试、三个回放及CI浏览器检查通过。最终26案／149轮固定录音真实回归进行中，正式评分与改善结论仍待完成。见[实现与回归记录](docs/eval-results/2026-10-13-harness-cross-case-regression.md)；旧全量基线和缺口保留。
+
 ## 本地运行
 
 需要 Node >=22.18（建议 Node 22 最新补丁或 Node 24）。依赖版本已固定并锁定；默认回放、规则测试和评分示例不需要豆包密钥。
@@ -643,7 +645,7 @@ docs/
   test-fixtures/           # 脱敏、合成的事件样本
 ~~~
 
-Task05的05-01～05-08工程已分别校验、提交并推送main；[正式评分与旧基线对比](docs/eval-results/2026-10-13-task05-formal-comparison.md)和[011／018诊断](docs/eval-results/2026-10-13-task05-collection-diagnosis.md)已交付。010／018补跑完整，011缺11轮保留；本轮不改Agent，下一阶段依跨案例结果按[开发清单](docs/task05-implementation-tasking.md)逐类修正和回归。[针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)列出实际成功及失败，工程通过不代表内容合格。原体验 Task10剩余验收按收尾 Task06处理；进度以[实施计划](docs/implementation-plan.md)和[收尾 TODO](docs/poc-completion-todo.md)为准。
+Task05的05-01～05-08工程已分别校验、提交并推送main；[正式评分与旧基线对比](docs/eval-results/2026-10-13-task05-formal-comparison.md)和[011／018诊断](docs/eval-results/2026-10-13-task05-collection-diagnosis.md)已交付。010／018补跑完整，011缺11轮保留；正式评分阶段未改Agent；现已依跨案例结果按[开发清单](docs/task05-implementation-tasking.md)逐类修正和回归。[针对性回归](docs/eval-results/2026-10-12-task05-targeted-regression.md)列出实际成功及失败，工程通过不代表内容合格。原体验 Task10剩余验收按收尾 Task06处理；进度以[实施计划](docs/implementation-plan.md)和[收尾 TODO](docs/poc-completion-todo.md)为准。
 
 PRD v1.1 已归档到 [产品需求文档](docs/prd/ask-kai-agent-prd-v1.1.md)。技术 ERD v1.0、测试与 Evaluation v1.0 及配套用例工作簿也是本路线图的设计依据，其源文件仍待归档。实施时在每个 Issue / PR 关联需求与测试 ID。
 
