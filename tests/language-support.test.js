@@ -1,3 +1,4 @@
+import { LANGUAGE_INSTRUCTIONS as EVALUATION_LANGUAGE_INSTRUCTIONS } from '../apps/eval-runner/src/evaluation-language-v3.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RunnableLambda } from '@langchain/core/runnables';
@@ -172,6 +173,6 @@ test('Judge keeps ten dimensions and reviews novel expressions instead of accept
   let messages;
   const model={withStructuredOutput:schema=>{assert.equal(Object.keys(schema.properties.scores.properties).length,10);return RunnableLambda.from(input=>{messages=input;return judgement;});}};
   await createLangChainJudge(model)({case:{id:'language-case',turns:[{role:'student',text:'只用中文'},{role:'kai',text:'好的。'}]},language_contexts:[{policy:{english_support:'required'}}]});
-  assert.ok(messages[0][1].includes(LANGUAGE_INSTRUCTIONS));assert.match(messages[0][1],/新表达或没听懂时有无必要的英文/);
+  assert.ok(messages[0][1].includes(EVALUATION_LANGUAGE_INSTRUCTIONS));assert.match(messages[0][1],/新表达或没听懂时有无必要的英文/);
   assert.equal(JSON.parse(messages[1][1]).language_contexts[0].policy.english_support,'off');
 });

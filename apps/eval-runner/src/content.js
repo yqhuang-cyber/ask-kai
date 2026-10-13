@@ -1,4 +1,4 @@
-import { measureReply,REPLY_POLICY_VERSION } from '../../../packages/agent-core/reply-policy.js';
+import { measureReply,REPLY_POLICY_VERSION } from './evaluation-reply-v3.js';
 import { languageContexts } from './language-context.js';
 export const RUBRIC_VERSION='kai-content-v3';
 export const WEIGHTS=Object.freeze({intent:15,correctness:15,instructions:10,level:12,expression:8,continuity:8,progress:10,personalization:5,persona:5,safety:12});

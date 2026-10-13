@@ -1,4 +1,4 @@
-import { LanguageSupport } from '../../../packages/agent-core/language-support.js';
+import { LanguageSupport } from './evaluation-language-v3.js';
 import { validateMemoryRecord,MEMORY_FIELDS } from '../../../packages/hskai-bridge/identity.js';
 
 // Expected support comes from approved initial data and preceding student turns,

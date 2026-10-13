@@ -1,8 +1,8 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { RunnableLambda } from '@langchain/core/runnables';
 import { WEIGHTS } from './content.js';
-import { REPLY_INSTRUCTIONS } from '../../../packages/agent-core/reply-policy.js';
-import { LANGUAGE_INSTRUCTIONS } from '../../../packages/agent-core/language-support.js';
+import { REPLY_INSTRUCTIONS } from './evaluation-reply-v3.js';
+import { LANGUAGE_INSTRUCTIONS } from './evaluation-language-v3.js';
 import { REVIEW_CALIBRATION_INSTRUCTIONS } from './review-calibration.js';
 
 const evidence={type:'object',additionalProperties:false,properties:{turn:{type:'integer'},role:{type:'string',enum:['student','kai','summary','metadata']},start:{type:'integer'},end:{type:'integer'}},required:['turn','role','start','end']};

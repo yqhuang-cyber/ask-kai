@@ -1,7 +1,7 @@
 import { scoreCase,WEIGHTS,RUBRIC_VERSION } from './content.js';
 import { checkPreparedDataset } from './prepared-dataset.js';
 import { selectCases,profileMemory,sha256,comparableText } from './multiturn-plan.js';
-import { measureReply } from '../../../packages/agent-core/reply-policy.js';
+import { measureReply } from './evaluation-reply-v3.js';
 import { REVIEW_CALIBRATION_VERSION,validateCalibratedTurn } from './review-calibration.js';
 
 const assert=(ok,code)=>{if(!ok)throw new Error(code);};

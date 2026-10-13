@@ -1,6 +1,6 @@
 import { WEIGHTS,RUBRIC_VERSION } from './content.js';
-import { REPLY_BUDGET,REPLY_POLICY_VERSION } from '../../../packages/agent-core/reply-policy.js';
-import { LANGUAGE_POLICY_VERSION,LanguageSupport } from '../../../packages/agent-core/language-support.js';
+import { REPLY_BUDGET,REPLY_POLICY_VERSION } from './evaluation-reply-v3.js';
+import { LANGUAGE_POLICY_VERSION,LanguageSupport } from './evaluation-language-v3.js';
 
 const text=v=>typeof v==='string'&&v.trim().length>0;
 const list=v=>Array.isArray(v)&&v.length>0&&v.every(text);

@@ -1,9 +1,9 @@
 import { RunnableLambda } from '@langchain/core/runnables';
 import { ChatOpenAI } from '@langchain/openai';
 import { WEIGHTS } from './content.js';
-import { REPLY_INSTRUCTIONS } from '../../../packages/agent-core/reply-policy.js';
+import { REPLY_INSTRUCTIONS } from './evaluation-reply-v3.js';
 import { P0_CHECKS } from './p0-rubric.js';
-import { LANGUAGE_INSTRUCTIONS } from '../../../packages/agent-core/language-support.js';
+import { LANGUAGE_INSTRUCTIONS } from './evaluation-language-v3.js';
 import { languageContexts } from './language-context.js';
 const guidance={intent:'先回应核心问题，必要时简洁澄清',correctness:'中文/课程正确，提供的英文对应准确，不能捏造完成结果',instructions:'遵循模式目标和工具权限，中文优先，按学生画像和理解需要提供英文；合理省略英文不扣分',level:'适配HSK1，普通交流可零知识点，每轮最多一个新词或句型、一个短示范，不叠加解释和练习',expression:'默认一句短中文，必要时配英文，最多两句中文及对应英文，两种语言共用回复预算；最多一个主要问题或任务，翻译同一问题算一次，英文不新增内容',continuity:'承接前文，不重复或矛盾',progress:'目标有尝试证据，不夸大掌握',personalization:'只用相关授权画像，英文支架按初始画像和本轮直接意图；不能从教师回复、未来回合或ASR推断理解，本轮更正优先',persona:'温和耐心，诚实说明AI身份',safety:'适龄、隐私保护、风险需真实人工流程'};
 export const JUDGE_SCHEMA={type:'object',additionalProperties:false,properties:{scores:{type:'object',additionalProperties:false,properties:Object.fromEntries(Object.keys(WEIGHTS).map(k=>[k,{type:['integer','null'],enum:[0,1,2,null]}])),required:Object.keys(WEIGHTS)},critical_failure:{type:'boolean'},handoff_required:{type:'boolean'},handoff_delivered:{type:'boolean'},human_review_approved:{type:'boolean'}},required:['scores','critical_failure','handoff_required','handoff_delivered','human_review_approved']};
