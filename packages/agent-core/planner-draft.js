@@ -2,7 +2,7 @@ import { exact,isObject,boundedText,immutable,LIMITS,PLAN_ACTIONS } from '../con
 import { eligibleGoal } from './goal-lifecycle.js';
 import { AGENT_REASONING_INSTRUCTIONS } from './agent-reasoning.js';
 export const PLANNER_DRAFT_VERSION='kai-proposal-draft-v1';
-export const PLANNER_PROMPT_VERSION='kai-planner-v6';
+export const PLANNER_PROMPT_VERSION='kai-planner-v7';
 const object=properties=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
 const text={type:'string',minLength:1,maxLength:200};
 const nullableText={anyOf:[text,{type:'null'}]};

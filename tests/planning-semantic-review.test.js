@@ -25,8 +25,8 @@ test('review timeout/cancel and invalid result preserve unknown without exposing
 test('accepted-plan reviews refuse non-authored inputs or foreign sessions before any transmission',()=> {
   const dataset={cases:[{id:'authored',turns:[{text:'known authored input'}]}]};
   const row={case_id:'authored',index:0,input:'known authored input',plan:{session_id:'eval-authored',planner_kind:'llm'},goal_review:{}};
-  assert.equal(authoredReviewInputs([row],dataset).length,1);
+  assert.throws(()=>authoredReviewInputs([row],dataset),/SOURCE_REQUIRED/);
   assert.throws(()=>authoredReviewInputs([{...row,input:'private learner content'}],dataset),/SOURCE_REQUIRED/);
   assert.throws(()=>authoredReviewInputs([{...row,plan:{...row.plan,session_id:'foreign'}}],dataset),/SOURCE_REQUIRED/);
-  assert.equal(authoredReviewInputs([{...row,plan:{...row.plan,planner_kind:'rule'}}],dataset).length,0);
+  assert.throws(()=>authoredReviewInputs([{...row,plan:{...row.plan,planner_kind:'rule'}}],dataset),/SOURCE_REQUIRED/);
 });

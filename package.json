@@ -36,7 +36,8 @@
     "prepare:planning:fc": "node scripts/prepare-fc-probe-inputs.js",
     "probe:planning:fc": "node --env-file-if-exists=.env scripts/fc-planning-probe.js",
     "eval:agent": "node --env-file-if-exists=.env scripts/agent-eval.js",
-    "review:planning": "node --env-file-if-exists=.env scripts/review-planning.js"
+    "review:planning": "node --env-file-if-exists=.env scripts/review-planning.js",
+    "eval:agent:long": "node scripts/long-session-eval.js"
   },
   "dependencies": {
     "@langchain/core": "1.2.14",

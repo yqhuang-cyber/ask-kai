@@ -59,8 +59,8 @@ test('full-contract retains baseline fields/repair and appends versioned reasoni
   for(const kind of ['Conversation','Turn'])for(const options of [{},{repair:true,repairCode:'INVALID_SELECTION_REFERENCE'}]) {
     await old['plan'+kind](initial,options);await current['plan'+kind](initial,options);const sent=structuredClone(requests.at(-1));assert.ok(sent.messages[0].content.includes(AGENT_REASONING_INSTRUCTIONS));sent.messages[0].content=sent.messages[0].content.replace(AGENT_REASONING_INSTRUCTIONS,'');assert.deepEqual(sent,requests.at(-2));
   }
-  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture'})).prompt,'kai-planner-v6');
-  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture',ASK_KAI_PLANNER_PROTOCOL:'draft_v1'})).prompt,'kai-planner-v6');
+  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture'})).prompt,'kai-planner-v7');
+  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture',ASK_KAI_PLANNER_PROTOCOL:'draft_v1'})).prompt,'kai-planner-v7');
   assert.throws(()=>configuredPlanner({MINIMAX_API_KEY:'fixture',ASK_KAI_PLANNER_PROTOCOL:'unknown'}),/NOT_REGISTERED/);
 });
 test('planner metadata exports only bounded descriptor fields',()=> {

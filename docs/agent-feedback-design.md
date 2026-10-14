@@ -34,4 +34,6 @@ feedback 留在服务端 transient state，不含原始文字，不出现在浏�
 
 输出仅版本、来源哈希、有限状态／错误码、各项判定与 HTTP／usage 元数据，不保存原始响应、思维链或真实逐字稿。真实模型、synthetic peer 与浏览器音频分别报告。
 
-完整矩阵后可显式 npm run review:planning，只对 .local/goal-eval/review.json 中与冻结作者输入／eval session 相符的 LLM 提案做辅助审阅；原始上下文缺失时明确 limited_context，不根据评测期望重构上下文。规则提案不进入此命令的 LLM 分母。结果见 [本轮验证](eval-results/2026-10-14-agent-feedback.md)。
+当前 review:planning 要求原始 snapshot-v2：与冻结作者输入／eval session、原始计划／epoch／版本和 hash 对应；旧不完整输入拒绝，不根据评测期望重构上下文。--preflight 只检查绑定。规则提案不进入此命令的 LLM 分母。结果见 [本轮验证](eval-results/2026-10-14-agent-feedback.md)。
+
+后续 snapshot、shadow ObservationPort、降级与长会话已实现，当前版本以 [四项工程](agent-four-tasks.md) 为准；前文 prompt-v6／reasoning-v1 保留为 6b7e4cf 的历史。

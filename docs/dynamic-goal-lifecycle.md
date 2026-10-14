@@ -25,3 +25,5 @@ Free 初始化仍为 null；一次求助只产生本轮 local_help_target。只�
 ## 语音限制
 
 本期目标状态、页面和后续输入指令来自同一计划。目标修订不证明豆包已开始的当轮自动输出采用了新计划。生成门控须有官方字段及当前账号时序证据；`controlled` 保持关闭，独立 ASR／TTS 不在本轮范围。
+
+2026-10-14 后续修复：session_declined_goal_ids 保留会内明确拒绝／停止的目标；困难降级或模型 replace 不能自动恢复它们。只有当前明确选择／原目标的明确恢复可以解除。原观察及其 goal／revision 不重标，版本升为 kai-goal-lifecycle-v2。见 [长会话结果](eval-results/2026-10-14-agent-four-tasks.md)。

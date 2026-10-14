@@ -1,5 +1,7 @@
 # Incremental delivery
 
+2026-10-14 原始上下文／ObservationPort／降级／长会话四项工程完成：420 项测试、三个 synthetic replay、20 个反馈案例、12 案／18 轮规划和新增三会话／44 轮回归通过。原始快照在目标修订前捕获并 hash 绑定；观察仅 shadow，不写学习事实；修复困难自动恢复已停止目标的缺口。没有新模型或豆包调用，语义质量与设备验收不计完成。见 [四项结果](eval-results/2026-10-14-agent-four-tasks.md)。
+
 2026-10-14 Agent 优先迭代：加入源于实际 final／输出的 learner_feedback、当前目标观察引用校验、内部 ID／多问题约束与八项辅助语义审阅。406 项测试、三个 synthetic replay、20 案反馈和原 12 案／18 轮离线回归、Chromium 合成设备通过。记录仍 attempted-only；通用语义、提示因果、独立／达成与 M3 质量未验收，豆包 controlled 不变。见 [Agent 验证](eval-results/2026-10-14-agent-feedback.md)。
 
 2026-10-14 规划可靠性与控制实验第一轮：已推送 88c98f7；拆分 provider-independent Planner 与 MiniMax transport，增加严格 DraftCompiler、来源候选约束、分阶段安全诊断及冻结对照。旧契约逐轮 5/18 接受 LLM，Draft-v5 4/18，未证实可靠性提升，因此旧 prompt 保持默认。豆包独立 FC probe 已观察到真实合成样本等待工具结果，普通 Web 仍为 next_turn_advisory，controlled 未启用。394 项测试、三个 synthetic replay、Chromium 合成设备回归通过；后续换更强 LLM 复用同一业务契约／取消／数据集。见 [可靠性与控制结果](eval-results/2026-10-14-planner-reliability.md)。

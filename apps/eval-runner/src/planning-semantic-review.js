@@ -11,7 +11,7 @@ export const PLANNING_RUBRIC=immutable([
   {id:'uncertainty',question:'是否诚实保留覆盖、语义、播放和提示时间未知？没有证据不能推断不会、独立或已经学会。'}
 ]);
 const VERDICTS=['pass','fail','unknown','not_applicable'],REASONS=['supported','conflict','insufficient_evidence','out_of_scope'];
-const SOURCES=['student_input','plan_proposal','learner_feedback','actual_context','learning_profile','resource','goal_review','conversation_plan'];
+const SOURCES=['student_input','plan_proposal','learner_feedback','actual_context','learning_profile','resource','goal_review','conversation_plan','student_profile','learning_history','coverage','policy','language','prior_execution'];
 export const REVIEW_SCHEMA=immutable({type:'object',additionalProperties:false,required:['criteria'],properties:{criteria:{type:'array',minItems:8,maxItems:8,items:{type:'object',additionalProperties:false,required:['id','verdict','reason','refs'],properties:{id:{enum:PLANNING_RUBRIC.map(c=>c.id)},verdict:{enum:VERDICTS},reason:{enum:REASONS},refs:{type:'array',minItems:1,maxItems:4,items:{enum:SOURCES}}}}}}});
 export function validateSemanticReview(value,input) {
   if(!exact(value,['criteria'])||!Array.isArray(value.criteria)||value.criteria.length!==PLANNING_RUBRIC.length||new Set(value.criteria.map(c=>c?.id)).size!==PLANNING_RUBRIC.length||!value.criteria.every(c=>exact(c,['id','verdict','reason','refs'])&&PLANNING_RUBRIC.some(r=>r.id===c.id)&&VERDICTS.includes(c.verdict)&&REASONS.includes(c.reason)&&Array.isArray(c.refs)&&c.refs.length>=1&&c.refs.length<=4&&c.refs.every(ref=>SOURCES.includes(ref)&&Object.hasOwn(input,ref)&&input[ref]!==null)))throw new Error('INVALID_SEMANTIC_REVIEW');

@@ -1,7 +1,7 @@
 import { immutable } from '../contracts/planning.js';
 import { controlText } from './natural-teaching.js';
 
-export const GOAL_POLICY_VERSION='kai-goal-lifecycle-v1';
+export const GOAL_POLICY_VERSION='kai-goal-lifecycle-v2';
 export const SUCCESS_RULES=Object.freeze({
   'likes-independent-session-v1':{kp_id:'likes-expression',minimum_opportunities:2,required:['semantic_review','prompt_scope','different_contexts','independent_expression']},
   'time-independent-session-v1':{kp_id:'time-expression',minimum_opportunities:2,required:['semantic_review','prompt_scope','different_contexts','independent_expression']}
@@ -48,6 +48,7 @@ export function checkGoalPatch(patch,{plan,context,resource,choice,policy,input,
     const explicit=choice.kind==='select'&&choice.goal_id===patch.goal_id;
     const easier=choice.kind==='difficulty'&&review.difficulty_count>=2&&plan.primary_goal?.kp_ids.some(id=>resource.key_points.find(k=>k.id===id)?.prerequisites.some(kp=>goal?.kp_ids.includes(kp)));
     if(policy.action==='CLOSE'||policy.teaching_paused&&!explicit&&!easier||!explicit&&!easier)throw new Error('GOAL_REPLACEMENT_REQUIRES_CHOICE');
+    if(!explicit&&review.session_declined_goal_ids?.includes(goal?.id))throw new Error('SESSION_DECLINED_GOAL_FORBIDDEN');
     if(!eligibleGoal(goal,context,resource,{explicit}))throw new Error('GOAL_REPLACEMENT_RESOURCE_OR_PREREQUISITE');
     return;
   }

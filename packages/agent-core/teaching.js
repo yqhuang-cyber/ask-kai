@@ -11,7 +11,7 @@ import { PlanningState } from './planning-state.js';
 import { PlanningObservations } from './planning-observations.js';
 import { assessGoal } from './goal-lifecycle.js';
 export class TeachingSession {
-  constructor({sessionId,mode='sports',memory=[],mission=null,speechPace,planning,planner,resourceResolver,onPlanningRecord}) {
+  constructor({sessionId,mode='sports',memory=[],mission=null,speechPace,planning,planner,resourceResolver,onPlanningRecord,onAcceptedProposal,observationPort}) {
     if(!['sports','free','mission'].includes(mode))throw new Error('INVALID_MODE');
     if(mode==='mission' && !mission)throw new Error('TRUSTED_MISSION_REQUIRED');
     this.speechInstructions=speechPaceInstructions(speechPace);
@@ -21,7 +21,7 @@ export class TeachingSession {
     this.language=new LanguageSupport({memory});
     if(planning) {
       this.observations=new PlanningObservations({sessionId,...planning});
-      this.planning=new PlanningState({...planning,planner,observations:this.observations,resourceResolver,onRecord:onPlanningRecord});
+      this.planning=new PlanningState({...planning,planner,observations:this.observations,resourceResolver,onRecord:onPlanningRecord,onAcceptedProposal,observationPort});
       if(this.planning.mode!=='shadow') {
         this.teaching.goal=planning.plan.primary_goal?{id:planning.plan.primary_goal.id,source:'mock_hskai'}:null;
         this.teaching.likesGoal=planning.plan.primary_goal?.kp_ids.includes('likes-expression')??false;
