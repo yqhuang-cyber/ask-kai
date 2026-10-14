@@ -1,8 +1,10 @@
 # Incremental delivery
 
+2026-10-14 规划可靠性与控制实验第一轮：已推送 88c98f7；拆分 provider-independent Planner 与 MiniMax transport，增加严格 DraftCompiler、来源候选约束、分阶段安全诊断及冻结对照。旧契约逐轮 5/18 接受 LLM，Draft-v5 4/18，未证实可靠性提升，因此旧 prompt 保持默认。豆包独立 FC probe 已观察到真实合成样本等待工具结果，普通 Web 仍为 next_turn_advisory，controlled 未启用。394 项测试、三个 synthetic replay、Chromium 合成设备回归通过；后续换更强 LLM 复用同一业务契约／取消／数据集。见 [可靠性与控制结果](eval-results/2026-10-14-planner-reliability.md)。
+
 2026-10-14 目标生命周期迭代：已落实有来源目标替换／停止、连续明确困难时退回可信先修目标、free 自愿练习、原目标观察来源与多目标总结；381 项测试、三个 synthetic replay、Chromium 合成设备检查通过。独立行为评测及安全拒绝原因已加入，真实 M3 仍有大量降级与选择问题；达成判断因语义／提示／呈现证据缺失而未验证，豆包保持 next_turn_advisory。见 [新验证报告](eval-results/2026-10-14-dynamic-goals.md)。
 
-2026-10-14 动态初始化、会话计划和逐轮 MiniMax M3 规划已接入：三类 mock 数据、完整有限资源、准备版本／消费校验、actual-context 提案、迟到取消、尝试总结与自愿内存写回、Web 同源投影。语音保持豆包全双工，当前为 next_turn_advisory；本轮生成门控未证实，controlled 关闭。工程及 Chromium 合成设备通过；真实 M3 6 组仍有降级／超时，动态初始配置连接探针收到豆包就绪，不证明双向语音或受控逐轮生成。新版本语义和设备验收继续开放。见[实施记录](dynamic-planning-implementation.md)、[DP 清单](dynamic-planning-tasking.md)与[验证报告](eval-results/2026-10-14-dynamic-planning.md)。
+2026-10-14 动态初始化、会话计划和逐轮 MiniMax M3 规划已接入：三类 mock 数据、完整有限资源、准备版本／消费校验、actual-context 提案、迟到取消、尝试总结与自愿内存写回、Web 页面展示与语音指令。语音保持豆包全双工，当前为 next_turn_advisory；本轮生成门控未证实，controlled 关闭。工程及 Chromium 合成设备通过；真实 M3 6 组仍有降级／超时，动态初始配置连接探针收到豆包就绪，不证明双向语音或受控逐轮生成。新版本语义和设备验收继续开放。见[实施记录](dynamic-planning-implementation.md)、[DP 清单](dynamic-planning-tasking.md)与[验证报告](eval-results/2026-10-14-dynamic-planning.md)。
 
 2026-10-13 Harness候选的现有145轮正式模型辅助评分与旧对应范围比较已完成：24/26案完整，103通过／29待复核／13失败；共同可比134轮均分94.60→96.44，37改善／18退化（2轮混合）。005缺1轮、027缺3轮，12项要求留null；没有新增关键失败，也没有本轮Agent修改、豆包或独立Judge调用。见[正式结果与采集诊断](eval-results/2026-10-13-harness-formal-comparison.md)。Task05质量验收仍开放。
 

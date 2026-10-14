@@ -25,7 +25,9 @@ export function validateConversation(p,{entry,context,resource}) {
     if(declined.includes(goal.id))throw new Error('DECLINED_INITIAL_GOAL');
     for(const k of goal.kp_ids)for(const prior of resource.key_points.find(x=>x.id===k).prerequisites)if(!context.learning_profile.kp_states.some(s=>s.kp_id===prior&&['demonstrated_independent','demonstrated_transfer'].includes(s.evidence_state)))throw new Error('PREREQUISITE_UNVERIFIED');
   } else if(p.key_points.length)throw new Error('GOAL_KP_MISMATCH');
-  if(!Array.isArray(p.selection_basis)||p.selection_basis.length<1||p.selection_basis.length>6||!p.selection_basis.every(b=>exact(b,['reason','refs'])&&boundedText(b.reason,80)&&refs(b.refs,allowed)))throw new Error('INVALID_SELECTION_BASIS');
+  if(!Array.isArray(p.selection_basis)||p.selection_basis.length<1||p.selection_basis.length>6||!p.selection_basis.every(b=>exact(b,['reason','refs'])))throw new Error('INVALID_SELECTION_BASIS');
+  if(!p.selection_basis.every(b=>boundedText(b.reason,80)))throw new Error('INVALID_SELECTION_REASON');
+  if(!p.selection_basis.every(b=>refs(b.refs,allowed)))throw new Error('INVALID_SELECTION_REFERENCE');
   return immutable(p);
 }
 export function validateTurn(p,{plan,input,policy,allowedRefs,context,resource,priorExecution,review={difficulty_count:0},now=Date.now()}) {

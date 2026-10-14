@@ -1,3 +1,4 @@
+import { MiniMaxJsonTransport } from '../packages/provider-minimax/planner.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -70,9 +71,9 @@ test('authorized context correction cancels pending work and removes superseded 
 });
 test('M3 adapter uses the reviewed official endpoint, disables thinking and returns only parsed business JSON',async()=> {
   let request;
-  const planner=new MiniMaxPlanner({apiKey:'synthetic-key',fetcher:async(url,options)=>{request={url,options};return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'{"action":"RESPOND"}',reasoning_content:'never exported'}}]}));}});
-  assert.deepEqual(await planner.planTurn({actual_context:[]}),{action:'RESPOND'});
-  const body=JSON.parse(request.options.body);assert.equal(body.model,'MiniMax-M3');assert.deepEqual(body.thinking,{type:'disabled'});assert.equal(request.options.redirect,'error');assert.equal(body.stream,false);assert.equal(body.messages[1].role,'user');
+  const planner=new MiniMaxJsonTransport({apiKey:'synthetic-key',fetcher:async(url,options)=>{request={url,options};return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'{"action":"RESPOND"}',reasoning_content:'never exported'}}]}));}});
+  assert.deepEqual(await planner.completeJSON({kind:'turn',messages:[{role:'user',content:'{}'}]}),{action:'RESPOND'});
+  const body=JSON.parse(request.options.body);assert.equal(body.model,'MiniMax-M3');assert.deepEqual(body.thinking,{type:'disabled'});assert.equal(request.options.redirect,'error');assert.equal(body.stream,false);assert.equal(body.messages[0].role,'user');
   assert.throws(()=>new MiniMaxPlanner({apiKey:'synthetic',baseURL:'https://evil.example/v1'}));assert.throws(()=>new MiniMaxPlanner({apiKey:'synthetic',model:'MiniMax-M3.1-Flash-Preview'}));
 });
 test('M3 truncated, malformed, oversized or provider-error results cannot masquerade as accepted proposals',async()=> {

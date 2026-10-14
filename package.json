@@ -32,7 +32,9 @@
     "eval:candidate": "node scripts/eval-candidate.js",
     "eval:planning": "node --env-file-if-exists=.env scripts/planning-eval.js",
     "probe:planning:voice": "node --env-file-if-exists=.env scripts/planning-voice-probe.js",
-    "eval:goals": "node --env-file-if-exists=.env scripts/goal-eval.js"
+    "eval:goals": "node --env-file-if-exists=.env scripts/goal-eval.js",
+    "prepare:planning:fc": "node scripts/prepare-fc-probe-inputs.js",
+    "probe:planning:fc": "node --env-file-if-exists=.env scripts/fc-planning-probe.js"
   },
   "dependencies": {
     "@langchain/core": "1.2.14",

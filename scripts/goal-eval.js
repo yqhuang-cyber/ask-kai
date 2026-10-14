@@ -1,3 +1,4 @@
+import { configuredPlanner as legacyPlanner } from '../apps/eval-runner/src/legacy-planner-v3.js';
 import { readFile,mkdir,writeFile,readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { learnerFixture,SPORTS_RESOURCE,missionResource } from '../apps/hskai-mock/src/planning-fixtures.js';
@@ -5,7 +6,7 @@ import { MOCK_IDENTITY,MOCK_MISSION } from '../apps/hskai-mock/src/server.js';
 import { ConversationInitializer,normalizeEntry } from '../packages/agent-core/conversation-initializer.js';
 import { Preparations } from '../apps/realtime-gateway/src/preparations.js';
 import { TeachingSession } from '../packages/agent-core/teaching.js';
-import { configuredPlanner,PLANNER_PROMPT_VERSION } from '../packages/agent-core/planner-port.js';
+import { configuredPlanner,PLANNER_PROMPT_VERSION,plannerDescriptor } from '../packages/agent-core/planner-port.js';
 import { PLANNING_VERSION } from '../packages/contracts/planning.js';
 import { GOAL_POLICY_VERSION } from '../packages/agent-core/goal-lifecycle.js';
 import { checkPlanningBehavior } from '../apps/eval-runner/src/planning-semantics.js';
@@ -13,9 +14,13 @@ const sha=v=>createHash('sha256').update(v).digest('hex');
 async function sources(dir) {
   const out={};for(const x of await readdir(dir,{withFileTypes:true})){const p=dir+'/'+x.name;if(x.isDirectory())Object.assign(out,await sources(p));else if(x.name.endsWith('.js'))out[p]=sha(await readFile(p));}return out;
 }
-export async function runGoalEval({live=false,selected=null,onCase=()=>{}}={}) {
+export async function runGoalEval({live=false,selected=null,legacyContract=false,draftContract=false,onCase=()=>{}}={}) {
   const bytes=await readFile('docs/eval-datasets/dynamic-goals-v1/cases.json'),dataset=JSON.parse(bytes);
-  const planner=live?configuredPlanner():null;if(live&&!planner)throw new Error('MINIMAX_PLANNER_CONFIG_REQUIRED');
+  if(legacyContract&&(process.env.ASK_KAI_PLANNER_PROVIDER??'minimax')!=='minimax')throw new Error('LEGACY_BASELINE_MINIMAX_ONLY');
+  if(legacyContract&&draftContract)throw new Error('INVALID_GOAL_EVAL_ARGUMENT');
+  const planner=live?(legacyContract?legacyPlanner():configuredPlanner({...process.env,...(draftContract?{ASK_KAI_PLANNER_PROTOCOL:'draft_v1'}:{})})):null;
+  if(legacyContract&&planner)planner.describe=()=>({provider:'minimax',model:'MiniMax-M3',output_format:'json_prompt',draft:'full_contract_v3',prompt:'kai-planner-v3'});
+  const descriptor=plannerDescriptor(planner);if(live&&!planner)throw new Error('MINIMAX_PLANNER_CONFIG_REQUIRED');
   if(selected&&!dataset.cases.some(c=>c.id===selected))throw new Error('UNKNOWN_GOAL_EVAL_CASE');
   const transport=[];if(planner)planner.observe=r=>transport.push(r);
   const results=[],privateReview=[];
@@ -43,10 +48,10 @@ export async function runGoalEval({live=false,selected=null,onCase=()=>{}}={}) {
   }
   if(live){await mkdir('.local/goal-eval',{recursive:true});await writeFile('.local/goal-eval/review.json',JSON.stringify(privateReview,null,2),{mode:0o600});}
   const turns=results.flatMap(c=>c.turns),llm=turns.filter(t=>t.planner==='llm');
-  return {schema_version:'goal-eval-v1',dataset_sha256:sha(bytes),source_hashes:{...await sources('packages'),...await sources('apps'),...await sources('scripts')},candidate:{prompt:PLANNER_PROMPT_VERSION,contract:PLANNING_VERSION,goal_policy:GOAL_POLICY_VERSION,model:'MiniMax-M3',path:'next_turn_advisory'},synthetic_inputs:true,model_calls_enabled:live,real_voice_connected:false,browser_audio_tested:false,contains_transcripts:false,transport,denominators:{cases:results.length,initial_llm:results.filter(c=>c.initial?.planner==='llm').length,initial_rule:results.filter(c=>c.initial?.planner==='rule').length,initial_failed:results.filter(c=>!c.initial_accepted).length,turns:turns.length,llm_turns:llm.length,rule_turns:turns.filter(t=>t.planner==='rule').length,unaccepted_turns:turns.filter(t=>!t.planner).length,llm_behavior_pass:llm.filter(t=>t.passed).length,host_behavior_pass:turns.filter(t=>t.passed).length},cases:results,semantic_quality_accepted:false,independent_judge_calls:0,human_calibrated:false,current_turn_control_verified:false};
+  return {schema_version:'goal-eval-v1',dataset_sha256:sha(bytes),source_hashes:{...await sources('packages'),...await sources('apps'),...await sources('scripts')},candidate:{...descriptor,contract:PLANNING_VERSION,goal_policy:GOAL_POLICY_VERSION,path:'next_turn_advisory'},synthetic_inputs:true,model_calls_enabled:live,real_voice_connected:false,browser_audio_tested:false,contains_transcripts:false,transport,denominators:{cases:results.length,initial_llm:results.filter(c=>c.initial?.planner==='llm').length,initial_rule:results.filter(c=>c.initial?.planner==='rule').length,initial_failed:results.filter(c=>!c.initial_accepted).length,turns:turns.length,llm_turns:llm.length,rule_turns:turns.filter(t=>t.planner==='rule').length,unaccepted_turns:turns.filter(t=>!t.planner).length,llm_behavior_pass:llm.filter(t=>t.passed).length,host_behavior_pass:turns.filter(t=>t.passed).length},cases:results,semantic_quality_accepted:false,independent_judge_calls:0,human_calibrated:false,current_turn_control_verified:false};
 }
 const args=process.argv.slice(2);
 if(import.meta.url===new URL(process.argv[1],'file:').href) {
-  try{if(args.some(a=>a!=='--live'&&!a.startsWith('--case=')))throw new Error('INVALID_GOAL_EVAL_ARGUMENT');console.log(JSON.stringify(await runGoalEval({live:args.includes('--live'),selected:args.find(a=>a.startsWith('--case='))?.slice(7),onCase:c=>console.error(c.id+': '+c.status)}),null,2));}
-  catch(error){console.error(['MINIMAX_PLANNER_CONFIG_REQUIRED','UNKNOWN_GOAL_EVAL_CASE','INVALID_GOAL_EVAL_ARGUMENT'].includes(error.message)?error.message:'GOAL_EVAL_FAILED');process.exitCode=1;}
+  try{if(args.some(a=>a!=='--live'&&a!=='--legacy-contract'&&a!=='--draft-contract'&&!a.startsWith('--case=')))throw new Error('INVALID_GOAL_EVAL_ARGUMENT');console.log(JSON.stringify(await runGoalEval({live:args.includes('--live'),legacyContract:args.includes('--legacy-contract'),draftContract:args.includes('--draft-contract'),selected:args.find(a=>a.startsWith('--case='))?.slice(7),onCase:c=>console.error(c.id+': '+c.status)}),null,2));}
+  catch(error){console.error(['MINIMAX_PLANNER_CONFIG_REQUIRED','UNKNOWN_GOAL_EVAL_CASE','INVALID_GOAL_EVAL_ARGUMENT','LEGACY_BASELINE_MINIMAX_ONLY'].includes(error.message)?error.message:'GOAL_EVAL_FAILED');process.exitCode=1;}
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { immutable,exact,isId,requireIdentity,PLANNING_VERSION } from '../contracts/planning.js';
-import { boundedProposal,PLANNER_PROMPT_VERSION } from './planner-port.js';
+import { boundedProposal,plannerDescriptor } from './planner-port.js';
 import { validateConversation,planHash } from './plan-validator.js';
 export function normalizeEntry(input,identity) {
   if(!exact(input,['mode','topic_id','mission_id','speech_pace'])||!['sports','topic','mission','free'].includes(input.mode)||input.speech_pace!==undefined&&!['slow','normal'].includes(input.speech_pace))throw new Error('INVALID_PLANNING_ENTRY');
@@ -34,7 +34,7 @@ export class ConversationInitializer {
     const input=immutable({entry,student_profile:context.student_profile,learning_profile:context.learning_profile,learning_history:context.learning_history,coverage:context.coverage,history_page:context.history_page,snapshot_ref:context.snapshot_id,required_strategy:{language_support:context.learning_profile.language_support,correction:context.student_profile.conversation_preferences.correction,pace:entry.speech_pace??context.student_profile.conversation_preferences.pace},resource});
     const result=await boundedProposal({planner:this.planner,method:'planConversation',input,signal:combined,budgetMs:Math.max(1,expiresAt-this.clock()-50),validate:p=>validateConversation(p,{entry,context,resource}),fallback:()=>conservativeConversation(entry,context,resource)});
     combined.throwIfAborted();requireIdentity(identity,'session:create',this.clock());
-    const p=result.proposal,plan={schema_version:'conversation-plan-v1',plan_id:randomUUID(),revision:1,session_id:null,mode:entry.mode,resource_refs:resource?[{id:resource.id,version:resource.version}]:[],input_refs:{context:context.snapshot_id,revision:context.revision,coverage:context.coverage,policy:PLANNING_VERSION,prompt:PLANNER_PROMPT_VERSION},...p,primary_goal:resource?.goals.find(g=>g.id===p.primary_goal_id)??null,goal_status:p.primary_goal_id?'active':'unverified',planner_kind:result.planner_kind,degraded_reason:result.degraded_reason,planner_attempts:result.attempts,execution_mode:this.mode};
+    const p=result.proposal,plan={schema_version:'conversation-plan-v1',plan_id:randomUUID(),revision:1,session_id:null,mode:entry.mode,resource_refs:resource?[{id:resource.id,version:resource.version}]:[],input_refs:{context:context.snapshot_id,revision:context.revision,coverage:context.coverage,policy:PLANNING_VERSION,prompt:plannerDescriptor(this.planner).prompt},...p,primary_goal:resource?.goals.find(g=>g.id===p.primary_goal_id)??null,goal_status:p.primary_goal_id?'active':'unverified',planner_kind:result.planner_kind,planner_profile:plannerDescriptor(this.planner),degraded_reason:result.degraded_reason,planner_attempts:result.attempts,execution_mode:this.mode};
     return {plan:immutable({...plan,hash:planHash(plan)}),context,resource};
   }
 }

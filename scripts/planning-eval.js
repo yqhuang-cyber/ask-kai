@@ -6,7 +6,7 @@ import { MOCK_IDENTITY,MOCK_MISSION } from '../apps/hskai-mock/src/server.js';
 import { ConversationInitializer,normalizeEntry } from '../packages/agent-core/conversation-initializer.js';
 import { Preparations } from '../apps/realtime-gateway/src/preparations.js';
 import { TeachingSession } from '../packages/agent-core/teaching.js';
-import { configuredPlanner,PLANNER_PROMPT_VERSION } from '../packages/agent-core/planner-port.js';
+import { configuredPlanner,PLANNER_PROMPT_VERSION,plannerDescriptor } from '../packages/agent-core/planner-port.js';
 const hash=v=>createHash('sha256').update(v).digest('hex');
 async function sourceHashes(dir) {
   const out={};for(const item of await readdir(dir,{withFileTypes:true})){const path=`${dir}/${item.name}`;if(item.isDirectory()){if(item.name!=='node_modules')Object.assign(out,await sourceHashes(path));}else if(item.name.endsWith('.js'))out[path]=hash(await readFile(path));}return out;
@@ -36,5 +36,5 @@ try {
     teaching.finalize({businessSource:'mock_hskai'});
   }
   const source_hashes={...await sourceHashes('packages'),...await sourceHashes('apps'),...await sourceHashes('scripts')};
-  console.log(JSON.stringify({schema_version:'planning-eval-v1',baseline_commit:baseline.legacy_commit,candidate:{source_hashes,planner_model:'MiniMax-M3',prompt:PLANNER_PROMPT_VERSION,contract:PLANNING_VERSION,path:'next_turn_advisory'},input:'synthetic_mock_fixtures',probe_only:probe,budgets:{initial_ms:probe?15000:10000,turn_ms:5000},model_calls_enabled:live,transport,real_provider_connected:false,browser_audio_tested:false,contains_transcripts:false,case_count:cases.length,cases,quality_acceptance:false,unverified:['MiniMax semantic calibration','current-turn generation gate','real duplex and browser audio','latency and cost thresholds']},null,2));
+  console.log(JSON.stringify({schema_version:'planning-eval-v1',baseline_commit:baseline.legacy_commit,candidate:{source_hashes,planner_profile:plannerDescriptor(planner),prompt:plannerDescriptor(planner).prompt,contract:PLANNING_VERSION,path:'next_turn_advisory'},input:'synthetic_mock_fixtures',probe_only:probe,budgets:{initial_ms:probe?15000:10000,turn_ms:5000},model_calls_enabled:live,transport,real_provider_connected:false,browser_audio_tested:false,contains_transcripts:false,case_count:cases.length,cases,quality_acceptance:false,unverified:['MiniMax semantic calibration','current-turn generation gate','real duplex and browser audio','latency and cost thresholds']},null,2));
 }catch(error){console.error(['MINIMAX_PLANNER_CONFIG_REQUIRED','FROZEN_DATASET_CHANGED','INVALID_PLANNING_EVAL_ARGUMENT'].includes(error.message)?error.message:'PLANNING_EVAL_FAILED');process.exitCode=1;}
