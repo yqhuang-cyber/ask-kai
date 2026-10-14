@@ -32,6 +32,11 @@ enums.reason.push('wrong_version','no_pending');
 for(const key of ['applied_context_version','decision_context_version','new_points','turn_count','teaching_cooldown'])numeric.add(key);
 for(const key of ['decision_context_matched','goal_attempt_observed','teaching_paused','clarification_pending'])boolean.add(key);
 Object.assign(enums,{teaching_policy_version:['kai-teaching-v1','kai-teaching-v2','kai-teaching-v3','kai-teaching-v4','kai-teaching-v5','kai-teaching-v6','kai-teaching-v7'],action:['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE'],decision_reason:['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','student_understanding_help','student_continuation_help','ambiguous_expression','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first'],mode:['sports','mission','free'],interaction:['chat','teach'],support_level:['none','choice','model']});
+for(const name of ['planning.started','planning.accepted','planning.rejected','planning.cancelled','conversation_plan.revised'])names.add(name);
+for(const key of ['planning_revision','plan_revision','input_revision'])numeric.add(key);
+boolean.add('degraded');enums.path=['legacy','shadow','next_turn_advisory','controlled'];enums.planner_kind=['rule','llm'];
+enums.reason.push('stale','new_input','input_corrected','preferences_changed','session_closed','student_interruption','planning_failed');
+enums.summary_policy_version.push('kai-dynamic-summary-v1');
 export function metadata(fields={}) {
   const out={};
   if(!fields || typeof fields!=='object' || Array.isArray(fields))return out;

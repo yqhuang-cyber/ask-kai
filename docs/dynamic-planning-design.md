@@ -1,7 +1,7 @@
 # Ask Kai 动态规划详细设计
 
 版本：v1.0 · 2026-10-13（Asia/Shanghai）  
-状态：**设计已交付，运行行为待实施与验收**。本设计覆盖三个入口的整体规划、逐轮规划、执行反馈与 Mock 数据契约；不表示已有固定运动目标已被替换，不启动模型调用或外部 HSKai 对接。
+状态：**动态初始化与会话／逐轮规划工程已落地，真实受控生成与完整验收仍开放**。本文保留完整目标设计；实际落点、范围差异与真实 M3／豆包结果见[实施记录](dynamic-planning-implementation.md)及[验证报告](eval-results/2026-10-14-dynamic-planning.md)。规划模型采用 MiniMax M3，语音保持豆包实时全双工，当前是 next_turn_advisory，不等于本文的本轮先规划后生成主路径。
 
 相关文档：[实施与验收清单](dynamic-planning-tasking.md)、[当前三入口时序](../README.md#当前实现三个入口的技术时序)、[原 PRD](prd/ask-kai-agent-prd-v1.1.md)、[Pi 理想 Harness](pi-ideal-tutor-harness-design.md)。本设计在现有独立 POC 中落地规划闭环，不要求先迁移完整 Pi 架构。
 

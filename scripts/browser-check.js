@@ -202,6 +202,22 @@ try {
   assert.equal(await page.evaluate(()=>window.microphoneRequests),0);assert.equal(await page.locator('#connection-status').textContent(),'未连接');
   await page.locator('#memory-delete').click();await page.getByText('偏好已删除，当前对话已结束。',{exact:true}).waitFor();assert.equal(await page.locator('#memory-list li').count(),0);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'.local/browser-check/poc-mobile.png',fullPage:true});
+  // Dynamic preparation uses synthetic learner evidence and no voice/model key.
+  // It must change goals for fixture B and keep free chat empty, even after
+  // rapid entry changes. This is UI/contract verification, not LLM quality.
+  const dynamicBackend=await startMockBackend({fixtureVariant:'b'});backends.push(dynamicBackend);
+  const dynamicServer=createGateway({...dynamicBackend,planningMode:'next_turn_advisory'});servers.push(dynamicServer);dynamicServer.listen(0,'127.0.0.1');await once(dynamicServer,'listening');
+  await page.goto(`http://127.0.0.1:${dynamicServer.address().port}`);
+  await page.getByText('对话已准备；当前使用保守策略，规划模型暂不可用。',{exact:true}).waitFor();
+  assert.match(await page.locator('#goal').textContent(),/时间表达/);assert.equal(await page.locator('#word-chinese').textContent(),'下午');
+  assert.equal(await page.locator('#save-learning-input').isChecked(),false);
+  await page.locator('[data-mode=mission]').click();await page.locator('[data-mode=free]').click();
+  await page.waitForFunction(()=>document.querySelector('#goal').textContent==='由你选择话题，自然交流。');
+  await page.waitForTimeout(150);assert.equal(await page.locator('.word-card').isVisible(),false);assert.equal(await page.locator('#prompt-hint').textContent(),'');
+  assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
+  await page.locator('#connect').click();await page.getByText('实时语音尚未开通。需完成豆包协议和服务端连接验证。',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.microphoneRequests),0);assert.equal(await page.locator('#connection-status').textContent(),'未连接');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'.local/browser-check/dynamic-free-mobile.png',fullPage:true});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,adaptive_language_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,replay:true,page_errors:0}));
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,adaptive_language_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,dynamic_preparations:true,dynamic_evidence_goal:true,dynamic_free_empty:true,dynamic_entry_race:true,replay:true,page_errors:0}));
 }finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}for(const backend of backends)await backend.close();}

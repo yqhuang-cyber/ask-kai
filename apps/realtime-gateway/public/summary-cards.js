@@ -16,6 +16,7 @@ function projectRecap(recap,sessionId,finalTurns) {
 }
 export function projectSummary(packet,{sessionId,mode}) {
   const s=packet?.summary;
+  if(s?.schema_version===3&&s.policy_version==='kai-dynamic-summary-v1')return projectDynamicSummary(packet,{sessionId,mode});
   if(packet?.type!=='teaching.summary' || packet.session_id!==sessionId || !id(sessionId) || !Object.hasOwn(modes,mode) || s?.session_id!==sessionId || s.mode!==mode || !(s.schema_version===1&&s.policy_version==='kai-summary-v1'||s.schema_version===2&&['kai-summary-v2','kai-summary-v3'].includes(s.policy_version)) || !focuses.has(s.focus))return null;
   if(!['ended','failed'].includes(s.outcome) || typeof s.partial!=='boolean' || !['mock_hskai','external_hskai','unconfigured'].includes(s.business_source) || !['not_connected','synthetic','real_provider'].includes(s.voice?.kind) || s.voice.real_experience_accepted!==false)return null;
   if(!count(s.counts?.attempts) || !count(s.counts.student_final_turns) || !count(s.counts.forwarded_completed_replies,10000) || !line(s.headline?.zh) || !line(s.headline.en))return null;
@@ -42,6 +43,14 @@ export function projectSummary(packet,{sessionId,mode}) {
   }
   return {mode,focus:s.focus,headline:{zh:s.headline.zh,en:s.headline.en},items:s.focus==='insufficient'?[]:items,recap:s.focus==='insufficient'?{topics:[],expressions:[]}:recap,review:s.focus==='insufficient'?null:review,
     goal:goal?{label:goal.label,supported:goal.attempt_rule_supported}:null,partial:s.partial || s.outcome==='failed',synthetic:s.voice.kind==='synthetic',mock:s.business_source==='mock_hskai'};
+}
+function projectDynamicSummary(packet,{sessionId,mode}) {
+  const s=packet.summary;
+  if(packet.type!=='teaching.summary'||packet.session_id!==sessionId||s.session_id!==sessionId||s.mode!==mode||!id(sessionId)||!Object.hasOwn(modes,mode)||!focuses.has(s.focus)||!['ended','failed'].includes(s.outcome)||typeof s.partial!=='boolean'||!line(s.headline?.zh)||!line(s.headline.en)||s.business_source!=='mock_hskai'||!['not_connected','synthetic','real_provider'].includes(s.voice?.kind)||s.voice.real_experience_accepted!==false||!count(s.counts?.student_final_turns)||!count(s.counts.attempts)||s.assessment?.mastery_assessed!==false||s.assessment.pronunciation_assessed!==false||s.assessment.independent_use_assessed!==false||s.planning?.controlled_execution!==false||!['next_turn_advisory','controlled'].includes(s.planning.path))return null;
+  if(!Array.isArray(s.goals)||s.goals.length>1||s.goals.some(g=>!id(g.id)||!line(g.label,100)||typeof g.attempt_rule_supported!=='boolean')||!Array.isArray(s.dynamic_observations)||s.dynamic_observations.length>100||s.counts.attempts<s.dynamic_observations.length||s.counts.attempts>s.counts.student_final_turns||s.dynamic_observations.some(o=>o.session_id!==sessionId||![o.observation_id,o.turn_id,o.source_event_id,o.kp_id].every(id)||!line(o.label,100)||o.state!=='attempted'||!['unknown','prompted'].includes(o.support)||o.execution_ref!==null&&!id(o.execution_ref))||new Set(s.dynamic_observations.map(o=>o.turn_id)).size!==s.dynamic_observations.length)return null;
+  if(s.focus==='unavailable')return {...structuredClone(empty),mode,reason:s.end_reason};
+  const observed=new Map();for(const o of s.dynamic_observations){const row=observed.get(o.kp_id)??{label:o.label,count:0};row.count++;observed.set(o.kp_id,row);}
+  return {mode,focus:s.focus,headline:s.headline,items:[],observations:[...observed.values()],recap:{topics:[],expressions:[]},review:null,goal:s.goals[0]?{label:s.goals[0].label,supported:s.goals[0].attempt_rule_supported}:null,partial:s.partial,synthetic:s.voice.kind==='synthetic',mock:true};
 }
 export class SummaryState {
   constructor(){this.reset();}
@@ -84,6 +93,7 @@ export class SummaryCards {
         card.append(element('h3',item.text));card.append(element('p',item.pinyin,'pinyin'));const translation=element('p',item.english,'summary-en');translation.lang='en';card.append(translation);grid.append(card);
       }
       this.root.append(grid);
+      for(const row of data.observations??[])this.root.append(element('p',`${row.label}：${row.count} 次识别表达尝试；提示程度与掌握未评估。`,'summary-observation'));
       if(data.review){const review=element('div',undefined,'summary-review');review.append(element('h3','可再练一句 · 自愿练习'));bilingual(review,data.review.text,data.review.english);bilingual(review,'下次想练习时，可以再试试这句话。','You can try this sentence again whenever you want.');this.root.append(review);}
       bilingual(this.root,'仅根据本轮记录整理；尚未评估掌握、独立使用或发音。','Based on this session only; mastery, independent use and pronunciation were not assessed.');
     }

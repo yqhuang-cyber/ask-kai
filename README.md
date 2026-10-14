@@ -2,7 +2,7 @@
 
 面向 HSK 1 初学者的实时中文对话教学 Agent。
 
-> 更新于 2026-10-13。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。普通 Web 纵向验收已有用户确认；内容质量与剩余设备场景尚未整体验收通过。动态初始化、整体规划与逐轮规划已完成详细设计，尚未实现。
+> 更新于 2026-10-14。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话计划和 MiniMax M3 逐轮规划已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。363 项测试、三个回放和 Chromium 合成设备检查通过；真实 M3 仍有超时／降级，本轮生成门控及完整内容／设备验收未完成。
 
 [产品介绍](#1-产品介绍) · [架构设计](#2-架构设计) · [三个入口](#3-使用方式三个入口) · [评测](#4-评测机制与现有结果) · [现状](#5-实现范围与当前状态) · [计划](#6-接下来的计划) · [启动](#7-快速启动) · [文档](#8-文档导航)
 
@@ -20,7 +20,7 @@ Ask Kai 希望让学生在真实交流中学习中文：既可以承接刚完成
 
 目标教学闭环是：根据入口和学生背景制定整体计划，在每轮对话中观察实际表现、规划下一步、执行并获得反馈。一次完整交流可以没有教学动作；计划或关键词命中不能直接证明学生掌握。
 
-当前 POC 已有实时对话、规则教学决策和会内证据；完整动态规划闭环处于设计阶段。产品要求见 [PRD](docs/prd/ask-kai-agent-prd-v1.1.md)。
+当前 POC 已有实时对话、动态初始化、会话／逐轮 M3 计划和有来源尝试；逐轮建议在回复边界更新后续输入，完整本轮受控生成尚未验证。产品要求见 [PRD](docs/prd/ask-kai-agent-prd-v1.1.md)。
 
 ## 2. 架构设计
 
@@ -33,7 +33,7 @@ Ask Kai 希望让学生在真实交流中学习中文：既可以承接刚完成
 | 目标与约束 | 本次希望达到什么？学生选择、教学规则和权限允许做什么？ | M3 Agent Core；M2 执行权限与运行约束 |
 | 感知 | 学生说了什么、想表达什么？发生了打断或拒绝吗？前次动作实际发生了什么？ | M5 语音事件适配、M2 事件归属、M3 意图与表现理解 |
 | 记忆 | 学生的兴趣、学习证据和近期记录是什么？本会话正在做什么？ | M4 三类学生数据；M3 会话工作状态 |
-| 规划 | 整体路径是什么？根据当前差距和最新上下文，下一步怎样推进？ | M3 整体与逐轮 Planner，待实现 |
+| 规划 | 整体路径是什么？根据当前差距和最新上下文，下一步怎样推进？ | M3 Agent Core 的整体与逐轮 Planner，使用 MiniMax M3；当前为 next_turn_advisory |
 | 决策 | 哪个行动适合当前学生？提案是否有效、允许且仍适用？ | M3 规划／策略校验；M2 接受与执行归属 |
 | 行动 | 如何执行回复、示范、澄清、词卡和获准的数据操作？ | M3 教学动作；M2 编排；M5 语音；M1 呈现；M4 业务读写 |
 | 反馈与适应 | 实际效果与计划相差多少？需要减少支架、调整或暂停吗？ | M3 观察与证据；M1／M2 执行和播放反馈；M4 后续记录 |
@@ -54,17 +54,17 @@ flowchart TD
 
 | 工程模块 | 核心职责与包含内容 | 承载的 Agent 能力 | 当前实现与主要差距 |
 | --- | --- | --- | --- |
-| **M1 Web 交互与呈现** | 入口选择、采音、播放、渐进字幕、Start Tips／词卡、总结卡、连接与异常状态 | 感知输入、行动呈现、反馈采集 | 三入口与基本音频／展示已实现；入口目标和提示仍有硬编码，未来改为消费统一计划 |
-| **M2 会话网关与运行编排** | BFF 授权、一次性票据、会话／话轮／回复状态、迟到事件隔离、打断、超时、上下文更新与回执 | 感知归属、决策提交、行动编排、执行反馈；约束落地 | 实时网关和归属控制已实现；当前回复可早于后台更新，规划先于受控生成的路径待实现与验证 |
-| **M3 Agent Core** | Kai 人设、目标与策略、语言支架、Context Compiler、教学状态、学习观察／证据／总结；拟新增整体与逐轮 Planner、计划校验 | 目标与约束、工作记忆、规划、决策、教学行动、反馈与适应 | 已有规则决策、上下文快照和有来源总结；运动目标固定、Mission 取首目标，动态语义规划与通用 KP 证据尚未实现 |
-| **M4 业务数据与课程资源** | HSKai Bridge／数据端口、本地 Mock；身份、偏好、Mission／主题资源；拟扩展个人画像、学习画像、近期记录 | 长期记忆输入、目标／知识依据、工具读写、反馈保存 | 五字段偏好、签名示例 Mission 和内存工作流已实现；完整三类数据、跨会话学习记录及生产持久化待补 |
-| **M5 模型与语音适配** | Doubao Adapter、供应商事件映射、音频格式、上下文／取消控制、能力边界；规划模型与受控生成端口待扩展 | 语音感知、模型推理能力供给、语言／语音行动及执行回执 | 豆包实时全双工已接入；结构化 Planner 与本轮生成控制尚未接入，能力不能仅凭内部事件名推断 |
+| **M1 Web 交互与呈现** | 入口选择、采音、播放、渐进字幕、Start Tips／词卡、总结卡、连接与异常状态 | 感知输入、行动呈现、反馈采集 | 三入口与基本音频／展示已实现；目标、Start Tip 和词卡已改为服务端计划，准备与入口竞态已检查 |
+| **M2 会话网关与运行编排** | BFF 授权、一次性票据、会话／话轮／回复状态、迟到事件隔离、打断、超时、上下文更新与回执 | 感知归属、决策提交、行动编排、执行反馈；约束落地 | 已实现准备版本核对、一次性消费和迟到规划隔离；当前自动回复可早于后台更新，本轮受控生成仍待验证 |
+| **M3 Agent Core** | Kai 人设、目标与策略、语言支架、Context Compiler、整体／逐轮 Planner、计划校验、教学状态及观察／总结 | 目标与约束、工作记忆、规划、决策、教学行动、反馈与适应 | 会话和逐轮 M3 提案、校验与尝试总结已接入；Mission 从完整有限资源选择目标，语义质量及通用 KP 证据仍待验收 |
+| **M4 业务数据与课程资源** | HSKai Bridge／数据端口、本地 Mock；身份、偏好、Mission／主题资源、个人画像、学习画像和近期记录 | 长期记忆输入、目标／知识依据、工具读写、反馈保存 | 三类合成资料、有限完整课程、A～E fixture 和自愿尝试写回已实现；记录仅存进程内存，生产持久化待补 |
+| **M5 模型与语音适配** | Doubao Adapter、供应商事件映射、音频格式、上下文／取消控制；MiniMax M3 PlannerPort 与受控生成能力边界 | 语音感知、模型推理能力供给、语言／语音行动及执行回执 | MiniMax M3 提案与豆包全双工已接入；没有已验证的本轮生成门控，controlled 保持关闭 |
 
 实现位置：M1／M2 在 `apps/realtime-gateway/`；M3 在 `packages/agent-core/`；M4 在 `packages/hskai-bridge/` 与 `apps/hskai-mock/`；M5 在 `packages/provider-doubao/`，合成供应商在 `packages/provider-replay/`。
 
 ### 2.3 支撑与治理
 
-可信课程知识与学生记忆分开管理：课程资源说明可以教什么，学生记录说明实际经历和表现；Context Compiler 选择本轮相关信息。当前只支持有限运动资源和偏好，完整资源检索与三类背景数据见 [动态规划设计](docs/dynamic-planning-design.md)。
+可信课程知识与学生记忆分开管理：课程资源说明可以教什么，学生记录说明实际经历和表现；Context Compiler 选择本轮相关信息。当前已支持三类 mock 数据及有限 Mission／运动资源，未知和截断明确标记；外部业务和通用资源检索未接入。见 [实施记录](docs/dynamic-planning-implementation.md)。
 
 Harness 的横向职责覆盖五个模块：状态版本、权限、取消、预算与幂等；数据来源、更正和删除；可观测性、评测与版本发布；教研审核和人工复核。当前有基础运行／策略边界，生产多机构隔离、完整持久化和真人接手另属产品化范围。本地 Mock 回执不代表真实账号、实际监护同意或真人处理完成。
 
@@ -78,25 +78,25 @@ Harness 的横向职责覆盖五个模块：状态版本、权限、取消、预
 
 ### 3.1 Mission Call
 
-适合在 Mission 后把刚学的内容带入交流。当前使用本地签名的已完成 Mission 示例，只有标题和目标等有限内容；完整 Mission 内容与动态承接目标尚待实现。
+适合在 Mission 后把刚学的内容带入交流。当前使用本地签名的已完成 Mission 示例及其完整有限资源，结合三类学生资料选择承接目标；示例完成不等于真实课程完成或能力掌握。
 
 | 阶段 | 学生体验 | 当前行为 |
 | --- | --- | --- |
-| 进入 | 选择 Mission 后对话，查看本次练习方向 | 显示示例 Mission 与第一个目标 |
+| 进入 | 选择 Mission 后对话，查看本次练习方向 | 准备本次计划，显示从全部可信候选中选择的目标 |
 | 交流 | 分享、求助或尝试表达，Kai 提供适量支架 | 短回复与规则教学建议已接入，实际自然度仍需验证 |
 | 调整 | 可换题、拒绝、打断或结束 | 原目标可暂停；打断清理旧输出 |
 | 小结 | 查看实际练过的表达和可再练项 | 仅受支持目标有证据；Mission 完成不等于掌握 |
 
 ### 3.2 主题式对话
 
-学生选择主题后进行相关交流。当前只有运动示例，目标固定为用“我喜欢……”表达喜好；Start Tip 与词卡也来自固定版本课程。
+学生选择主题后进行相关交流。当前只有运动示例；根据兴趣选择内容、根据学习证据选择喜好／简单时间表达目标及支架。Start Tip 与词卡来自所选目标的可信资源。
 
 | 阶段 | 学生体验 | 当前行为 |
 | --- | --- | --- |
-| 进入 | 选择运动，查看目标和可选 Start Tip | 固定“我喜欢……”目标、“喜欢／足球”词卡 |
-| 交流 | 聊喜欢的运动，需要时获得短示范 | 动作可随回应调整；不代表目标已经个性化生成 |
+| 进入 | 选择运动，查看目标和可选 Start Tip | 显示已接受计划中的目标及可选提示／词卡 |
+| 交流 | 聊喜欢的运动，需要时获得短示范 | M3 提案经校验后作为后续输入建议；实际语义质量单独验收 |
 | 调整 | 继续聊内容，或换题、拒绝、打断 | 已尝试后减少支架；换题／拒绝暂停原目标 |
-| 小结 | 查看实际表达尝试，选择是否再聊 | 支持的运动喜好表达可留证；其他 KP 未评估 |
+| 小结 | 查看实际表达尝试，选择是否再聊 | 支持的喜好句／限定时间句记 attempted；其他 KP 未评估 |
 
 ### 3.3 自由聊天
 
@@ -111,131 +111,142 @@ Harness 的横向职责覆盖五个模块：状态版本、权限、取消、预
 
 ### 当前实现：三个入口的技术时序
 
-以下三图是当前正常路径的简化时序：省略签名、nonce、PCM 分块和取消 ACK 的细节。`业务数据` 表示本地 Mock HSKai，`语音运行` 表示 Doubao Adapter＋豆包服务。当前 Agent Core 给出规则建议，语音模型可在后台更新前开始回复；图中不表示新 Planner 已控制本轮生成。
+**2026-10-14：动态初始化、会话计划和逐轮规划已接入运行代码，语音保持豆包实时全双工。** 独立 mock POC 默认使用 `next_turn_advisory`：整体计划在建连前接受并编译为初始指令；逐轮 MiniMax M3 提案经校验后，在安全回复边界更新后续输入的上下文。当前没有核验本轮自动生成门控，不能声称本轮语音先经过外部 Planner；`controlled` 返回明确的未验证错误，不发起连接。真实 M3、豆包应用时序和设备体验仍待新版本验收。工程记录见[动态规划实施结果](docs/dynamic-planning-implementation.md)。
 
-| 入口 | 当前请求参数 | 当前 Agent Core 初始化 | 动态初始化要求（设计待实现） |
+三个入口共用 `POST /api/conversation-preparations`、查询／取消和一次性消费。准备按已验证身份读取三类学生数据；Mission／主题再读取可信资源。`POST /api/sessions` 开始前重新核对同学生、入口、语速、有效期、学生及资源版本，失效则重新准备。旧客户端未传 `preparation_id` 时，由服务端使用相同模块内部准备。页面不再写死目标、Start Tip 或词卡，也不把准备完成当作语音已连接。
+
+| 入口 | 当前动态初始化 | 页面展示与语音指令 | 证据范围 |
 | --- | --- | --- | --- |
-| Mission Call | `mode: mission`、`mission_id`，可选 `speech_pace` | 签名 Mission 标题、`targets[0]`、最新授权偏好 | 完整 Mission 内容／目标／KP＋三类学生数据，生成本次整体目标、重点内容、支架与策略 |
-| 主题式对话 | `mode: sports`，可选 `speech_pace` | 固定 `SPORTS_LESSON` 目标、词卡、Start Tip＋偏好 | 选定主题资源＋三类学生数据，分别选择内容与目标，生成知识点、Start Tips 和策略；显式 `topic_id` 接口待实现 |
-| 自由聊天 | `mode: free`，可选 `speech_pace` | 通用人设、语言／交流策略、授权偏好 | 三类学生数据用于能力与偏好适配；初始目标为空，学生话题优先，允许零知识点 |
+| Mission 后对话 | 读取已授权 Mission 的完整本地资源和全部候选目标，结合学习证据／近期记录选择本次承接目标；不固定 `targets[0]` | 同一计划中的目标、内容切入、可选提示和资源词卡 | 课程已完成不代表掌握；目标仅在对应资源规则支持时记录本轮尝试 |
+| 运动主题 | `sports` 兼容映射为 `topic:sports`；兴趣选择内容，学习证据选择目标及支架，先修未知不擅自升级 | 篮球／跑步等内容可不同；有喜好独立表现及时间练习证据时可选择简单时间表达目标 | 喜好表达及限定时间句规则只记录 attempted；提示程度、独立使用和发音继续未知 |
+| 自由聊天 | 读取三类资料，初始 `primary_goal:null`、`key_points:[]`，学生当前选题优先 | 无强制目标，提示和词卡可为空；普通交流允许零知识点 | 库外表达不自动变成正式 KP；当前不把局部求助登记为整场已学目标 |
 
-**Mission Call 当前时序**
+**当前学生数据与保存边界：** 新签名 `HskaiPlanningPort` 聚合个人画像、学习画像和最近最多 10 项活动，并显式返回 available／partial／unavailable、revision、来源及截断。Mock 有 A～E 合成 fixture；普通页面仍使用固定虚构成年学习者，浏览器不能选择学习者身份。原 `/api/memory` 五字段接口继续用于查看／更正／删除偏好，更正会使准备与旧规划失效，并刷新活动会话的最小学生上下文。
 
-```mermaid
-sequenceDiagram
-    participant W as Web
-    participant G as 会话网关
-    participant B as 业务数据
-    participant C as Agent Core
-    participant V as 语音运行
-    W->>G: 刷新启动授权
-    G->>B: 请求签名示例身份
-    B-->>G: 身份与示例 Mission
-    G-->>W: 授权 Cookie
-    W->>G: 创建会话，mission 与 ID
-    G->>B: 读取最新有效偏好
-    B-->>G: 有来源的偏好
-    G->>G: 校验 Mission 并签发票据
-    G-->>W: 一次性连接票据
-    W->>G: WebSocket 连接
-    G->>C: 初始化 Mission 第一目标
-    C-->>G: 当前上下文与页面状态
-    G->>V: 建连并发送初始指令
-    V-->>G: 真实就绪
-    G-->>W: 可开始采音
-    W->>G: 连续学生音频
-    G->>V: 音频输入
-    V-->>G: 最终学生输入
-    G->>C: 校验后的学生话轮
-    C-->>G: 规则建议、状态与尝试证据
-    V-->>G: 回复事件，可能早于后台更新
-    G-->>W: 允许的音频、字幕与状态
-    G->>C: 记录实际转发来源
-    W->>G: 点击结束
-    G->>C: 冻结实际证据并生成小结
-    G->>V: 关闭语音连接
-    G-->>W: 本轮小结与关闭结果
-```
+学习状态来自合成后端证据，与本轮实际观察分开。结束时默认不写回；学生主动勾选保存后，提交经过校验、按 learner＋session 去重的最小尝试记录，并等待 mock 回执。没有原始音频／逐字稿或自动掌握写入；仅存本地进程内存，重启重置。写回失败不显示保存成功。
 
-**主题式对话当前时序**
+**入口 1｜Mission 后对话**
 
 ```mermaid
 sequenceDiagram
     participant W as Web
-    participant G as 会话网关
-    participant B as 业务数据
-    participant C as Agent Core
-    participant V as 语音运行
-    W->>G: 刷新启动授权
-    G->>B: 请求签名示例身份
-    B-->>G: 示例身份
-    G-->>W: 授权 Cookie
-    W->>G: 创建会话，sports
-    G->>B: 读取最新有效偏好
-    B-->>G: 有来源的偏好
-    G->>G: 验证授权并签发票据
-    G-->>W: 一次性连接票据
+    participant G as Gateway
+    participant H as mock HSKai
+    participant C as Initializer / Validator
+    participant L as MiniMax M3
+    participant P as 豆包实时全双工
+    W->>G: 刷新授权，准备 mission 与 mission_id
+    G->>H: 签名读取三类资料与完整 Mission 资源
+    H-->>G: 版本、覆盖限制、全部候选目标与 KP
+    G->>C: 根据证据规划并校验整体计划
+    opt 规划模型已配置
+        C->>L: 有界初始化请求，资料及可信资源只作数据
+        L-->>C: 整体计划提案
+    end
+    C-->>G: 接受计划，或明确标记规则降级
+    G-->>W: 准备完成，返回计划中的目标、可选提示／词卡
+    W->>G: 刷新授权，创建会话与 preparation_id
+    G->>H: 核对学生及资源版本
+    G->>G: 一次性消费准备／launch，签发 WS 票据
     W->>G: WebSocket 连接
-    G->>C: 初始化固定运动课与偏好
-    C-->>G: 目标、词卡、Start Tip 与上下文
-    G->>V: 建连并发送初始指令
-    V-->>G: 真实就绪
-    G-->>W: 可开始采音
-    W->>G: 连续学生音频
-    G->>V: 音频输入
-    V-->>G: 最终学生输入
-    G->>C: 校验后的学生话轮
-    C-->>G: 动作建议、目标暂停与尝试证据
-    V-->>G: 回复事件，可能早于后台更新
-    G-->>W: 允许的音频、字幕与状态
-    G->>C: 记录实际转发来源
-    W->>G: 点击结束
-    G->>C: 生成有来源的运动表达小结
-    G->>V: 关闭语音连接
-    G-->>W: 本轮小结与关闭结果
+    G->>P: 创建会话，应用所选 Mission 目标与策略
+    P-->>G: 经核验的真实就绪
+    G-->>W: session.ready 与配置
+    W->>W: 申请麦克风，开始持续采音
+    Note over G,P: 当前是自主全双工，逐轮计划按下述共同路径更新后续输入
 ```
 
-**自由聊天当前时序**
+**入口 2｜运动主题对话**
 
 ```mermaid
 sequenceDiagram
     participant W as Web
-    participant G as 会话网关
-    participant B as 业务数据
-    participant C as Agent Core
-    participant V as 语音运行
-    W->>G: 刷新启动授权
-    G->>B: 请求签名示例身份
-    B-->>G: 示例身份
-    G-->>W: 授权 Cookie
-    W->>G: 创建会话，free
-    G->>B: 读取最新有效偏好
-    B-->>G: 有来源的偏好
-    G->>G: 验证授权并签发票据
-    G-->>W: 一次性连接票据
-    W->>G: WebSocket 连接
-    G->>C: 初始化通用人设与策略，无预设目标
-    C-->>G: 当前上下文与页面状态
-    G->>V: 建连并发送初始指令
-    V-->>G: 真实就绪
-    G-->>W: 可开始采音
-    W->>G: 学生主动选题并持续输入音频
-    G->>V: 音频输入
-    V-->>G: 最终学生输入
-    G->>C: 理解当前输入及表达求助
-    C-->>G: 规则建议与有来源的记录
-    V-->>G: 回复事件，可能早于后台更新
-    G-->>W: 允许的音频、字幕与状态
-    G->>C: 记录实际转发来源
-    W->>G: 点击结束
-    G->>C: 生成交流回顾或表达小结
-    G->>V: 关闭语音连接
-    G-->>W: 本轮小结与关闭结果
+    participant G as Gateway
+    participant H as mock HSKai
+    participant C as Initializer / Validator
+    participant L as MiniMax M3
+    participant P as 豆包实时全双工
+    W->>G: 刷新授权，准备 sports
+    G->>H: 读取三类资料与 sports 主题资源
+    H-->>G: 兴趣、学习证据、近期历史、先修与候选目标
+    G->>C: 分别选择交流内容和本次目标
+    opt 规划模型已配置
+        C->>L: 兴趣、学习证据、历史及主题资源
+        L-->>C: 内容、目标与策略提案
+    end
+    C-->>G: 校验并接受计划，未知保持未知
+    G-->>W: 返回计划中的页面目标、提示与词卡
+    W->>G: 刷新授权，消费有效准备并创建会话
+    G->>H: 再核对资料及资源版本
+    W->>G: 一次性票据建立 WebSocket
+    G->>P: 创建会话，应用当前已接受主题计划
+    P-->>G: 经核验的真实就绪
+    G-->>W: session.ready
+    W->>W: 开始持续采音、播放与渐进字幕
 ```
 
-对话中上述音频／事件流程重复发生；后续上下文只在允许的回复边界发送，并分别记录确认与实际回复。迟到 ACK 不能证明本轮已经使用新建议。详细旧时序保留在 [参考快照](docs/readme-reference-20261013.md#当前实现三个入口的技术时序)，控制边界见 [上下文快照](docs/context-snapshots.md)。
+**入口 3｜自由聊天**
 
-**目标设计：** 三入口每次读取 `${STUDENT_PROFILE}`、`${LEARNING_PROFILE}`、`${LEARNING_HISTORY}`，生成版本化 `ConversationPlan`；每个有效完整学生话轮形成 `TurnPlan`，观察前次执行与目标差距，再决定下一步。Mission／主题有本次教学目标，free 初始 `primary_goal: null`、`key_points: []`。本轮规划先于受控生成的路径尚需实施与语音能力验证，详见 [动态规划设计](docs/dynamic-planning-design.md)与 [DP 清单](docs/dynamic-planning-tasking.md)。
+```mermaid
+sequenceDiagram
+    participant W as Web
+    participant G as Gateway
+    participant H as mock HSKai
+    participant C as Initializer / Validator
+    participant L as MiniMax M3
+    participant P as 豆包实时全双工
+    W->>G: 刷新授权，准备 free
+    G->>H: 读取三类授权资料与覆盖限制
+    G->>C: 动态交流策略，不设初始教学目标
+    opt 规划模型已配置
+        C->>L: 有界交流策略规划
+        L-->>C: 无初始目标的提案
+    end
+    C-->>G: primary_goal 为 null，关键知识点为空
+    G-->>W: 自由交流页面展示，可无提示及词卡
+    W->>G: 刷新授权，核对并消费准备
+    W->>G: 使用一次性票据建立 WebSocket
+    G->>P: 创建会话，学生话题优先的初始策略
+    P-->>G: 经核验的真实就绪
+    G-->>W: session.ready
+    W->>W: 开启持续采音
+    Note over W,P: 学生主动聊宇宙时不强拉回旧运动兴趣
+```
+
+**共用逐轮规划与观察：** 每个已接受的唯一 `user.final` 绑定不可变输入、实际此前话轮、上一回复转发结果／播放未知、整体计划、语言与拒绝／冷却状态，调用 MiniMax M3。提案需通过字段、大小、来源引用、目标、预算及策略校验；格式修复至多一次，共用截止时间。告别等明确控制可由规则直接处理；模型未配置／超时／非法输出的保守降级单独记录。新输入、偏好更正、打断、撤权或退出使旧在线规划失效，迟到结果不进入新回合。
+
+当前 `next_turn_advisory` **不会等待规划再让豆包开始本轮自动回复**。逐轮建议在没有活动回复、待取消或待更新确认的边界发送；ACK 只确认对应上下文版本，不能追溯证明已开始的生成用了计划。执行账本将计划接受、自动输出首次观察、转发及客户端报告分开，供应商生成起点和实际播放没有证据时保持 unknown。普通 Web 尚不发送播放消费回执，不能从转发推断听到或理解。
+
+```mermaid
+sequenceDiagram
+    participant W as Web
+    participant P as 豆包实时全双工
+    participant G as Gateway / Coordinator
+    participant L as MiniMax M3
+    W->>G: 持续上送 PCM
+    G->>P: 实时音频
+    P-->>G: 最终识别，校验后接受有效 final
+    Note over P,G: 自主输出可以早于 final 或规划；生成起点保持 unknown
+    par 自主语音输出
+        P-->>G: 有归属的文本、音频、完成事件
+        G-->>W: 安全及旧事件隔离后转发
+    and 后台逐轮规划
+        G->>L: 当前 final、实际前文、执行未知及硬约束
+        L-->>G: TurnPlan 提案
+        G->>G: 校验引用／版本／策略，拒绝迟到提案
+    end
+    opt 提案仍有效，且处于安全回复边界
+        G->>P: 更新后续输入上下文
+        P-->>G: 对应版本的更新确认
+    end
+    Note over W,L: ACK 和计划不生成学习事实，也不证明本轮受控生成
+```
+
+连续 PCM 上送、原回复身份隔离、取消串行、字幕渐进与实际语音就绪规则保留。准备阶段不申请麦克风；未配置语音时 `/api/sessions` 仍返回 501。正常／普通异常结束先返回有来源总结，再关闭；安全限制或撤权清空学习展示。动态总结只展示支持目标的实际识别尝试，不生成独立使用、掌握或发音结论。
+
+`legacy` 明确保留旧固定课／Mission 第一目标路径供比较；`shadow` 产出计划供获准观测，运行回复和页面仍使用旧行为；`controlled` 目前关闭。新主路径的本轮受控生成、完整语义知识点观察和真实成本／等待验收仍列为缺口，不能把当前工程通过视为 DP-05／06／10 已完成。见[实施与验收清单](docs/dynamic-planning-tasking.md)。
+
+时序核对代码：[准备与身份校验](apps/realtime-gateway/src/preparations.js)、[初始化](packages/agent-core/conversation-initializer.js)、[规划器](packages/agent-core/planner-port.js)、[逐轮状态](packages/agent-core/planning-state.js)、[教学会话](packages/agent-core/teaching.js)、[实时网关](apps/realtime-gateway/src/realtime.js)、[动态观察](packages/agent-core/planning-observations.js)、[Mock 资源](apps/hskai-mock/src/planning-fixtures.js)。
 
 ## 4. 评测机制与现有结果
 
@@ -246,7 +257,7 @@ sequenceDiagram
 | 工程与契约 | 权限、话轮归属、乱序／取消、上下文、Mock 接口、页面 | 单测、合成事件回放、CI 浏览器；通过不等于真实语音或教学合格 |
 | 对话内容 | 意图、知识正确性、指令遵循、教学适配、表达、连贯、目标推进、画像、人格、安全 | 十维评分＋逐项要求；实际多轮采集、模型辅助审阅，人工／独立 Judge 校准另列 |
 | 实时体验 | 首音、停顿、抢话、打断、回声／噪声、渐进字幕和总结展示 | 真实供应商与设备测试；不能从文字评分推断 |
-| 动态规划（待实现） | 整体／逐轮计划合理性、执行顺序与遵循、观察真实性 | 独立规划案例与配对 fixture，未来接入新执行路径；参考答案不进入 Agent |
+| 动态规划 | 整体／逐轮计划合理性、执行顺序与遵循、观察真实性 | 独立 fixture 与真实 M3 提案检查已接入；语义评分、真实本轮受控生成和设备验收仍开放 |
 
 评测运行器通过生产 Agent 链路发送输入，前文采用实际 Kai 回复；参考、未来脚本与评分规则隔离。模型判断不自动更新学生事实。沿用十维权重，关键失败不能被平均分抵消。完整方法见 [内容回归](docs/p0-regression.md)、[多轮运行器](docs/multiturn-eval.md)、[真实记录评分](docs/recorded-scoring.md)。
 
@@ -263,6 +274,10 @@ sequenceDiagram
 
 主要残留问题：首轮语言偏好、歧义澄清、结束时长口头回顾、新表达的英文支架，以及部分采集／取消与完成信号缺口。工程侧已记录 338 项测试、三个回放和 CI 浏览器检查通过，见 [实现记录](docs/eval-results/2026-10-13-harness-cross-case-regression.md)；它们与内容质量、真设备体验分别报告。
 
+
+
+2026-10-14 动态规划候选：363 项测试、三个回放和 Chromium 合成设备通过。真实 M3 初始化 4/6 接受 LLM 计划、1 组规则降级、1 组失败；逐轮 4/5 接受 LLM 计划、1 组降级。豆包动态初始配置连接探针收到真实就绪，不上传麦克风，不证明双向音频或本轮生成门控。见 [验证报告](docs/eval-results/2026-10-14-dynamic-planning.md)。
+
 ## 5. 实现范围与当前状态
 
 | 能力 | 实现状态 | 验证状态与限制 |
@@ -273,8 +288,8 @@ sequenceDiagram
 | 渐进字幕、词卡与 Web 总结 | 已实现 | 同步按播放进度近似处理；真实设备及改造受影响项待复验 |
 | 有来源的会内学习证据 | 已实现，范围有限 | 主要支持运动喜好及受支持表达；其他 KP 未评估，不输出掌握或发音结论 |
 | Mock 身份、Mission、偏好和管理接口 | 已实现 | 固定虚构成年学习者；五字段偏好仅存内存，重启重置，业务闭环待验 |
-| 三类学生数据、动态初始化与整体／逐轮规划 | 详细设计已交付 | 尚未实施，不能从当前偏好注入或规则建议推断具备完整规划能力 |
-| 跨会话学习历史、生产持久化、独立发音评分 | 尚未实现 | 真实业务库、完整能力模型与发音服务另列产品化工作 |
+| 三类学生数据、动态初始化与整体／逐轮规划 | 工程已接入，MiniMax M3＋本地 Mock | 真实 M3 6 组仍有超时／降级；当前为后续输入建议，不代表本轮先规划后生成通过 |
+| 跨会话记录、生产持久化、独立发音评分 | 自愿 mock 尝试写回已实现；后两者尚未实现 | 内存记录可进入下一会话历史，重启重置；不自动升级能力，真实业务库与发音服务另列 |
 | 生产机构权限与真人接手、正式服务部署 | 尚未完整实现／验收 | 当前只限本机内部 POC，Mock 回执不等于外部处理完成 |
 
 当前 POC 不依赖外部 HSKai 仓库、生产数据库或队列。后续可通过端口替换真实业务提供方，现有 Mock 数据不能当作真实学习者信息。范围依据见 [独立 POC](docs/standalone-poc.md)；正式产品发布条件见 [发布与评测](docs/release-and-eval.md)。
@@ -287,10 +302,10 @@ sequenceDiagram
 | --- | --- | --- |
 | POC 内容质量 | 复核最新失败、退化与不可比轮；验证首轮语言、歧义进入生成、结束回顾收束及音频完成／取消原因；按类修复 | [正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md)、[收尾 Task05](docs/task05-implementation-tasking.md) |
 | POC 体验与收尾 | 补未覆盖设备／入口旅程、偏好闭环、异常连续使用、安全与隐私边界；最后完成可重复演示 | [收尾 Task06–10](docs/poc-completion-todo.md) |
-| 动态规划基础 | 冻结候选基线；三类数据与课程契约、Mock fixture、初始化、整体计划与逐轮提案 | [DP-00–04](docs/dynamic-planning-tasking.md) |
-| 动态规划执行与验收 | 先验证语音控制能力，再接受控执行、观察／写回、页面投影与跨入口评测 | [DP-05–10](docs/dynamic-planning-tasking.md) |
+| 动态规划基础 | 基线、三类数据与课程契约、fixture、初始化和会话／逐轮提案已接入；继续语义与等待校准 | [DP-00–04](docs/dynamic-planning-tasking.md) |
+| 动态规划执行与验收 | 验证豆包本轮门控与受控执行；完善语义 KP 观察、播放消费范围、跨入口真实音频与费用验收 | [DP-05–10](docs/dynamic-planning-tasking.md) |
 
-动态规划的核心验收条件是本轮计划先于受控生成，并依据实际执行与学生反应继续规划。若当前 Seeduplex 未证实生成门控，需验证可控组合路径及额外等待／打断体验；不能用延迟播放证明模型按本轮计划生成，也不能让后台迟到建议冒充本轮控制。
+动态规划的核心验收条件是本轮计划先于受控生成，并依据实际执行与学生反应继续规划。用户确认保持豆包实时全双工，本轮不引入独立 ASR／TTS。Seeduplex 本轮生成门控未证实前保留 next_turn_advisory，不能用延迟播放或迟到 ACK 证明本轮受控生成。
 
 完整进度见 [实施记录](docs/implementation-plan.md)。Pi 完整设计是参考输入，不要求先迁移框架。
 
@@ -319,15 +334,26 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 
 工程检查使用 `npm run verify`、`npm run replay`；浏览器检查按 [测试说明](docs/testing.md) 执行。真实模型调用须使用已配置权限并显式启动，合成测试成功不替代真实验收。
 
+### 7.1 动态规划配置与检查
+
+```dotenv
+ASK_KAI_PLANNING_MODE=next_turn_advisory
+MINIMAX_API_KEY=你的本地规划模型密钥
+MINIMAX_BASE_URL=https://api.minimax.cn/v1
+MINIMAX_PLANNER_MODEL=MiniMax-M3
+```
+
+密钥仅放本机 `.env`。M3 初始化／逐轮请求与豆包实时 Key 分开；不启用额外 trace 或保存模型思维链。未配置 M3 时显示保守策略并记录 `planner_unconfigured`，不冒充真实语义规划。当前试点预算为初始化 10 秒、逐轮 5 秒，仍需真实校准。`npm run eval:planning` 使用 15 组独立合成 fixture 做离线契约检查；显式 `npm run eval:planning -- --live` 使用 6 组 fixture，最多 12 次规划请求及各至多一次格式修复，不调用豆包、Judge 或真实学生音频。`npm run probe:planning:voice` 单独验证一个动态初始上下文的真实连接，不上传麦克风。规划质量、生成因果、原十维内容和浏览器听感分别验收。
+
 ## 8. 文档导航
 
 | 方向 | 主要入口 |
 | --- | --- |
 | 产品与范围 | [PRD](docs/prd/ask-kai-agent-prd-v1.1.md) · [独立 POC 与 Mock](docs/standalone-poc.md) |
-| Agent 设计 | [动态规划详细设计](docs/dynamic-planning-design.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
+| Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
 | 接口与实时运行 | [事件契约](docs/contracts.md) · [HSKai 边界](docs/hskai-bridge.md) · [协议接入](docs/protocol/seeduplex-integration.md) · [上下文快照](docs/context-snapshots.md) |
 | 教学与呈现 | [自然教学](docs/natural-teaching.md) · [语言支架](docs/language-support.md) · [渐进字幕](docs/progressive-captions.md) · [学习总结](docs/session-summary.md) |
-| 评测与结果 | [测试说明](docs/testing.md) · [多轮运行器](docs/multiturn-eval.md) · [真实评分](docs/recorded-scoring.md) · [最新正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md) |
+| 评测与结果 | [动态规划验证](docs/eval-results/2026-10-14-dynamic-planning.md) · [测试说明](docs/testing.md) · [多轮运行器](docs/multiturn-eval.md) · [真实评分](docs/recorded-scoring.md) · [最新正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md) |
 | 开发与计划 | [POC 收尾](docs/poc-completion-todo.md) · [动态规划清单](docs/dynamic-planning-tasking.md) · [实施记录](docs/implementation-plan.md) |
 | 详细参考与历史 | [原 README 参考快照](docs/readme-reference-20261013.md)：保留原完整时序、操作细节、原始路线图和历史说明，不作为最新状态来源 |
 

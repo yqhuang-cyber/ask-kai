@@ -29,7 +29,9 @@
     "eval:recorded": "node --env-file-if-exists=.env scripts/recorded-score.js",
     "eval:report": "node scripts/evaluation-report.js",
     "eval:review:compare": "node scripts/compare-recorded-reviews.js",
-    "eval:candidate": "node scripts/eval-candidate.js"
+    "eval:candidate": "node scripts/eval-candidate.js",
+    "eval:planning": "node --env-file-if-exists=.env scripts/planning-eval.js",
+    "probe:planning:voice": "node --env-file-if-exists=.env scripts/planning-voice-probe.js"
   },
   "dependencies": {
     "@langchain/core": "1.2.14",

@@ -6,6 +6,7 @@ import { HskaiMemoryPort } from '../../../packages/hskai-bridge/memory.js';
 import { HskaiPrivacyPort } from '../../../packages/hskai-bridge/privacy.js';
 import { HskaiSafeguardingPort } from '../../../packages/hskai-bridge/safeguarding.js';
 import { bridgeEndpoint } from '../../../packages/hskai-bridge/endpoint.js';
+import { HskaiPlanningPort } from '../../../packages/hskai-bridge/planning-port.js';
 
 export class MockLaunchPort {
   constructor({endpoint,secret,fetcher=fetch}){Object.assign(this,{endpoint:bridgeEndpoint(endpoint,{allowLocal:true}),secret,fetcher});}
@@ -21,11 +22,12 @@ export class MockLaunchPort {
   }
 }
 
-export async function startMockBackend({fetcher=fetch,initialMemory,mission}={}) {
-  const secret=randomBytes(48).toString('base64url'),server=createMockHskai({secret,initialMemory,mission});
+export async function startMockBackend({fetcher=fetch,initialMemory,mission,fixtureVariant,fixtureIdentities}={}) {
+  const secret=randomBytes(48).toString('base64url'),server=createMockHskai({secret,initialMemory,mission,fixtureVariant,fixtureIdentities});
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const base=`http://127.0.0.1:${server.address().port}/internal/ask-kai/`;
   const options={secret,fetcher,allowLocal:true};
+  const planningPort=new HskaiPlanningPort({...options,endpoint:base+'planning'});
   return {bridge:new HskaiBridge({secret,markets:['SG']}),memoryPort:new HskaiMemoryPort({...options,endpoint:base+'memory'}),privacyPort:new HskaiPrivacyPort({...options,endpoint:base+'privacy'}),safeguardingPort:new HskaiSafeguardingPort({...options,endpoint:base+'safeguarding'}),pocPort:new MockLaunchPort({...options,endpoint:base+'launch'}),
-    close:()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();})};
+    planningPort,close:()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();})};
 }

@@ -1,5 +1,7 @@
 # Incremental delivery
 
+2026-10-14 动态初始化、会话计划和逐轮 MiniMax M3 规划已接入：三类 mock 数据、完整有限资源、准备版本／消费校验、actual-context 提案、迟到取消、尝试总结与自愿内存写回、Web 同源投影。语音保持豆包全双工，当前为 next_turn_advisory；本轮生成门控未证实，controlled 关闭。工程及 Chromium 合成设备通过；真实 M3 6 组仍有降级／超时，动态初始配置连接探针收到豆包就绪，不证明双向语音或受控逐轮生成。新版本语义和设备验收继续开放。见[实施记录](dynamic-planning-implementation.md)、[DP 清单](dynamic-planning-tasking.md)与[验证报告](eval-results/2026-10-14-dynamic-planning.md)。
+
 2026-10-13 Harness候选的现有145轮正式模型辅助评分与旧对应范围比较已完成：24/26案完整，103通过／29待复核／13失败；共同可比134轮均分94.60→96.44，37改善／18退化（2轮混合）。005缺1轮、027缺3轮，12项要求留null；没有新增关键失败，也没有本轮Agent修改、豆包或独立Judge调用。见[正式结果与采集诊断](eval-results/2026-10-13-harness-formal-comparison.md)。Task05质量验收仍开放。
 
 2026-10-13 全量结果后的Harness修复已分类实现并推送：语言v5、教学v7、回复v4、总结v3及有界PCM音频兼容；原评分口径冻结。338测试、三个回放及最终运行版本CI浏览器检查通过。26案／149轮固定录音真实回归随后结束，现有145轮正式评分已完成；当时工作环境断连的缺口已恢复取回。见[实现与回归](eval-results/2026-10-13-harness-cross-case-regression.md)。旧评分阶段不改Agent的限制保留为历史记录，当前修改由用户明确授权。

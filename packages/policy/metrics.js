@@ -1,4 +1,4 @@
-const counters=['sessions','ready','failures','dropped_events','interruptions','restricted','handoffs_delivered','control_rate_limited'];
+const counters=['sessions','ready','failures','dropped_events','interruptions','restricted','handoffs_delivered','control_rate_limited','mock_records_saved','mock_records_pending','mock_records_failed'];
 const timings=['ready_ms','first_audio_ms'];
 export class Metrics {
   constructor(){this.groups={};}

@@ -2,6 +2,7 @@ import { AudioIO } from './audio.js';
 import { Presentation } from './presentation.js';
 import { ExperienceTrace } from './diagnostics.js';
 import { SummaryCards } from './summary-cards.js';
+import { PreparationClient } from './preparation-client.js';
 const diagnosticsEnabled=new URLSearchParams(location.search).get('diagnostics')==='1';
 const trace=diagnosticsEnabled?new ExperienceTrace():null;
 const runtimeReady=fetch('/api/runtime').then(r=>{if(!r.ok)throw new Error('RUNTIME_UNAVAILABLE');return r.json();}).then(runtime=>{
@@ -41,6 +42,8 @@ const mute=document.querySelector('#mute'),end=document.querySelector('#end'),ca
 const paceSelect=document.querySelector('#speech-pace'),paceHint=document.querySelector('#speech-pace-hint');
 let paceSupported=false;
 let mode='sports',ws,io,generation=0,config,muted=false,mission=null,safetyMessage=null;
+let entryPreviews={},dynamicPlanning=false,preparationPromise=null,preparationEpoch=0;
+const saveLearning=document.querySelector('#save-learning');
 const interrupt=document.querySelector('#interrupt');
 const captionHint=document.querySelector('#caption-hint');
 const presentation=new Presentation({render:(text,parts)=>{
@@ -52,21 +55,31 @@ const presentation=new Presentation({render:(text,parts)=>{
 },onObserve:diagnosticsEnabled?observe:undefined});
 function learning(packet) {
   goal.textContent=packet.goal;promptHint.textContent=packet.start_tip;
+  if(packet.prompt_title)promptTitle.textContent=packet.prompt_title;
   const card=packet.cards[0];document.querySelector('.word-card').hidden=!card;
   if(card)for(const [key,id] of Object.entries({word:'word-chinese',pinyin:'word-pinyin',english:'word-english',example:'word-example'}))document.getElementById(id).textContent=card[key];
   const count=packet.attempt_count??packet.attempts.length;
   document.querySelector('#learning-attempts').textContent=count ? `本轮记录 ${count} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
 }
+const entry=()=>({mode,...(mode==='mission'?{mission_id:mission.id}:{}),...(paceSupported?{speech_pace:paceSelect.value}:{})});
+const preparer=new PreparationClient({fetcher:authorizedFetch,onView:learning,onStatus:(state,details)=> {
+  if(state==='preparing'){message.textContent='正在准备对话……';}
+  else if(state==='ready')message.textContent=details?.degraded?'对话已准备；当前使用保守策略，规划模型暂不可用。':'对话已准备，可以开始。';
+  else if(state==='failed')message.textContent='对话准备失败，请重新选择或开始。';
+}});
+function prepareSelected(){if(!dynamicPlanning)return;const epoch=++preparationEpoch;preparationPromise=preparer.prepare(entry()).then(id=>epoch===preparationEpoch?id:null);}
 function suppressLearning(reason){summaryCards.suppress(reason);goal.textContent='';promptHint.textContent='';document.querySelector('.word-card').hidden=true;document.querySelector('#learning-attempts').textContent='本轮没有可展示的学习记录。';}
 function selectMode(button) {
-  summaryCards.reset();document.querySelector('#learning-attempts').textContent='尚无对话记录。';document.querySelector('.word-card').hidden=button.dataset.mode!=='sports';
+  summaryCards.reset();document.querySelector('#learning-attempts').textContent='尚无对话记录。';document.querySelector('.word-card').hidden=true;
   mode=button.dataset.mode;
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
-  goal.textContent=mode==='sports'?'用「我喜欢……」说说喜欢的运动。':mode==='mission'?mission.targets[0]:'从感兴趣的话题开始，用中文表达自己。';
-  promptTitle.textContent=mode==='sports'?'你喜欢什么运动？':mode==='mission'?mission.title:'今天想聊什么？';
-  promptHint.textContent=mode==='sports'?'可以从「我喜欢足球」开始。':'可以从一句简单的中文开始。';
+  const preview=entryPreviews[mode];
+  if(preview)learning(preview);else{goal.textContent='正在准备本次对话。';promptTitle.textContent=mode==='mission'?mission?.title??'准备对话':'准备对话';promptHint.textContent='';}
+  prepareSelected();
 }
 for(const button of modes)button.addEventListener('click',()=>selectMode(button));
+paceSelect.addEventListener('change',prepareSelected);
+void runtimeReady.then(runtime=>{entryPreviews=runtime.entry_previews??{};dynamicPlanning=runtime.planning?.available===true;saveLearning.hidden=!dynamicPlanning||runtime.planning.mode==='shadow';if(entryPreviews[mode])learning(entryPreviews[mode]);});
 function controls(active) {connect.disabled=active;caseSelect.disabled=active;paceSelect.disabled=active || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active || (button.dataset.mode==='mission' && !mission);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
 async function loadSpeechPaces() {
   try {
@@ -81,6 +94,7 @@ void loadSpeechPaces();
 async function stop(text='对话已结束。') {
   summaryCards.finish();
   const stopped=++generation;presentation.reset();const previous=ws;ws=null;previous?.close();
+  preparationEpoch++;preparer.cancel();preparationPromise=null;
   const audio=io;io=null;await audio?.close();
   observe('session.end',{state:'closed'});
   if(stopped!==generation)return;
@@ -100,7 +114,17 @@ connect.addEventListener('click',async()=> {
       if(ws?.readyState===WebSocket.OPEN){if(ws.bufferedAmount>65536){void stop('网络上传拥塞，请重新开始。');return;}ws.send(bytes);}
     },onFailure:text=>{observe('browser.failed',{code:'other'});void stop(text);},onObserve:diagnosticsEnabled?observe:undefined});
     await io.prepare();
-    const response=await authorizedFetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{})}),signal:AbortSignal.timeout(8000)});
+    const runtime=await runtimeReady;
+    let preparationId;
+    if(dynamicPlanning&&runtime.voice_configured) {
+      status.textContent='准备对话';
+      // Prepare anew at start: displayed results may have expired or preferences
+      // may have changed while the learner was reviewing the entry.
+      preparationEpoch++;preparationId=await preparer.prepare(entry());
+      if(current!==generation)return;
+      if(!preparationId){await stop('对话准备失败，请检查规划或课程服务。');return;}
+    }
+    const response=await authorizedFetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{}),...(preparationId?{preparation_id:preparationId}:{})}),signal:AbortSignal.timeout(8000)});
     const result=await response.json();if(current!==generation)return;
     if(!response.ok){await stop(response.status===501?'实时语音尚未开通。需完成豆包协议和服务端连接验证。':'会话无法创建，请检查授权或服务容量。');return;}
     summaryCards.begin(result.session_id,mode);
@@ -115,6 +139,7 @@ connect.addEventListener('click',async()=> {
         if(packet.type==='session.config'){config=packet.audio;paceHint.textContent=packet.speech?.supported && ['slow','normal'].includes(packet.speech.pace)?`本次语速：${packet.speech.pace==='slow'?'慢速':'正常'}；结束后可切换。`:'本次使用服务默认语速。';return;}
         if(packet.type==='teaching.state'){if(!summaryCards.state.suppressed)learning(packet);return;}
         if(packet.type==='teaching.summary'){if(summaryCards.accept(packet))learning(packet);return;}
+        if(packet.type==='learning.record.receipt'){document.querySelector('#learning-attempts').textContent=packet.status==='accepted'?'本轮尝试已保存到本地 mock 内存；重启后重置。':'本轮记录未保存，请保留当前小结。';return;}
         if(packet.type==='session.failed'){if(['AUTHORIZATION_REVOKED','SAFETY_RESTRICTED'].includes(packet.code))suppressLearning(packet.code);observe('browser.failed',{code:packet.code});await stop(safetyMessage ?? '实时连接失败，请重试。');return;}
         if(packet.type==='safety.notice'){suppressLearning('safety');safetyMessage=packet.message;message.textContent=safetyMessage;presentation.stop();await io?.close();return;}
         if(packet.type==='safety.handoff'){safetyMessage+=(packet.mocked?' POC 已记录 mock 安全事件，没有真人接手。':packet.delivered?' 已提交给人工处理队列。':' 人工处理服务暂不可用，请直接联系可信任的大人。');message.textContent=safetyMessage;return;}
@@ -141,7 +166,7 @@ connect.addEventListener('click',async()=> {
 });
 mute.addEventListener('click',()=>{muted=!muted;io?.mute(muted);mute.setAttribute('aria-pressed',String(muted));mute.textContent=muted?'取消静音':'静音';});
 end.addEventListener('click',()=>{
-  if(ws?.readyState===WebSocket.OPEN){ws.send(JSON.stringify({type:'session.end'}));const current=generation;message.textContent='正在结束对话……';setTimeout(()=>{if(current===generation)void stop();},1500);}
+  if(ws?.readyState===WebSocket.OPEN){const save=dynamicPlanning&&document.querySelector('#save-learning-input').checked;ws.send(JSON.stringify({type:'session.end',...(save?{save_learning:true}:{})}));const current=generation;message.textContent='正在结束对话……';void io?.close();setTimeout(()=>{if(current===generation)void stop();},save?3500:1500);}
   else void stop();
 });
 interrupt.addEventListener('click',()=> {
@@ -164,9 +189,11 @@ async function bootstrap() {
   try {
     const response=await authorizedFetch('/api/bootstrap');if(!response.ok){await loadMemory();return;}const result=await response.json();
     mission=result.mission;
+    if(result.mission_preview)entryPreviews.mission=result.mission_preview;
     const missionButton=document.querySelector('[data-mode="mission"]');missionButton.disabled=!mission;missionButton.textContent=mission?(await runtimeReady).backend==='mock_hskai'?'Mission 后对话 · 示例':'Mission 后对话':'Mission 后对话 · 待授权';missionButton.title=mission?'':'等待课程服务接入';
     document.querySelector('#memory-save').disabled=!result.memory_writable;document.querySelector('#memory-delete').disabled=!result.memory_writable;
     await loadMemory();
+    if(dynamicPlanning)prepareSelected();
   }catch{memoryStatus.textContent='偏好服务暂不可用。';}
 }
 document.querySelector('#memory-form').addEventListener('submit',async event=> {

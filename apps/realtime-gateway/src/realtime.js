@@ -10,7 +10,7 @@ import { TurnOutputGate } from './output-gate.js';
 import { ReplyAudit,REPLY_POLICY_VERSION } from '../../../packages/agent-core/reply-policy.js';
 import { sameLanguageSupport } from '../../../packages/agent-core/language-support.js';
 
-export function attachRealtime(server,{providerFactory,providerKind='doubao',businessSource='unconfigured',maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,replyGraceMs=350,turnWaitMs=5000,safeguardingPort,metrics}={}) {
+export function attachRealtime(server,{providerFactory,providerKind='doubao',businessSource='unconfigured',planner,planningPort,maxConnections=8,readyTimeoutMs=8000,maxSessionMs=600000,cancelTimeoutMs=1500,contextTimeoutMs=1500,replyGraceMs=350,turnWaitMs=5000,safeguardingPort,metrics}={}) {
   const tickets = new Map();
   const connections = new Set();
   const sessions=new Map();
@@ -32,13 +32,15 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
     wss.handleUpgrade(req,socket,head,ws => {
       connections.add(ws);
       const runtime = new SessionRuntime(ticket.session_id,{target:null});
-      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission,speechPace:ticket.speech_pace});
+      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission,speechPace:ticket.speech_pace,planning:ticket.planning,planner,onPlanningRecord:(name,fields)=>diagnose(name,fields)});
       const policy=new SafetyPolicy();
       const started=performance.now();metrics?.count(providerKind,'sessions');
       let restricted=false,controlCount=0,controlAt=Date.now(),replyAt=null,firstAudio=false;
       let provider;
       let outputGate;
       let ended = false;
+      let ending=false;
+      let recordController;
       let ready = false;
       let lastResponse = null;
       const pendingCancel = new Map();
@@ -63,10 +65,12 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
         if (ws.bufferedAmount > 262144) return finish('CLIENT_BACKPRESSURE');
         ws.send(JSON.stringify(data));
         teaching.forward(data); // Only forwarded packets, after safety/output hold.
+        teaching.planning?.observe(data);
         return true;
       };
       const finish = (code,endReason) => {
         if (ended) return;
+        if(code||endReason==='transport_closed')recordController?.abort();
         for(const id of replyStats.keys())completeStats(id,code?'failed':'closed');
         diagnose('session.end',{state:code?'failed':'closed',code:code??undefined});
         ended = true;
@@ -111,6 +115,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       const interrupt = (responseId,source='manual') => {
         const active = runtime.active;
         const id=responseId ?? active?.id ?? lastResponse?.id;
+        if(responseId===undefined||responseId===active?.id||responseId===lastResponse?.id)teaching.planning?.invalidate('student_interruption');
         if (!id) return;
         if(pendingCancel.has(id)){diagnose('cancel.ignored',{response_id:id,source,reason:'duplicate'});return;}
         diagnose('cancel.requested',{response_id:id,source,active:!!active && active.id===id,pending_context:!!pendingContext,pending_cancel:pendingCancel.size>0});
@@ -148,7 +153,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
       };
       ws.on('close',()=>finish(undefined,'transport_closed')); ws.on('error',()=>finish('CLIENT_TRANSPORT_ERROR'));
       ws.on('message',(bytes,binary) => {
-        if(ended || restricted)return;
+        if(ended || ending || restricted)return;
         try {
           if (binary) {
             if (!ready) throw new Error('AUDIO_BEFORE_READY');
@@ -161,7 +166,15 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             if(++controlCount>20){metrics?.count(providerKind,'control_rate_limited');return finish('CONTROL_RATE_LIMIT');}
             if (bytes.length > 1024) throw new Error('CONTROL_TOO_LARGE');
             const value = JSON.parse(bytes.toString());
-            if (value?.type === 'session.end' && Object.keys(value).length === 1) finish();
+          if (value?.type === 'session.end' && Object.keys(value).every(k=>['type','save_learning'].includes(k)) && (value.save_learning===undefined||typeof value.save_learning==='boolean')) {
+            // Explicit opt-in only. Submitted facts remain attempted-only mock
+            // observations; no transcript/audio, automatic mastery or retries.
+            if(value.save_learning===true&&planningPort&&teaching.planning&&!teaching.closed&&ticket.identity.authorization_until>Date.now()&&ticket.identity.scopes.includes('learning:write')) {
+              const record=teaching.learningRecord();
+              if(record){ending=true;recordController=new AbortController();teaching.planning.close();send({type:'output.stop'});void planningPort.append(ticket.identity,record,ticket.session_id,{signal:recordController.signal}).then(receipt=>{send({type:'learning.record.receipt',status:receipt.status,mocked:true});metrics?.count(providerKind,receipt.status==='accepted'?'mock_records_saved':'mock_records_pending');}).catch(()=>{send({type:'learning.record.receipt',status:'failed',mocked:true});metrics?.count(providerKind,'mock_records_failed');}).finally(()=>finish());return;}
+            }
+            finish();
+          }
             else if(value?.type==='diagnostics.enable' && Object.keys(value).length===1) {
               if(!diagnostics) {
                 diagnostics=true;
@@ -172,6 +185,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
               }
             }
             else if (value?.type==='response.cancel' && ready && Object.keys(value).every(k=>['type','response_id'].includes(k)) && (value.response_id===undefined || /^[a-zA-Z0-9_.:-]{1,128}$/.test(value.response_id))) interrupt(value.response_id);
+            else if(value?.type==='playback.report' && Object.keys(value).every(k=>['type','response_id','state','audio_ms'].includes(k)))teaching.planning?.consumption(value.response_id,value);
             else throw new Error('INVALID_CONTROL');
           }
         } catch { finish('INVALID_CLIENT_MESSAGE'); }
@@ -180,7 +194,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
         provider = providerFactory(ticket);
         if(provider.speechStartKind==='asr_candidate')outputGate=new TurnOutputGate({send,fail:finish,observe:diagnose,graceMs:replyGraceMs,maxWaitMs:turnWaitMs});
         provider.open({sessionId:ticket.session_id,instructions:appliedContext.instructions,onFailure:code=>finish(code),onEvent:packet=> {
-          if (ended || restricted) return;
+          if (ended || ending || restricted) return;
           if(packet.control==='user.speech.candidate') {
             if(!ready || !/^[a-zA-Z0-9_-]{1,128}$/.test(packet.turn_id??'') || runtime.finalTurns.has(packet.turn_id))return;
             const candidate=captureSpeech(packet.turn_id);outputGate?.candidate(packet.turn_id);
@@ -270,6 +284,10 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
             // A final can arrive after this reply's observed terminal boundary.
             // Flush only that owned completed turn, never an arbitrary early final.
             if(teaching.completedReplyTurns.has(event.turn_id))flushContext();
+            if(teaching.planning)void teaching.planTurn(event).then(plan=> {
+              if(!plan||ended)return;
+              send({type:'teaching.state',...teaching.view()});flushContext();
+            }).catch(()=>diagnose('planning.rejected',{turn_id:event.turn_id,reason:'planning_failed'}));
           }
           const projected={type:'event',event:packet.event,audio:packet.audio,sample_rate:packet.sample_rate,provider_connected:ready && providerKind==='doubao',synthetic:providerKind!=='doubao'};
           if(outputGate && ['response.started','response.text.delta','response.audio.chunk','response.done'].includes(event.type))outputGate.push(projected);else send(projected);
@@ -286,15 +304,21 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
   });
   return {
     available:!!providerFactory,
-    create({origin,mode,identity,speechPace}) {
+    create({origin,mode,identity,speechPace,planning,bindPlanning}) {
       if (!providerFactory) return null;
       if (tickets.size+connections.size >= maxConnections) throw new Error('SESSION_CAPACITY');
       const token = randomUUID();
       const ticket = {session_id:randomUUID(),mode,speech_pace:speechPace,origin,identity,expires:Math.min(Date.now()+30000,identity.expires)};
+      if(planning)ticket.planning=bindPlanning(planning,ticket.session_id);
       tickets.set(token,ticket);
       return {session_id:ticket.session_id,ticket:token,websocket_path:'/api/realtime',protocol:'ask-kai.v1',expires_in:30,provider_connected:false};
     },
-    updateMemory(identity,memory) {for(const session of sessions.values())if(session.identity.owner_id===identity.owner_id && session.identity.learner_id===identity.learner_id){session.teaching.updateMemory(memory);session.flushContext();}},
+    async updateMemory(identity,memory) {
+      const matches=[...sessions.values()].filter(s=>s.identity.owner_id===identity.owner_id&&s.identity.learner_id===identity.learner_id);
+      for(const session of matches)session.teaching.updateMemory(memory);
+      const context=matches.some(s=>s.teaching.planning)&&planningPort?await planningPort.read(identity):null;
+      for(const session of matches)if(!session.teaching.closed){if(context)session.teaching.updateLearnerContext(context);session.flushContext();}
+    },
     revoke(identity) {
       for(const [key,ticket] of tickets)if(ticket.identity.owner_id===identity.owner_id && ticket.identity.learner_id===identity.learner_id)tickets.delete(key);
       for(const session of sessions.values())if(session.identity.owner_id===identity.owner_id && session.identity.learner_id===identity.learner_id)session.finish('AUTHORIZATION_REVOKED');

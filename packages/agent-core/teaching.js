@@ -6,8 +6,11 @@ import { NaturalTeaching,TEACHING_POLICY_VERSION } from './natural-teaching.js';
 import { LearningSummary,SUMMARY_LIMITS } from './learning-summary.js';
 import { LanguageSupport } from './language-support.js';
 import { compileContextSnapshot } from './context-snapshot.js';
+import { planProjection } from './conversation-initializer.js';
+import { PlanningState } from './planning-state.js';
+import { PlanningObservations } from './planning-observations.js';
 export class TeachingSession {
-  constructor({sessionId,mode='sports',memory=[],mission=null,speechPace}) {
+  constructor({sessionId,mode='sports',memory=[],mission=null,speechPace,planning,planner,onPlanningRecord}) {
     if(!['sports','free','mission'].includes(mode))throw new Error('INVALID_MODE');
     if(mode==='mission' && !mission)throw new Error('TRUSTED_MISSION_REQUIRED');
     this.speechInstructions=speechPaceInstructions(speechPace);
@@ -15,6 +18,14 @@ export class TeachingSession {
     this.teaching=new NaturalTeaching({mode,mission});
     this.learning=new LearningSummary({sessionId,mode,mission});
     this.language=new LanguageSupport({memory});
+    if(planning) {
+      this.planning=new PlanningState({...planning,planner,onRecord:onPlanningRecord});
+      this.observations=new PlanningObservations({sessionId,...planning});
+      if(this.planning.mode!=='shadow') {
+        this.teaching.goal=planning.plan.primary_goal?{id:planning.plan.primary_goal.id,source:'mock_hskai'}:null;
+        this.teaching.likesGoal=planning.plan.primary_goal?.kp_ids.includes('likes-expression')??false;
+      }
+    }
   }
   instructions() {
     return this.contextSnapshot().instructions;
@@ -22,7 +33,7 @@ export class TeachingSession {
   contextSnapshot() {
     const memory=this.language.validMemory().map(m=>({field:m.field,value:m.value,source:m.source,updated_at:m.updated_at}));
     return compileContextSnapshot({sessionId:this.sessionId,version:this.version,mode:this.mode,mission:this.mission,stage:this.stage,speechInstructions:this.speechInstructions,
-      languageInstructions:this.language.instructions(),language:this.language.snapshot(),decision:this.teaching.decision,teachingContext:this.teaching.context(),memory});
+      languageInstructions:this.language.instructions(),language:this.language.snapshot(),decision:this.teaching.decision,teachingContext:this.teaching.context(),memory,planning:this.planning?.mode==='shadow'?null:this.planning});
   }
   accept(event) {
     if(this.closed || !validateEvent(event) || event.session_id!==this.sessionId || event.type!=='user.final' || this.seen.has(event.turn_id))return false;
@@ -35,12 +46,18 @@ export class TeachingSession {
     if(this.stage==='warmup')this.stage='conversation';
     if(decision.action==='CLOSE')this.stage='closing';
     else if(this.stage==='closing')this.stage='conversation';
-    const attempt=this.learning.recordFinal(event,decision);
+    this.observations?.accept(event,{goal_status:decision.teaching_paused?'paused':this.planning.plan.goal_status});
+    const attempt=this.planning&&this.planning.mode!=='shadow'?null:this.learning.recordFinal(event,decision);
     if(attempt) {
       this.evidence.push(attempt);
       if(decision.action!=='CLOSE'&&!decision.teaching_paused)this.stage='practice';
     }
     return true;
+  }
+  async planTurn(event) {
+    if(!this.planning||this.closed)return null;
+    const plan=await this.planning.acceptInput(event,this.teaching.decision,this.language.snapshot());
+    if(plan&&!this.closed){this.version++;return plan;}return null;
   }
   completeReply(event) {
     if(this.closed||!validateEvent(event)||event.session_id!==this.sessionId||!['response.done','response.cancelled'].includes(event.type)||this.completedReplyTurns.has(event.turn_id))return false;
@@ -50,12 +67,26 @@ export class TeachingSession {
     this.version++;return true;
   }
   forward(packet) {return this.learning.forward(packet);}
-  updateMemory(memory){this.memory=structuredClone(memory);this.language.updateMemory(memory);this.version++;}
+  updateMemory(memory){this.planning?.invalidate('preferences_changed');this.memory=structuredClone(memory);this.language.updateMemory(memory);this.version++;}
+  updateLearnerContext(context){this.planning?.updateContext(context);this.version++;}
   languageSnapshot(){return this.language.snapshot();}
-  finalize(options={}) {this.closed=true;return this.learning.finalize({...options,evidence:this.evidence});}
+  finalize(options={}) {
+    this.closed=true;this.planning?.close();const summary=this.learning.finalize({...options,evidence:this.evidence});
+    if(this.planning&&this.planning.mode!=='shadow') {
+      const suppressed=['authorization_revoked','safety_restricted'].includes(options.endReason),rows=suppressed?[]:[...this.observations.observations.values()];
+      const plan=this.planning.plan,goal=plan.primary_goal;
+      Object.assign(summary,{schema_version:3,policy_version:'kai-dynamic-summary-v1',focus:suppressed?'unavailable':!this.seen.size?'insufficient':rows.length?'practice_observed':'conversation_only',goals:suppressed||!goal?[]:[{id:goal.id,label:goal.label,attempt_rule_supported:goal.kp_ids.every(id=>this.planning.resource.key_points.find(k=>k.id===id)?.evidence_rule!=='unassessed')}],learning_items:[],review_suggestions:[],dynamic_observations:rows.slice(-100).map(r=>({...r,session_id:this.sessionId,label:this.planning.resource.key_points.find(k=>k.id===r.kp_id).label})),planning:{path:this.planning.mode,plans:this.planning.records.length,controlled_execution:false},coverage:{rule_scope:'trusted_resource_attempt_rules_v1',complete_learning_inventory:false,observations_truncated:rows.length>100}});
+      summary.counts.student_final_turns=suppressed?0:this.seen.size;summary.counts.attempts=rows.length;
+      summary.headline=suppressed?{zh:'本轮总结暂不可用。',en:'This session summary is unavailable.'}:rows.length?{zh:'本轮记录了表达尝试；尚未评估掌握。',en:'Expression attempts were recorded; mastery was not assessed.'}:this.seen.size?{zh:'本轮以交流为主。',en:'This session focused on conversation.'}:{zh:'本轮记录不足。',en:'There is not enough information to summarize.'};
+    }
+    return summary;
+  }
+  learningRecord(outcome='ended'){return this.planning&&this.planning.mode!=='shadow'?this.observations.record(this.planning.plan,outcome):null;}
   view() {
     const sports=this.mode==='sports';
     const language=this.languageSnapshot();
-    return {mode:this.mode,stage:this.stage,context_version:this.version,persona_version:PERSONA_VERSION,reply_policy_version:REPLY_POLICY_VERSION,reply_budget:{...REPLY_BUDGET},language_policy:{version:language.policy_version,english_support:language.english_support,reason:language.reason,known_expression_count:language.known_expressions.length},teaching_policy_version:TEACHING_POLICY_VERSION,decision:this.teaching.decision?{...this.teaching.decision}:null,lesson_source:sports?SPORTS_LESSON.source:this.mode==='mission'?'authorized-hskai-mission':null,lesson_version:sports?SPORTS_LESSON.version:null,goal:sports?SPORTS_LESSON.goal.label:this.mode==='mission'?this.mission.targets[0]:'用中文聊感兴趣的话题。',start_tip:sports?SPORTS_LESSON.start_tip:'可以从一句简单的中文开始。',cards:sports?structuredClone(SPORTS_LESSON.cards):[],attempts:structuredClone(this.evidence.slice(-SUMMARY_LIMITS.view_attempts)),attempt_count:this.evidence.length,attempts_truncated:this.evidence.length>SUMMARY_LIMITS.view_attempts,notice:'最终识别仅形成学习尝试；尚未评估掌握或发音。'};
+    const view={mode:this.mode,stage:this.stage,context_version:this.version,persona_version:PERSONA_VERSION,reply_policy_version:REPLY_POLICY_VERSION,reply_budget:{...REPLY_BUDGET},language_policy:{version:language.policy_version,english_support:language.english_support,reason:language.reason,known_expression_count:language.known_expressions.length},teaching_policy_version:TEACHING_POLICY_VERSION,decision:this.teaching.decision?{...this.teaching.decision}:null,lesson_source:sports?SPORTS_LESSON.source:this.mode==='mission'?'authorized-hskai-mission':null,lesson_version:sports?SPORTS_LESSON.version:null,goal:sports?SPORTS_LESSON.goal.label:this.mode==='mission'?this.mission.targets[0]:'用中文聊感兴趣的话题。',start_tip:sports?SPORTS_LESSON.start_tip:'可以从一句简单的中文开始。',cards:sports?structuredClone(SPORTS_LESSON.cards):[],attempts:structuredClone(this.evidence.slice(-SUMMARY_LIMITS.view_attempts)),attempt_count:this.evidence.length,attempts_truncated:this.evidence.length>SUMMARY_LIMITS.view_attempts,notice:'最终识别仅形成学习尝试；尚未评估掌握或发音。'};
+    if(this.planning&&this.planning.mode!=='shadow'){const projection=planProjection(this.planning.plan,this.planning.resource);Object.assign(view,projection,{attempt_count:this.observations.observations.size,lesson_source:'mock_hskai',lesson_version:this.planning.resource?.version??null});if(this.planning.plan.goal_status==='paused'){view.goal='跟随你当前的话题交流。';view.start_tip='';view.cards=[];}}
+    return view;
   }
 }

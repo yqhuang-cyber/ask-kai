@@ -1,5 +1,8 @@
 # P0 Task 05: natural teaching decisions
 
+> 2026-10-14 动态规划更新：独立 mock 默认使用 next_turn_advisory，已接入三类学生上下文、可信资源、建连前整体计划与 MiniMax M3 逐轮提案；保留豆包实时全双工，本轮生成门控未证实。下文旧 Task 行为保留为 legacy／历史说明，新行为、尝试写回和验收范围见[实施记录](dynamic-planning-implementation.md)及[验证报告](eval-results/2026-10-14-dynamic-planning.md)。
+
+
 Engineering implemented for the standalone Web POC. Model teaching quality,
 actual spoken compliance and device listening remain pending in Tasks 09/10.
 The business backend stays the local mock HSKai; no new external service,
