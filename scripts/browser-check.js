@@ -63,7 +63,10 @@ try {
       getPlayback:id=>window.testAudio.playback(id),onObserve:(name,fields)=>window.audioTrace.record(name,fields)});
     window.captionFixture.begin('synthetic-caption');window.captionFixture.append('synthetic-caption',window.captionFixtureText);
     const pcm=btoa(String.fromCharCode(...new Uint8Array(28800))); // 600ms @ 24kHz
-    for(let i=0;i<4;i++)window.captionFixture.audio('synthetic-caption',pcm,24000);
+    // 7.2 seconds arrive in one burst: this previously closed the conversation
+    // at the three-second playback guard. Verify full native drain and captions.
+    for(let i=0;i<12;i++)window.captionFixture.audio('synthetic-caption',pcm,24000);
+    if(Math.abs(window.testAudio.playback('synthetic-caption').received_ms-7200)>.01)throw new Error('PCM_BURST_LOST');
     window.captionFixture.done('synthetic-caption');
     if(document.querySelector('#caption').textContent!=='')throw new Error('CAPTION_BURST');
     return window.framesObserved.length;
@@ -148,6 +151,18 @@ try {
   assert.equal(await page.locator('#session-summary').getAttribute('data-focus'),'unavailable');
   await page.evaluate(()=>window.summaryFixture.reset());assert.equal(await page.locator('#session-summary').isVisible(),false);assert.equal(await page.locator('#summary-jump').isVisible(),false);
   await page.getByRole('link',{name:'工程回放'}).click();await page.locator('#start').click();await page.waitForFunction(()=>document.querySelector('#summary').textContent.includes('attempted'));
+  // A failure packet and its subsequent socket close must keep a visible cause.
+  const failureServer=createGateway({providerKind:'test',providerFactory:()=>{
+    let timer;return {audio:{encoding:'pcm_s16le',input_rate:16000,output_rate:24000,frame_ms:20},
+      open:({onFailure})=>{timer=setTimeout(()=>onFailure('PROVIDER_PROTOCOL_ERROR'),30);},close:()=>clearTimeout(timer)};
+  }});
+  servers.push(failureServer);failureServer.listen(0,'127.0.0.1');await once(failureServer,'listening');
+  await page.goto(`http://127.0.0.1:${failureServer.address().port}`);await page.locator('#connect').click();
+  await page.getByText('语音服务返回的数据无法处理，对话已中断。请重新开始。',{exact:true}).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('#connect').disabled);
+  assert.equal(await page.locator('#connection-status').textContent(),'连接中断');
+  assert.equal(await page.locator('#session-message').getAttribute('data-state'),'failed');
+  assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
   // Synthetic Seeduplex transport: inspect actual Web selection -> ticket -> session.create.
   // Withhold provider ready; never expose the synthetic peer as connected or open the microphone.
   const profile=JSON.parse(await readFile(new URL('../docs/protocol/seeduplex-profile.template.json',import.meta.url),'utf8'));

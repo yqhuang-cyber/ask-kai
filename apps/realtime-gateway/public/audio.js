@@ -1,5 +1,9 @@
 // Internal Web audio contract: mono PCM s16le, 20ms frames. Provider rates are reviewed server-side.
 import { safeObserve } from './diagnostics.js';
+// A streamed reply can arrive faster than playback, especially at slow speed.
+// Bound queued PCM to 30 seconds (~1.44 MB at 24 kHz), independently of
+// per-packet/node limits. This is a local resource bound, not provider pacing.
+export const MAX_PLAYBACK_QUEUE_SECONDS=30;
 // Prefer the estimated output-device position; fallback is the rendering clock,
 // not a measurement of what the learner heard. Never advance it with wall time
 // while the context is suspended/interrupted.
@@ -73,7 +77,7 @@ export class AudioIO {
     const buffer=this.context.createBuffer(1,bytes.length/2,rate),channel=buffer.getChannelData(0),view=new DataView(bytes.buffer);
     for(let i=0;i<channel.length;i++)channel[i]=view.getInt16(i*2,true)/32768;
     const at=Math.max(this.context.currentTime+0.03,this.nextAt ?? 0);
-    if(at-this.context.currentTime>3)throw new Error('PLAYBACK_BACKLOG');
+    if(at+buffer.duration-this.context.currentTime>MAX_PLAYBACK_QUEUE_SECONDS)throw new Error('PLAYBACK_BACKLOG');
     const stats=this.queuedStats.get(responseId)??{duration:0,finished:0,played:0,spans:[],observedAt:null};
     // Bound live nodes and metadata even for unexpectedly tiny audio chunks.
     this.playback(responseId);

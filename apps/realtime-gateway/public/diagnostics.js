@@ -8,6 +8,7 @@ for(const key of ['grace_ms','turn_wait_ms','held_ms'])numeric.add(key);
 boolean.add('final_received');
 enums.source.push('asr_start','asr_confirmed');enums.reason.push('duplicate','completed','replaced','stopped');
 enums.code.push('TURN_LIMIT','TURN_FINAL_TIMEOUT','OUTPUT_HOLD_LIMIT');
+enums.code.push('PLAYBACK_BACKLOG','PLAYBACK_LIMIT','INVALID_AUDIO','CAPTION_LIMIT','REPLY_LIMIT','PROVIDER_DISCONNECTED','PROVIDER_TRANSPORT_ERROR');
 names.add('reply.audit');
 names.add('backend.config');enums.business_source=['mock_hskai','external_hskai','unconfigured'];
 for(const key of ['chinese_chars','english_words','numeric_units','spoken_units','chinese_sentences','english_sentences','pair_count','question_pairs'])numeric.add(key);

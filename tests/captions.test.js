@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Presentation } from '../apps/realtime-gateway/public/presentation.js';
 import { CAPTION_POLICY,captionUnits,takeCaptionPhrase } from '../apps/realtime-gateway/public/caption-phrases.js';
-import { AudioIO,outputClock } from '../apps/realtime-gateway/public/audio.js';
+import { AudioIO,outputClock,MAX_PLAYBACK_QUEUE_SECONDS } from '../apps/realtime-gateway/public/audio.js';
 import { ExperienceTrace } from '../apps/realtime-gateway/public/diagnostics.js';
 
 function harness() {
@@ -118,6 +118,25 @@ test('old ended callbacks cannot drain a replacement; output stop leaves capture
   assert.equal(h.io.sources.size,1);assert.equal(h.io.playback('old'),null);assert.equal(h.io.generation,captureGeneration);
   assert.ok(!h.events.some(e=>e.name==='audio.drained'));h.nodes[1].onended();
   assert.equal(h.events.find(e=>e.name==='audio.drained').response_id,'new');
+});
+test('burst PCM longer than three seconds drains completely and remains immediately interruptible',()=> {
+  const h=audioHarness(),pcm=Buffer.alloc(48000).toString('base64');
+  for(let i=0;i<8;i++)h.io.play(pcm,24000,'burst');
+  assert.equal(h.nodes.length,8);assert.equal(h.io.playback('burst').received_ms,8000);
+  h.context.currentTime=4.03;assert.ok(Math.abs(h.io.playback('burst').played_ms-4000)<.001);
+  h.context.currentTime=8.04;assert.equal(h.io.playback('burst').played_ms,8000);
+  const captureGeneration=h.io.generation;h.io.stopPlayback();
+  assert.ok(h.nodes.every(n=>n.stopped));assert.equal(h.io.playback('burst'),null);
+  assert.equal(h.io.generation,captureGeneration);h.io.play(pcm,24000,'next');
+  assert.ok(Math.abs(h.nodes.at(-1).at-8.07)<.001);
+});
+test('PCM queue remains bounded including the incoming chunk and rejected audio never starts',()=> {
+  const h=audioHarness(),pcm=Buffer.alloc(48000).toString('base64');
+  for(let i=0;i<MAX_PLAYBACK_QUEUE_SECONDS-1;i++)h.io.play(pcm,24000,'bounded');
+  const before=h.io.playback('bounded').received_ms,nodes=h.nodes.length;
+  assert.throws(()=>h.io.play(pcm,24000,'bounded'),/PLAYBACK_BACKLOG/);
+  assert.equal(h.nodes.length,nodes);assert.equal(h.io.playback('bounded').received_ms,before);
+  h.context.currentTime=2;assert.doesNotThrow(()=>h.io.play(pcm,24000,'bounded'));
 });
 test('caption diagnostics export playback estimates and phrase counts without text or audio',()=> {
   const trace=new ExperienceTrace();trace.gateway({name:'session.config',at_ms:0,fields:{synthetic:true}});
