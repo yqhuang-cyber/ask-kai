@@ -376,7 +376,7 @@ Agent 检查：npm run eval:agent 使用 20 个独立案例验证角色、尝试
 | --- | --- |
 | 产品与范围 | [PRD](docs/prd/ask-kai-agent-prd-v1.1.md) · [独立 POC 与 Mock](docs/standalone-poc.md) |
 | Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [Planner reliability 与模型替换](docs/planner-reliability-design.md) · [Agent reasoning 与 feedback](docs/agent-feedback-design.md) · [四项后续工程](docs/agent-four-tasks.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
-| 接口与实时运行 | [事件契约](docs/contracts.md) · [HSKai 边界](docs/hskai-bridge.md) · [协议接入](docs/protocol/seeduplex-integration.md) · [上下文快照](docs/context-snapshots.md) |
+| 接口与实时运行 | [多端接入与集成](docs/multi-client-integration.md) · [事件契约](docs/contracts.md) · [HSKai 边界](docs/hskai-bridge.md) · [协议接入](docs/protocol/seeduplex-integration.md) · [上下文快照](docs/context-snapshots.md) |
 | 教学与呈现 | [自然教学](docs/natural-teaching.md) · [语言支架](docs/language-support.md) · [渐进字幕](docs/progressive-captions.md) · [学习总结](docs/session-summary.md) |
 | 评测与结果 | [动态规划验证](docs/eval-results/2026-10-14-dynamic-planning.md) · [测试说明](docs/testing.md) · [多轮运行器](docs/multiturn-eval.md) · [真实评分](docs/recorded-scoring.md) · [最新正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md) |
 | 开发与计划 | [POC 收尾](docs/poc-completion-todo.md) · [动态规划清单](docs/dynamic-planning-tasking.md) · [实施记录](docs/implementation-plan.md) |
