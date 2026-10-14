@@ -307,6 +307,8 @@ sequenceDiagram
 
 ## 6. 接下来的计划
 
+2026-10-15 已补齐[全模块任务清单](docs/agent-completion-tasking.md)和[独立 Agent 评测计划](docs/agent-evaluation-plan.md)：针对最终三入口自适应对话，明确资源、执行、观察、总结与设备缺口，关联正在推进的 TP／DP 工作。当前为规划，不新增实现或质量通过结论。
+
 现有 POC 收尾与动态规划建设分开记录，工程交付和质量验收分别判断。
 
 | 工作线 | 近期重点 | 交付与验收依据 |

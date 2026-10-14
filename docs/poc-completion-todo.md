@@ -1,5 +1,7 @@
 # 独立 Web POC：剩余 TODO
 
+2026-10-15 规划导航：整体后续工作见[全模块任务清单](agent-completion-tasking.md)，评测单独见[Agent 评测计划](agent-evaluation-plan.md)。下列收尾编号与历史证据保留，相关缺口映射进新任务，不因新规划而关闭。
+
 2026-10-13。普通 Web 真实纵向验收由用户确认完成，移出待办；记录其实际覆盖，后续只补未覆盖项和改造后的回归。基础工程及体验 Task 01–09 已有实现。Pi 理想 Harness 设计已归档为设计输入，不自动迁移当前 POC。
 
 动态初始化与会话／逐轮 M3 规划已在 2026-10-14 接入工程路径，语音保持豆包全双工、逐轮为 next_turn_advisory；新版本仍有真实 M3 超时／降级，受控生成和设备验收未通过，独立跟踪 [DP 清单](dynamic-planning-tasking.md)与[验证报告](eval-results/2026-10-14-dynamic-planning.md)，不自动关闭下列 Task05／06。
