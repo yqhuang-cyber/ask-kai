@@ -18,7 +18,7 @@ export class PlanningState {
   invalidate(reason='new_input') {this.revision++;this.controller?.abort();this.accepted=null;this.localHelp=null;this.emit('planning.cancelled',{reason});}
   review() {
     const rows=[...this.observations?.observations.values()??[]];
-    return immutable({policy_version:GOAL_POLICY_VERSION,difficulty_count:this.difficulties.length,assessment:this.plan.primary_goal?assessGoal(this.plan.primary_goal,rows):null,transitions:this.transitions.slice(-6)});
+    return immutable({policy_version:GOAL_POLICY_VERSION,difficulty_count:this.difficulties.length,assessment:this.plan.primary_goal?assessGoal(this.plan.primary_goal,rows):null,observed_attempts:rows.filter(o=>o.goal_id===this.plan.primary_goal?.id).slice(-12).map(o=>({observation_id:o.observation_id,source_event_id:o.source_event_id,support:o.support,semantic_review:'unverified'})),transitions:this.transitions.slice(-6)});
   }
   commitGoal(status,{goal=this.plan.primary_goal,reason='policy',source=null}={}) {
     if(this.mode==='shadow'||this.closed)return;
@@ -79,7 +79,7 @@ export class PlanningState {
     policy={...policy,teaching_paused:this.plan.goal_status==='paused'||this.plan.goal_status==='retired'||policy.teaching_paused&&this.plan.goal_status!=='active'};
     this.history=this.history.filter(h=>h.turn_id!==event.turn_id);
     const prior=[...this.executions.values()].at(-1)??null;
-    const snapshot=immutable({plan:this.plan,turn:input,policy,language,actual_context:this.history.slice(-12),prior_execution:prior?{execution_id:prior.execution_id,status:prior.status,consumption:prior.consumption,generation_basis:prior.generation_basis}:null,student_profile:this.context.student_profile,learning_profile:this.context.learning_profile,learning_history:this.context.learning_history,coverage:this.context.coverage,resource:this.resource,goal_review:this.review()});
+    const snapshot=immutable({plan:this.plan,turn:input,policy,language,learner_feedback:this.observations?.feedback.get(event.turn_id)??null,actual_context:this.history.slice(-12),prior_execution:prior?{execution_id:prior.execution_id,status:prior.status,consumption:prior.consumption,generation_basis:prior.generation_basis}:null,student_profile:this.context.student_profile,learning_profile:this.context.learning_profile,learning_history:this.context.learning_history,coverage:this.context.coverage,resource:this.resource,goal_review:this.review()});
     this.history.push({turn_id:input.turn_id,source_event_id:event.event_id,role:'student',text:input.text});this.history=this.history.slice(-12);
     const allowedRefs=contextRefs(this.context,this.resource);allowedRefs.add(event.event_id);for(const o of this.observations?.observations.values()??[]){allowedRefs.add(o.observation_id);allowedRefs.add(o.source_event_id);}for(const h of snapshot.actual_context){allowedRefs.add(h.source_event_id);if(h.execution_id)allowedRefs.add(h.execution_id);}if(prior)allowedRefs.add(prior.execution_id);
     this.emit('planning.started',{turn_id:input.turn_id,input_revision:input.input_revision});

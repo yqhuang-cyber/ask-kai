@@ -4,7 +4,7 @@ import { TURN_INSTRUCTIONS } from './turn-taking.js';
 import { REPLY_INSTRUCTIONS,REPLY_POLICY_VERSION } from './reply-policy.js';
 import { NATURAL_TEACHING_INSTRUCTIONS,TEACHING_POLICY_VERSION } from './natural-teaching.js';
 
-export const CONTEXT_POLICY_VERSION='kai-context-v3';
+export const CONTEXT_POLICY_VERSION='kai-context-v4';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 function freeze(value) {if(value&&typeof value==='object'){for(const child of Object.values(value))freeze(child);Object.freeze(value);}return value;}
 // Pure assembly. Private instructions/state remain transient on the server;

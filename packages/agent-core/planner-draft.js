@@ -1,7 +1,8 @@
 import { exact,isObject,boundedText,immutable,LIMITS,PLAN_ACTIONS } from '../contracts/planning.js';
 import { eligibleGoal } from './goal-lifecycle.js';
+import { AGENT_REASONING_INSTRUCTIONS } from './agent-reasoning.js';
 export const PLANNER_DRAFT_VERSION='kai-proposal-draft-v1';
-export const PLANNER_PROMPT_VERSION='kai-planner-v5';
+export const PLANNER_PROMPT_VERSION='kai-planner-v6';
 const object=properties=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
 const text={type:'string',minLength:1,maxLength:200};
 const nullableText={anyOf:[text,{type:'null'}]};
@@ -51,7 +52,7 @@ export function draftInputConstraints(input) {
 }
 export function plannerMessages(kind,input,{repairCode,repairFields}={}) {
   if(!DRAFT_SCHEMAS[kind])throw new Error('INVALID_PLANNER_METHOD');
-  return [{role:'system',content:COMMON+RULES[kind]+' refs填写available_refs中的实际ID字符串，不填snapshot_ref或learning_profile等字段名。reason只用短原因码。goal_options是宿主派生的来源约束，不是评分答案。输出schema：'+JSON.stringify(DRAFT_SCHEMAS[kind])+(repairCode?' 上次失败原因码：'+repairCode+'，字段：'+safeDraftFields(repairFields).join(',')+'。重新按schema生成，不扩大权限或增加字段。':'')},{role:'user',content:JSON.stringify({...input,...draftInputConstraints(input)})}];
+  return [{role:'system',content:COMMON+RULES[kind]+AGENT_REASONING_INSTRUCTIONS+' refs填写available_refs中的实际ID字符串，不填snapshot_ref或learning_profile等字段名。reason只用短原因码。goal_options是宿主派生的来源约束，不是评分答案。输出schema：'+JSON.stringify(DRAFT_SCHEMAS[kind])+(repairCode?' 上次失败原因码：'+repairCode+'，字段：'+safeDraftFields(repairFields).join(',')+'。重新按schema生成，不扩大权限或增加字段。':'')},{role:'user',content:JSON.stringify({...input,...draftInputConstraints(input)})}];
 }
 export class DraftPlanner {
   constructor({transport}) {

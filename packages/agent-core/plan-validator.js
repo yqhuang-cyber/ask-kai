@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { PLAN_ACTIONS,LIMITS,exact,boundedText,isId,immutable } from '../contracts/planning.js';
 import { checkGoalPatch,goalChoice } from './goal-lifecycle.js';
+import { validateVisibleInstruction } from './agent-reasoning.js';
+import { measureReply } from './reply-policy.js';
 export const planHash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export function contextRefs(context,resource) {
   return new Set([context.snapshot_id,...context.student_profile.interests.map(r=>r.record_id),...context.learning_profile.kp_states.map(r=>r.record_id),...context.learning_history.map(r=>r.record_id),...(resource?[resource.id,...resource.goals.map(g=>g.id),...resource.key_points.map(k=>k.id),...resource.cards.map(c=>c.id)]:[])]);
@@ -28,6 +30,7 @@ export function validateConversation(p,{entry,context,resource}) {
   if(!Array.isArray(p.selection_basis)||p.selection_basis.length<1||p.selection_basis.length>6||!p.selection_basis.every(b=>exact(b,['reason','refs'])))throw new Error('INVALID_SELECTION_BASIS');
   if(!p.selection_basis.every(b=>boundedText(b.reason,80)))throw new Error('INVALID_SELECTION_REASON');
   if(!p.selection_basis.every(b=>refs(b.refs,allowed)))throw new Error('INVALID_SELECTION_REFERENCE');
+  validateVisibleInstruction([p.conversation_purpose,p.content_focus,...p.opening_options],allowed);
   return immutable(p);
 }
 export function validateTurn(p,{plan,input,policy,allowedRefs,context,resource,priorExecution,review={difficulty_count:0},now=Date.now()}) {
@@ -41,6 +44,7 @@ export function validateTurn(p,{plan,input,policy,allowedRefs,context,resource,p
   if(priorExecution!==undefined&&(p.prior_outcome.execution_ref!==(priorExecution?.execution_id??null)||p.prior_outcome.status!==(priorExecution?.status??'none')))throw new Error('PRIOR_OUTCOME_CONFLICT');
   if(p.goal_assessment!==null&&(!exact(p.goal_assessment,['progress','gap','refs'])||!['unknown','attempted','not_related'].includes(p.goal_assessment.progress)||!boundedText(p.goal_assessment.gap,150)||!refs(p.goal_assessment.refs,allowedRefs)))throw new Error('INVALID_GOAL_ASSESSMENT');
   if(p.goal_assessment?.progress==='attempted'&&plan.goal_status!=='active')throw new Error('INACTIVE_GOAL_ASSESSMENT');
+  if(p.goal_assessment?.progress==='attempted'&&!p.goal_assessment.refs.some(ref=>(review.observed_attempts??[]).some(o=>o.observation_id===ref||o.source_event_id===ref)))throw new Error('UNSUPPORTED_ATTEMPT_ASSESSMENT');
   const patch=p.proposed_plan_patch,structured=exact(patch,['op','goal_id','refs'])&&['replace','retire'].includes(patch.op)&&isId(patch.goal_id)&&refs(patch.refs,allowedRefs);
   if(p.active_goal_id!==null&&p.active_goal_id!==plan.primary_goal?.id||p.local_help_target!==null&&!boundedText(p.local_help_target,100)||patch!==null&&!['pause','resume'].includes(patch)&&!structured)throw new Error('INVALID_GOAL_PATCH');
   checkGoalPatch(patch,{plan,input,policy,context,resource,review,choice:goalChoice(input.text??'')});
@@ -51,5 +55,7 @@ export function validateTurn(p,{plan,input,policy,allowedRefs,context,resource,p
   if(p.active_goal_id!==null&&plan.goal_status!=='active')throw new Error('INACTIVE_GOAL_TEACHING_FORBIDDEN');
   if(p.local_help_target!==null&&(['INVITE_PRACTICE','REVIEW','CLOSE'].includes(p.action)||p.active_goal_id!==null))throw new Error('LOCAL_HELP_SCOPE_CONFLICT');
   if(p.action==='CORRECT'&&policy.reason==='goal_attempt_observed')throw new Error('VALID_EXPRESSION_CORRECTION_FORBIDDEN');
+  validateVisibleInstruction([p.reply_directive.task],allowedRefs);
+  if(measureReply(p.reply_directive.task).question_budget_exceeded)throw new Error('MULTIPLE_QUESTIONS_IN_DIRECTIVE');
   return immutable(p);
 }

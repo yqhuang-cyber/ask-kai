@@ -10,7 +10,7 @@ Prompt、Draft 契约、编译器、运行验证与截止时间独立于 MiniMax
 
 M3 官方接口已核验 thinking disabled 与生成长度字段；未证实其原生 strict JSON Schema 时保持 json_prompt，不凭 OpenAI-compatible 名称推断能力。不自动换模型、提高服务级别或放宽预算来制造通过率。
 
-当前 M3 默认 full_contract_v3，系统 prompt 与 88c98f7 逐字一致，由同一有界 transport 提供 JSON。ASK_KAI_PLANNER_PROTOCOL=draft_v1 显式选择候选。一次同组完整对照并未证明 Draft 更好，不能将架构分离计为模型质量提升。冻结 eval adapter 仍用于原始传输对照，不由运行服务导入。
+当前 M3 默认 full_contract_v3，由同一有界 transport 提供 JSON。826f2b8 保留与 88c98f7 逐字一致的 prompt；后续 Agent 优先迭代追加通用 reasoning，升级为 kai-planner-v6，原始 v3 留作冻结对照。ASK_KAI_PLANNER_PROTOCOL=draft_v1 显式选择候选。一次同组完整对照并未证明 Draft 更好，不能将架构分离计为模型质量提升。冻结 eval adapter 仍用于原始传输对照，不由运行服务导入。
 
 更强模型上线流程是注册 transport／adapter、明确原生结构化输出／思考／截止与费用能力，先跑相同离线负例和独立真实矩阵，再决定默认。MiniMax 当前仅核验 M3；增加型号需核验其独立配置，不能从旧模型推断 thinking disabled 等保证。Provider factories 只在服务端注册，浏览器不能指定任意 endpoint／模型。
 

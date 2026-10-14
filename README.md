@@ -2,7 +2,7 @@
 
 面向 HSK 1 初学者的实时中文对话教学 Agent。
 
-> 更新于 2026-10-14。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。394 项测试、三个回放和 Chromium 合成设备检查通过。可替换 LLM 的 transport／DraftCompiler 及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
+> 更新于 2026-10-14。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。406 项测试、三个回放和 Chromium 合成设备检查通过。可替换 LLM 的接口、Agent reasoning／learner feedback、辅助规划语义审阅及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
 
 [产品介绍](#1-产品介绍) · [架构设计](#2-架构设计) · [三个入口](#3-使用方式三个入口) · [评测](#4-评测机制与现有结果) · [现状](#5-实现范围与当前状态) · [计划](#6-接下来的计划) · [启动](#7-快速启动) · [文档](#8-文档导航)
 
@@ -56,7 +56,7 @@ flowchart TD
 | --- | --- | --- | --- |
 | **M1 Web 交互与呈现** | 入口选择、采音、播放、渐进字幕、Start Tips／词卡、总结卡、连接与异常状态 | 感知输入、行动呈现、反馈采集 | 三入口与基本音频／展示已实现；目标、Start Tip 和词卡已改为服务端计划，准备与入口竞态已检查 |
 | **M2 会话网关与运行编排** | BFF 授权、一次性票据、会话／话轮／回复状态、迟到事件隔离、打断、超时、上下文更新与回执 | 感知归属、决策提交、行动编排、执行反馈；约束落地 | 已实现准备版本核对、一次性消费和迟到规划隔离；当前自动回复可早于后台更新，本轮受控生成仍待验证 |
-| **M3 Agent Core** | Kai 人设、目标与策略、语言支架、Context Compiler、整体／逐轮 Planner、计划校验、教学状态及观察／总结 | 目标与约束、工作记忆、规划、决策、教学行动、反馈与适应 | 会话和逐轮 M3 提案、校验与尝试总结已接入；Mission 从完整有限资源选择目标，语义质量及通用 KP 证据仍待验收 |
+| **M3 Agent Core** | Kai 人设、目标与策略、语言支架、Context Compiler、整体／逐轮 Planner、计划校验、教学状态及观察／总结 | 目标与约束、工作记忆、规划、决策、教学行动、反馈与适应 | 会话和逐轮 M3 提案、来源校验与 learner feedback 已接入；困难／实际尝试／提示输出分开；通用语义 KP 与独立表达仍未验收 |
 | **M4 业务数据与课程资源** | HSKai Bridge／数据端口、本地 Mock；身份、偏好、Mission／主题资源、个人画像、学习画像和近期记录 | 长期记忆输入、目标／知识依据、工具读写、反馈保存 | 三类合成资料、有限完整课程、A～E fixture 和自愿尝试写回已实现；记录仅存进程内存，生产持久化待补 |
 | **M5 模型与语音适配** | Doubao Adapter、供应商事件映射、音频格式、上下文／取消控制；MiniMax M3 PlannerPort 与受控生成能力边界 | 语音感知、模型推理能力供给、语言／语音行动及执行回执 | MiniMax M3 提案与豆包全双工已接入；没有已验证的本轮生成门控，controlled 保持关闭 |
 
@@ -282,7 +282,9 @@ sequenceDiagram
 
 后续目标迭代：381 项测试、三个 synthetic replay 和多目标总结的 Chromium 合成设备检查通过。12 案／18 轮独立离线行为检查通过；真实 M3 最后完整批次初始化 5/12 接受 LLM、7/12 降级，逐轮 7/18 接受 LLM、11/18 降级。自动行为检查初始 11/12、逐轮 17/18；发现的错误收束已增加硬约束并做单案复验。这些字段／行为检查不等于完整语义合格，旧十维分数不变。见 [新验证报告](docs/eval-results/2026-10-14-dynamic-goals.md)。
 
-最新可靠性迭代：394 项测试、三个 synthetic replay、Chromium 合成设备回归通过。同一独立 12 案／18 轮数据与原 10 秒／5 秒预算下，旧完整契约初始化 4/12、逐轮 5/18 接受 LLM；Draft-v5 初始化 4/12、逐轮 4/18，其余明确降级。自动行为检查均通过，但不能证明语义合格或可靠性改善；M3 默认保留旧 prompt，Draft 显式 opt-in。Provider transport、通用编译和业务校验分开，后续更强 LLM 使用相同生命周期／取消／评测。豆包 FC 三个规则隔离样本和最后一个已接受 M3 当轮计划的样本均在工具结果后观察到输出；两次 M3 联调分别为逐轮规则降级／LLM 接受，初始化都降级。controlled 保持关闭。见 [可靠性与控制实验结果](docs/eval-results/2026-10-14-planner-reliability.md)。
+上一轮可靠性迭代（826f2b8）：394 项测试、三个 synthetic replay、Chromium 合成设备回归通过。同一独立 12 案／18 轮数据与原 10 秒／5 秒预算下，旧完整契约初始化 4/12、逐轮 5/18 接受 LLM；Draft-v5 初始化 4/12、逐轮 4/18，其余明确降级。自动行为检查均通过，但不能证明语义合格或可靠性改善；当时 M3 默认保留旧 prompt，Draft 显式 opt-in。Provider transport、通用编译和业务校验分开，后续更强 LLM 使用相同生命周期／取消／评测。豆包 FC 三个规则隔离样本和最后一个已接受 M3 当轮计划的样本均在工具结果后观察到输出；两次 M3 联调分别为逐轮规则降级／LLM 接受，初始化都降级。controlled 保持关闭。见 [可靠性与控制实验结果](docs/eval-results/2026-10-14-planner-reliability.md)。
+
+本次 Agent 优先迭代：406 项测试、三个回放、20 个独立反馈案例、原 12 案／18 轮离线回归及 Chromium 合成设备通过。Planner 的 attempted 必须引用当前目标实际观察；learner feedback 区分困难、限定句式尝试与最近实际输出中的匹配示范。内部 ID 和两条同语言显式问题会被拒绝；结构规则不代替通用语义判断，提示／独立／掌握继续 unknown。新增八项辅助语义 rubric，模型评分不进入学习事实。真实结果与限制见 [Agent 完善验证](docs/eval-results/2026-10-14-agent-feedback.md)。
 
 ## 5. 实现范围与当前状态
 
@@ -309,8 +311,10 @@ sequenceDiagram
 | --- | --- | --- |
 | POC 内容质量 | 复核最新失败、退化与不可比轮；验证首轮语言、歧义进入生成、结束回顾收束及音频完成／取消原因；按类修复 | [正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md)、[收尾 Task05](docs/task05-implementation-tasking.md) |
 | POC 体验与收尾 | 补未覆盖设备／入口旅程、偏好闭环、异常连续使用、安全与隐私边界；最后完成可重复演示 | [收尾 Task06–10](docs/poc-completion-todo.md) |
-| 动态规划基础 | 通用 transport／DraftCompiler 与对照诊断已加入；M3 未证实改善，保留默认旧 prompt；后续更强 LLM 用同组数据验收目标选择、超时与语义 | [DP-00–04](docs/dynamic-planning-tasking.md)、[目标迭代验证](docs/eval-results/2026-10-14-dynamic-goals.md) |
+| 动态规划基础 | learner feedback、来源判断与辅助语义审阅已加入；当前 prompt-v6、完整契约为默认；后续更强 LLM 用同组数据验收目标选择、超时与语义 | [DP-00–04](docs/dynamic-planning-tasking.md)、[目标迭代验证](docs/eval-results/2026-10-14-dynamic-goals.md) |
 | 动态规划执行与验收 | 验证豆包本轮门控与受控执行；完善语义 KP 观察、播放消费范围、跨入口真实音频与费用验收 | [DP-05–10](docs/dynamic-planning-tasking.md) |
+
+当前优先完善 Agent：源于实际观察的判断、独立规划语义审阅与反馈驱动的支架调整；更强 LLM 使用相同契约和评测。豆包门控与设备验收继续单独推进。见 [Agent feedback 设计](docs/agent-feedback-design.md)。
 
 动态规划的核心验收条件是本轮计划先于受控生成，并依据实际执行与学生反应继续规划。用户确认保持豆包实时全双工，本轮不引入独立 ASR／TTS。Seeduplex 本轮生成门控未证实前保留 next_turn_advisory，不能用延迟播放或迟到 ACK 证明本轮受控生成。
 
@@ -356,16 +360,18 @@ MINIMAX_PLANNER_MODEL=MiniMax-M3
 
 密钥仅放本机 `.env`。M3 初始化／逐轮请求与豆包实时 Key 分开；不启用额外 trace 或保存模型思维链。未配置 M3 时显示保守策略并记录 `planner_unconfigured`，不冒充真实语义规划。当前试点预算为初始化 10 秒、逐轮 5 秒，仍需真实校准。`npm run eval:planning` 使用 15 组独立合成 fixture 做离线契约检查；显式 `npm run eval:planning -- --live` 使用 6 组 fixture，最多 12 次规划请求及各至多一次格式修复，不调用豆包、Judge 或真实学生音频。`npm run probe:planning:voice` 单独验证一个动态初始上下文的真实连接，不上传麦克风。规划质量、生成因果、原十维内容和浏览器听感分别验收。
 
-目标生命周期检查：npm run eval:goals。默认 M3 完整契约保持 kai-planner-v3；Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化总预算仍为 10 秒、逐轮 5 秒，初始化预留 50ms 提交明确降级。完整语义、当前轮控制和听感分别验收。
+目标生命周期检查：npm run eval:goals。当前默认仍为完整契约 full_contract_v3，prompt 已加入通用 Agent reasoning 并升级为 kai-planner-v6；冻结对照仍为 kai-planner-v3。Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化总预算仍为 10 秒、逐轮 5 秒，初始化预留 50ms 提交明确降级。完整语义、当前轮控制和听感分别验收。
 
 豆包 FC 检查为单独实验：先 npm run prepare:planning:fc，用本机系统语音生成固定作者输入；再 npm run probe:planning:fc -- --all --rule-planner 验证等待时序，或 --case=chat 用已配置 M3 联调。只上传这组本机合成 PCM，继续采音，不调用外部 ASR／TTS 服务；输出只有时序／数量／安全诊断。它不会改变普通 Web profile 或启用 controlled，亦不验证真实麦克风／听感。
+
+Agent 检查：npm run eval:agent 使用 20 个独立案例验证角色、尝试来源及实际输出范围，默认不调用模型。显式 --live --case=difficulty-report,teacher-full-forwarded,teacher-reported 限定真实 M3 规划；再加 --semantic-review 对每个已接受提案新增最多一次、12 秒截止的辅助 M3 审阅。审阅不进入运行／写回，也不增加语音规划预算；它不等于人工校准或独立 Judge 验收。
 
 ## 8. 文档导航
 
 | 方向 | 主要入口 |
 | --- | --- |
 | 产品与范围 | [PRD](docs/prd/ask-kai-agent-prd-v1.1.md) · [独立 POC 与 Mock](docs/standalone-poc.md) |
-| Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [Planner reliability 与模型替换](docs/planner-reliability-design.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
+| Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [Planner reliability 与模型替换](docs/planner-reliability-design.md) · [Agent reasoning 与 feedback](docs/agent-feedback-design.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
 | 接口与实时运行 | [事件契约](docs/contracts.md) · [HSKai 边界](docs/hskai-bridge.md) · [协议接入](docs/protocol/seeduplex-integration.md) · [上下文快照](docs/context-snapshots.md) |
 | 教学与呈现 | [自然教学](docs/natural-teaching.md) · [语言支架](docs/language-support.md) · [渐进字幕](docs/progressive-captions.md) · [学习总结](docs/session-summary.md) |
 | 评测与结果 | [动态规划验证](docs/eval-results/2026-10-14-dynamic-planning.md) · [测试说明](docs/testing.md) · [多轮运行器](docs/multiturn-eval.md) · [真实评分](docs/recorded-scoring.md) · [最新正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md) |

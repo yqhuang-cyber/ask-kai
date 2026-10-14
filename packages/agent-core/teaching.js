@@ -57,7 +57,7 @@ export class TeachingSession {
     if(this.stage==='warmup')this.stage='conversation';
     if(decision.action==='CLOSE')this.stage='closing';
     else if(this.stage==='closing')this.stage='conversation';
-    this.observations?.accept(event,{plan:this.planning.plan,resource:this.planning.resource,goal_status:this.teaching.decision.teaching_paused?'paused':this.planning.plan.goal_status});
+    this.observations?.accept(event,{plan:this.planning.plan,resource:this.planning.resource,goal_status:this.teaching.decision.teaching_paused?'paused':this.planning.plan.goal_status,executions:this.planning.executions.values()});
     this.planning?.reduceSupport(event);
     const attempt=this.planning&&this.planning.mode!=='shadow'?null:this.learning.recordFinal(event,decision);
     if(attempt) {

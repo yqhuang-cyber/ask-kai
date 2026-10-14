@@ -14,7 +14,7 @@ Free 初始化仍为 null；一次求助只产生本轮 local_help_target。只�
 
 资源绑定版本化 success_rule_ref，而不是模型自由填写成功条件。本期喜好／时间规则要求至少两个不同交流机会的语义合适表达、明确的提示范围、无完整句型示范依赖及经复核的上下文变化。次数本身不能证明独立／迁移／达成。
 
-当前观察器只识别有来源的限定表达尝试，state 始终 attempted，提示程度 unknown。success assessment 返回尝试数和缺失证据；没有独立语义复核、可核验提示范围与实际呈现时，session_achieved 不可提交。Planner 不能将 progress 或“我会了”直接转为学习结论。首次有效尝试后建议减少完整示范、继续内容交流，仍允许学生主动求助。
+当前观察器只识别有来源的限定直接表达尝试，state 始终 attempted，提示程度 unknown。教师转述、引语、困难自述、疑问、否定和明确自我更正不计作尝试；库外改述返回未评估，不推断不会。learner_feedback 带实际最近不同话轮输出的匹配范围，转发／客户端完成都不能证明先于学生说话。success assessment 返回尝试数和缺失证据；没有独立语义复核、可核验提示范围与实际呈现时，session_achieved 不可提交。Planner 不能将 progress 或“我会了”直接转为学习结论。attempted assessment 还必须引用当前目标 observed_attempts 中的实际观察／输入来源；仅引用困难输入、后端历史或目标 ID 不足以通过。首次有效尝试后建议减少完整示范、继续内容交流，仍允许学生主动求助。
 
 每条观察绑定当时 goal_id、plan_revision 与 attempt_rule_ref；目标替换不改写旧观察。更正同一 final 替换候选，不增加次数。总结保留会中涉及目标及状态；未达成的 active 目标结束为 unverified，paused／retired 保持原状态。保存仍需学生主动选择，只有最小 attempted 记录进入 mock，不升级后端能力状态。
 

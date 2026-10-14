@@ -1,5 +1,7 @@
 # Incremental delivery
 
+2026-10-14 Agent 优先迭代：加入源于实际 final／输出的 learner_feedback、当前目标观察引用校验、内部 ID／多问题约束与八项辅助语义审阅。406 项测试、三个 synthetic replay、20 案反馈和原 12 案／18 轮离线回归、Chromium 合成设备通过。记录仍 attempted-only；通用语义、提示因果、独立／达成与 M3 质量未验收，豆包 controlled 不变。见 [Agent 验证](eval-results/2026-10-14-agent-feedback.md)。
+
 2026-10-14 规划可靠性与控制实验第一轮：已推送 88c98f7；拆分 provider-independent Planner 与 MiniMax transport，增加严格 DraftCompiler、来源候选约束、分阶段安全诊断及冻结对照。旧契约逐轮 5/18 接受 LLM，Draft-v5 4/18，未证实可靠性提升，因此旧 prompt 保持默认。豆包独立 FC probe 已观察到真实合成样本等待工具结果，普通 Web 仍为 next_turn_advisory，controlled 未启用。394 项测试、三个 synthetic replay、Chromium 合成设备回归通过；后续换更强 LLM 复用同一业务契约／取消／数据集。见 [可靠性与控制结果](eval-results/2026-10-14-planner-reliability.md)。
 
 2026-10-14 目标生命周期迭代：已落实有来源目标替换／停止、连续明确困难时退回可信先修目标、free 自愿练习、原目标观察来源与多目标总结；381 项测试、三个 synthetic replay、Chromium 合成设备检查通过。独立行为评测及安全拒绝原因已加入，真实 M3 仍有大量降级与选择问题；达成判断因语义／提示／呈现证据缺失而未验证，豆包保持 next_turn_advisory。见 [新验证报告](eval-results/2026-10-14-dynamic-goals.md)。

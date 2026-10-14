@@ -1,6 +1,7 @@
 import { languageHelpKind } from './language-support.js';
+import { supportedExpression } from './learner-feedback.js';
 // Conservative, session-local rules over validated final ASR; not a semantic judge.
-export const TEACHING_POLICY_VERSION='kai-teaching-v7';
+export const TEACHING_POLICY_VERSION='kai-teaching-v8';
 export const TEACHING_COOLDOWN_TURNS=2;
 export const TEACHING_ACTIONS=Object.freeze(['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE']);
 export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','student_understanding_help','student_continuation_help','ambiguous_expression','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
@@ -51,9 +52,7 @@ function ambiguousRequest(text,currentHints,priorHints,hasReference) {
 const sportsWord=/(?:足球|篮球|跑步|游泳)|\b(?:football|soccer|basketball|running|swimming)\b/iu;
 const preferenceCue=/^(?:(?:我)?(?:很)?喜欢)?(?:足球|篮球|跑步|游泳)[。.!！\s]*$|^(?:(?:i (?:really )?like|i love)(?: playing)? )?(?:football|soccer|basketball|running|swimming)[。.!！\s]*$/iu;
 export function sportsExpression(text) {
-  // Only a direct affirmative first-person statement; no quoted/teacher examples.
-  const match=/(?:^|[。！!，,；;\n])\s*我(?:很)?喜欢(踢足球|打篮球|足球|篮球|跑步|游泳)(?:[。！!，,；;]|$)/u.exec(controlText(text));
-  return match?`我喜欢${match[1].replace(/^踢|^打/u,'')}`:null;
+  return supportedExpression(text,'likes-attempt-v1');
 }
 export function sportsAttempt(text) {return sportsExpression(text)!==null;}
 

@@ -5,6 +5,7 @@ import { configuredPlanner,boundedProposal,plannerDescriptor } from '../packages
 import { MiniMaxJsonTransport } from '../packages/provider-minimax/planner.js';
 import { FullContractPlanner } from '../packages/agent-core/planner-full-contract.js';
 import { MiniMaxPlanner as FrozenPlanner } from '../apps/eval-runner/src/legacy-planner-v3.js';
+import { AGENT_REASONING_INSTRUCTIONS } from '../packages/agent-core/agent-reasoning.js';
 import { learnerFixture,SPORTS_RESOURCE } from '../apps/hskai-mock/src/planning-fixtures.js';
 import { validateConversation,validateTurn,contextRefs } from '../packages/agent-core/plan-validator.js';
 const context=learnerFixture({owner_id:'owner',learner_id:'learner'});
@@ -51,15 +52,15 @@ test('unavailable or invalid drafts still share the deadline and never become LL
   const r=await boundedProposal({planner,method:'planTurn',input:{},budgetMs:100,validate:x=>x,fallback:()=>({safe:true})});
   assert.equal(r.planner_kind,'rule');assert.equal(r.attempts.length,2);assert.equal(r.attempts[0].code,'PLANNER_INVALID_DRAFT');
 });
-test('default full-contract transport preserves frozen prompt and repair text while draft is explicit opt-in',async()=> {
+test('full-contract retains baseline fields/repair and appends versioned reasoning; draft remains explicit opt-in',async()=> {
   const requests=[];
   const fetcher=async(_url,args)=>{requests.push(JSON.parse(args.body));return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'{}'}}]}));};
   const old=new FrozenPlanner({apiKey:'fixture',fetcher}),current=new FullContractPlanner({transport:new MiniMaxJsonTransport({apiKey:'fixture',fetcher})});
   for(const kind of ['Conversation','Turn'])for(const options of [{},{repair:true,repairCode:'INVALID_SELECTION_REFERENCE'}]) {
-    await old['plan'+kind](initial,options);await current['plan'+kind](initial,options);assert.deepEqual(requests.at(-1),requests.at(-2));
+    await old['plan'+kind](initial,options);await current['plan'+kind](initial,options);const sent=structuredClone(requests.at(-1));assert.ok(sent.messages[0].content.includes(AGENT_REASONING_INSTRUCTIONS));sent.messages[0].content=sent.messages[0].content.replace(AGENT_REASONING_INSTRUCTIONS,'');assert.deepEqual(sent,requests.at(-2));
   }
-  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture'})).prompt,'kai-planner-v3');
-  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture',ASK_KAI_PLANNER_PROTOCOL:'draft_v1'})).prompt,'kai-planner-v5');
+  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture'})).prompt,'kai-planner-v6');
+  assert.equal(plannerDescriptor(configuredPlanner({MINIMAX_API_KEY:'fixture',ASK_KAI_PLANNER_PROTOCOL:'draft_v1'})).prompt,'kai-planner-v6');
   assert.throws(()=>configuredPlanner({MINIMAX_API_KEY:'fixture',ASK_KAI_PLANNER_PROTOCOL:'unknown'}),/NOT_REGISTERED/);
 });
 test('planner metadata exports only bounded descriptor fields',()=> {
