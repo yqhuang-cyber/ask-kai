@@ -1,13 +1,13 @@
 import { validateCurriculum,validateLearnerContext } from '../../../packages/contracts/planning.js';
-const goals=[{id:'express-likes',label:'在交流中表达运动喜好',kp_ids:['likes-expression'],start_tip:'我喜欢……',card_ids:['likes-card']},{id:'express-time',label:'用简单时间表达聊运动安排',kp_ids:['time-expression'],start_tip:'我下午……',card_ids:['afternoon-card']}];
-const resource={schema_version:'curriculum-v1',id:'sports',version:'mock-sports-v2',kind:'topic',title:'运动',source:'mock_hskai',content:'运动喜好与日常运动安排；候选目标独立选择，学生可换题。',goals,key_points:[{id:'likes-expression',label:'表达喜好',evidence_rule:'likes-attempt-v1',prerequisites:[],examples:['我喜欢足球。','我喜欢篮球。','我喜欢跑步。']},{id:'time-expression',label:'简单时间表达',evidence_rule:'time-attempt-v1',prerequisites:['likes-expression'],examples:['我下午打篮球。','我上午跑步。']}],cards:[{id:'likes-card',word:'喜欢',pinyin:'xǐ huān',english:'to like',example:'我喜欢……。'},{id:'afternoon-card',word:'下午',pinyin:'xià wǔ',english:'afternoon',example:'我下午运动。'}]};
+const goals=[{id:'express-likes',label:'在交流中表达运动喜好',kp_ids:['likes-expression'],start_tip:'我喜欢……',card_ids:['likes-card'],success_rule_ref:'likes-independent-session-v1'},{id:'express-time',label:'用简单时间表达聊运动安排',kp_ids:['time-expression'],start_tip:'我下午……',card_ids:['afternoon-card'],success_rule_ref:'time-independent-session-v1'}];
+const resource={schema_version:'curriculum-v1',id:'sports',version:'mock-sports-v3',kind:'topic',title:'运动',source:'mock_hskai',content:'运动喜好与日常运动安排；候选目标独立选择，学生可换题。',goals,key_points:[{id:'likes-expression',label:'表达喜好',evidence_rule:'likes-attempt-v1',prerequisites:[],examples:['我喜欢足球。','我喜欢篮球。','我喜欢跑步。']},{id:'time-expression',label:'简单时间表达',evidence_rule:'time-attempt-v1',prerequisites:['likes-expression'],examples:['我下午打篮球。','我上午跑步。']}],cards:[{id:'likes-card',word:'喜欢',pinyin:'xǐ huān',english:'to like',example:'我喜欢……。'},{id:'afternoon-card',word:'下午',pinyin:'xià wǔ',english:'afternoon',example:'我下午运动。'}]};
 export const SPORTS_RESOURCE=validateCurriculum(resource);
 export function missionResource(mission) {
   if(!mission)return null;
   // Only the authored mock fixture has these KP definitions. Arbitrary signed
   // course titles cannot manufacture curriculum or evidence rules.
   if(mission.id!=='poc-sports-mission')return null;
-  return validateCurriculum({...resource,id:mission.id,kind:'mission',version:'mock-mission-v2',title:mission.title,content:'示例已完成 Mission；运动喜好与时间表达。活动完成不代表能力掌握。'});
+  return validateCurriculum({...resource,id:mission.id,kind:'mission',version:'mock-mission-v3',title:mission.title,content:'示例已完成 Mission；运动喜好与时间表达。活动完成不代表能力掌握。'});
 }
 export function learnerFixture(identity,{variant='a',revision=1,memory=[],now=Date.now(),records=[]}={}) {
   const updated_at=new Date(now).toISOString(),provenance=id=>({record_id:id,source:'mock_hskai',updated_at});

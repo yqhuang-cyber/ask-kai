@@ -53,7 +53,7 @@ test('explicit end-save writes attempted-only mock record, returns receipt, dedu
 test('mock planning ports separate owners/scopes, reject fabricated mastery and deduplicate record writes',async t=> {
   const f=await fixture(t),i=f.backend.bridge.verify(await f.backend.pocPort.issue(),'session:create');
   await assert.rejects(f.backend.planningPort.read({...i,owner_id:'foreign'}));await assert.rejects(f.backend.planningPort.read({...i,scopes:[]}));
-  const record=validateLearningRecord({schema_version:'learning-record-v1',session_id:'record-session',plan_id:'plan-id',plan_revision:1,resource_ref:{id:'sports',version:'mock-sports-v2'},observations:[],outcome:'ended',source:'ask_kai_observation'});
+  const record=validateLearningRecord({schema_version:'learning-record-v1',session_id:'record-session',plan_id:'plan-id',plan_revision:1,resource_ref:{id:'sports',version:'mock-sports-v3'},observations:[],outcome:'ended',source:'ask_kai_observation'});
   const a=await f.backend.planningPort.append(i,record,'record-session'),b=await f.backend.planningPort.append(i,record,'record-session');assert.equal(a.receipt_id,b.receipt_id);assert.equal(a.revision,b.revision);
   await assert.rejects(f.backend.planningPort.append(i,{...record,outcome:'partial'},'record-session'));
 });
@@ -69,7 +69,23 @@ test('a revoked/aborted learning write cannot start a late request',async t=> {
   const context=await f.backend.planningPort.read(i);assert.equal(context.revision,1);
 });
 test('planning diagnostics preserve anonymous causal fields without prompt, student values or raw model errors',()=> {
-  const clean=metadata({turn_id:'turn-a',path:'next_turn_advisory',planning_revision:4,planner_kind:'llm',degraded:false,task:'PRIVATE',input:'PRIVATE',error:'PRIVATE'});
+  const clean=metadata({turn_id:'turn-a',path:'next_turn_advisory',planning_revision:4,planner_kind:'llm',degraded:false,rejection_code:'PREREQUISITE_UNVERIFIED',goal_status:'paused',task:'PRIVATE',input:'PRIVATE',error:'PRIVATE'});
   assert.equal(clean.path,'next_turn_advisory');assert.ok(!JSON.stringify(clean).includes('PRIVATE'));
+  assert.equal(clean.rejection_code,'PREREQUISITE_UNVERIFIED');assert.equal(clean.goal_status,'paused');assert.deepEqual(metadata({rejection_code:'PRIVATE'}),{});
   const trace=new ExperienceTrace();trace.gateway({name:'planning.accepted',at_ms:2,fields:clean});assert.equal(trace.snapshot().timeline[0].turn_ref,'t1');assert.equal(trace.snapshot().contains_text,false);
+});
+test('free practice promotion reads scoped curriculum and changes the same page/voice plan',async t=> {
+  const f=await fixture(t),ticket=await(await f.call('POST','/api/sessions',{mode:'free'})).json();
+  const {ws,provider,packets}=await f.open(ticket);provider.emit('session.ready');
+  provider.emit('user.final',{text:'planet 中文怎么说？'},{turn_id:'local-help'});
+  await until(()=>packets.some(p=>p.type==='teaching.state'&&p.decision?.turn_id==='local-help'));
+  assert.deepEqual(packets.filter(p=>p.type==='teaching.state').at(-1).cards,[]);
+  provider.emit('user.final',{text:'我想练习喜好表达。'},{turn_id:'practice'});
+  await until(()=>packets.some(p=>p.type==='teaching.state'&&p.cards?.some(c=>c.word==='喜欢')));
+  const view=packets.filter(p=>p.type==='teaching.state').at(-1);assert.equal(view.mode,'free');assert.match(view.goal,/喜好/);
+  provider.emit('user.final',{text:'我喜欢篮球。'},{turn_id:'attempt'});
+  await until(()=>packets.some(p=>p.type==='teaching.state'&&p.attempt_count===1));
+  ws.send(JSON.stringify({type:'session.end',save_learning:true}));await once(ws,'close');
+  assert.equal(packets.find(p=>p.type==='learning.record.receipt').status,'accepted');
+  const summary=packets.find(p=>p.type==='teaching.summary');assert.equal(projectSummary(summary,{sessionId:ticket.session_id,mode:'free'}).observations[0].count,1);
 });

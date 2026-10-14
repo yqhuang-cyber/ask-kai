@@ -34,15 +34,16 @@ MiniMax 的[官方 OpenAI 兼容说明](https://platform.minimax.cn/docs/api-ref
 - 初始化由 M3 提案与 Validator 共同完成；free 初始目标与 KP 为空。无 Key／服务失败的规则选择会保留明确降级，不算语义质量通过。
 - 准备接口为 POST／GET／DELETE `/api/conversation-preparations`。结果有 owner、entry、语速、epoch 和最多 60 秒期限；消费前重新读资料／资源版本；并发消费只允许一个成功。入口切换、偏好更正、撤权和过期取消旧结果。
 - 逐轮输入只含当前 final、必要实际前文、实际已转发回复及播放未知、整体计划、语言／冷却／拒绝和有限资源；没有未来输入、参考回复或评分要求。新 final／更正、打断、偏好变化或关闭取消旧在线请求；迟到结果被拒。
-- 当前会话修订实现暂停／显式恢复及授权偏好刷新；自动更换主要目标、语义达成规则、transfer／independent 自动记录尚未实现。当前供应商重复 final 仍按原协议隔离；核心更正链单测不代表供应商已支持 final 后修订。
+- 会话支持立即暂停、明确恢复、按当前明确选择替换目标、停止目标、连续明确困难时退回可信先修目标，以及授权偏好刷新。Free 的一次求助只影响本轮；明确要求持续练习已支持目标时，经原身份的 curriculum:read 读取资源并修订计划，mode 保持 free。先修未知时不设新目标，也不暗中继续旧练习。详细条件见 [目标生命周期](dynamic-goal-lifecycle.md)。
+- 有效目标尝试后减少完整示范；不从次数推断独立或达成。资源已有 success_rule_ref，评估列出语义复核、提示范围、不同情境和独立表达等缺口；尚无这些可核验证据，session_achieved 继续不可提交。transfer／independent 自动记录未启用。供应商重复 final 仍按原协议隔离；核心更正链单测不代表供应商已支持 final 后修订。
 
 ## 执行、学习观察与页面
 
 自动生成首次观察时间与宿主生成请求分开；现有豆包输出 `generation_requested_at:null`、生成依据 unknown、`turn_plan_ref:null`。只有带已接受计划的可门控端口才能发起受控生成。输出转发和客户端消费分别记录；普通 Web 暂不发送消费回执，账本保持 unknown，不能声称学生听到完整示范。
 
-动态模式按可信 KP 规则记录直接肯定的喜好句及有限时间句，均为 attempted／support unknown。库外表达未评估，教师文本、计划和 ACK 不生成学生事实。总结使用独立 `kai-dynamic-summary-v1`，展示来源绑定的尝试次数，拒绝跨会话／非法来源，撤权和安全限制清空。legacy 的原表达卡规则与原总结版本保留。
+动态模式按可信 KP 规则记录直接肯定的喜好句及有限时间句，均为 attempted／support unknown。库外表达未评估，教师文本、计划和 ACK 不生成学生事实。新 learning-record-v2 的观察绑定发生时的 goal_id、plan_revision 和 attempt_rule_ref；后端核对目标／KP／规则关联。总结使用独立 kai-dynamic-summary-v2，保留会中涉及目标的状态和尝试来源，不将旧观察改归最后目标。撤权和安全限制清空；legacy 与旧动态总结显示兼容保留。
 
-页面的目标、可选 Start Tip 和词卡使用服务端投影；free 可以没有词卡。准备过程不申请麦克风；实际豆包 ready 才开始持续采音。页面开始、切换、失败、重新开始保留 epoch 隔离。原播放时钟、字幕缓冲、立即停播和持续上行没有改成停麦式规划。
+页面的目标、可选 Start Tip 和词卡来自同一服务端计划；暂停／停止立即清空旧提示和词卡，free 可以没有词卡。准备过程不申请麦克风；实际豆包 ready 才开始持续采音。页面开始、切换、失败、重新开始保留 epoch 隔离。原播放时钟、字幕缓冲、立即停播和持续上行没有改成停麦式规划。
 
 结束默认不写学习记录。学生明确勾选保存后，只提交受限观察及 plan／resource 来源，按 learner＋session 去重，等待真实 mock 回执；失败提示未保存。撤权／离开会取消尚未提交的请求，已经在后台接受的请求不能靠客户端 abort 撤回。Mock 内存写回可出现在下一会话历史中，但不自动升级 KP 状态；重启重置。隐私 erase 清理这些本地记录，现有 preference export 不等于完整学习档案或供应商删除。
 
@@ -53,6 +54,8 @@ MiniMax 的[官方 OpenAI 兼容说明](https://platform.minimax.cn/docs/api-ref
 显式 `npm run eval:planning -- --live` 使用 A／B 的三个入口，共 6 个初始化和 6 个 final，至多每次一次格式修复；不调用豆包、不上传麦克风、不调用独立 Judge。`--live --probe` 只用一个合成运动案例，初始化放宽到 15 秒，用于判断默认预算和服务可用性，不修改运行预算。
 
 本轮合成 Node 与真实本机 HTTP／WebSocket 验证、Chromium 合成设备验证以及真实 M3／豆包结果在 [验证报告](eval-results/2026-10-14-dynamic-planning.md) 分开记录。历史普通 Web 验收不直接迁移到新规划版本。
+
+新增独立检查入口 npm run eval:goals：12 个独立编写的虚构行为案例、18 个话轮，期望只用于评测器，不进入 Planner。分别报告宿主行为、LLM 接受／降级及可枚举拒绝原因；自动行为检查不等于完整语义评分。显式 --live 最多 30 次规划及各一次有界修复；--case=refusal 可限定一个案例。新结果见 [目标迭代验证](eval-results/2026-10-14-dynamic-goals.md)。
 
 剩余：M3 真实语义与延迟校准、准确 Seeduplex 本轮生成门控的协议／账号实证、DP-06 真实受控执行、更加完整的局部教学／动态 KP 语义观察、播放范围、三个入口真实音频与费用等待验收。用户选择保持豆包全双工，本轮不会改成组合 ASR／TTS 来绕过这些缺口。
 

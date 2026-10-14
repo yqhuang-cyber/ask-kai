@@ -1,5 +1,7 @@
 # Implementation verification and remaining acceptance
 
+目标迭代检查：npm run eval:goals 使用 12 个独立虚构案例／18 个话轮；显式 --live 调用真实 M3，--case=refusal 可限定范围。不调用豆包或 Judge，不把 fallback 计为模型通过。新增浏览器检查包含换目标／停止后多目标总结；独立／达成、当轮受控生成与真实设备继续分开。见 [新验证报告](eval-results/2026-10-14-dynamic-goals.md)。
+
 > 2026-10-14 动态规划更新：独立 mock 默认使用 next_turn_advisory，已接入三类学生上下文、可信资源、建连前整体计划与 MiniMax M3 逐轮提案；保留豆包实时全双工，本轮生成门控未证实。下文旧 Task 行为保留为 legacy／历史说明，新行为、尝试写回和验收范围见[实施记录](dynamic-planning-implementation.md)及[验证报告](eval-results/2026-10-14-dynamic-planning.md)。
 
 

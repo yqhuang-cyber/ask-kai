@@ -14,10 +14,10 @@ export class HskaiPlanningPort {
     return JSON.parse(Buffer.concat(chunks).toString());
   }
   async read(identity){return validateLearnerContext(await this.request(identity,'context'),identity);}
-  async getResource(identity,entry) {
+  async getResource(identity,entry,{signal}={}) {
     if(entry.mode==='free')return null;
     if(entry.mode==='mission'&&entry.mission_id!==identity.mission?.id)throw new Error('TRUSTED_MISSION_REQUIRED');
-    const result=validateCurriculum(await this.request(identity,'resource',{mode:entry.mode,resource_id:entry.mode==='mission'?entry.mission_id:entry.topic_id??'sports'},'curriculum:read'));
+    const result=validateCurriculum(await this.request(identity,'resource',{mode:entry.mode,resource_id:entry.mode==='mission'?entry.mission_id:entry.topic_id??'sports'},'curriculum:read',signal));
     if(result.id!==(entry.mode==='mission'?entry.mission_id:entry.topic_id??'sports')||result.kind!==(entry.mode==='mission'?'mission':'topic'))throw new Error('WRONG_CURRICULUM');
     return result;
   }

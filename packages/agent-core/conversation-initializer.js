@@ -26,14 +26,15 @@ export class ConversationInitializer {
   constructor({port,planner,mode='next_turn_advisory',clock=()=>Date.now(),budgetMs=10000}){if(!Number.isSafeInteger(budgetMs)||budgetMs<1||budgetMs>20000)throw new Error('INVALID_INITIAL_PLANNING_BUDGET');Object.assign(this,{port,planner,mode,clock,budgetMs});}
   async prepare(entry,identity,{signal}={}) {
     requireIdentity(identity,'session:create',this.clock());
+    const expiresAt=this.clock()+this.budgetMs;
     const deadline=AbortSignal.timeout(this.budgetMs),combined=signal?AbortSignal.any([signal,deadline]):deadline;
     let aborted;
     const [context,resource]=await Promise.race([Promise.all([this.port.read(identity),this.port.getResource(identity,entry)]),new Promise((_,reject)=>{aborted=()=>reject(new Error('PREPARATION_CANCELLED'));combined.addEventListener('abort',aborted,{once:true});if(combined.aborted)aborted();})]).finally(()=>combined.removeEventListener('abort',aborted));
     combined.throwIfAborted();requireIdentity(identity,'session:create',this.clock());
-    const input=immutable({entry,student_profile:context.student_profile,learning_profile:context.learning_profile,learning_history:context.learning_history,coverage:context.coverage,history_page:context.history_page,snapshot_ref:context.snapshot_id,resource});
-    const result=await boundedProposal({planner:this.planner,method:'planConversation',input,signal:combined,budgetMs:this.budgetMs,validate:p=>validateConversation(p,{entry,context,resource}),fallback:()=>conservativeConversation(entry,context,resource)});
+    const input=immutable({entry,student_profile:context.student_profile,learning_profile:context.learning_profile,learning_history:context.learning_history,coverage:context.coverage,history_page:context.history_page,snapshot_ref:context.snapshot_id,required_strategy:{language_support:context.learning_profile.language_support,correction:context.student_profile.conversation_preferences.correction,pace:entry.speech_pace??context.student_profile.conversation_preferences.pace},resource});
+    const result=await boundedProposal({planner:this.planner,method:'planConversation',input,signal:combined,budgetMs:Math.max(1,expiresAt-this.clock()-50),validate:p=>validateConversation(p,{entry,context,resource}),fallback:()=>conservativeConversation(entry,context,resource)});
     combined.throwIfAborted();requireIdentity(identity,'session:create',this.clock());
-    const p=result.proposal,plan={schema_version:'conversation-plan-v1',plan_id:randomUUID(),revision:1,session_id:null,mode:entry.mode,resource_refs:resource?[{id:resource.id,version:resource.version}]:[],input_refs:{context:context.snapshot_id,revision:context.revision,coverage:context.coverage,policy:PLANNING_VERSION,prompt:PLANNER_PROMPT_VERSION},...p,primary_goal:resource?.goals.find(g=>g.id===p.primary_goal_id)??null,goal_status:p.primary_goal_id?'active':'unverified',planner_kind:result.planner_kind,degraded_reason:result.degraded_reason,execution_mode:this.mode};
+    const p=result.proposal,plan={schema_version:'conversation-plan-v1',plan_id:randomUUID(),revision:1,session_id:null,mode:entry.mode,resource_refs:resource?[{id:resource.id,version:resource.version}]:[],input_refs:{context:context.snapshot_id,revision:context.revision,coverage:context.coverage,policy:PLANNING_VERSION,prompt:PLANNER_PROMPT_VERSION},...p,primary_goal:resource?.goals.find(g=>g.id===p.primary_goal_id)??null,goal_status:p.primary_goal_id?'active':'unverified',planner_kind:result.planner_kind,degraded_reason:result.degraded_reason,planner_attempts:result.attempts,execution_mode:this.mode};
     return {plan:immutable({...plan,hash:planHash(plan)}),context,resource};
   }
 }

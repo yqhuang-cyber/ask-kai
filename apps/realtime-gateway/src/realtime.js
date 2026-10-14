@@ -32,7 +32,7 @@ export function attachRealtime(server,{providerFactory,providerKind='doubao',bus
     wss.handleUpgrade(req,socket,head,ws => {
       connections.add(ws);
       const runtime = new SessionRuntime(ticket.session_id,{target:null});
-      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission,speechPace:ticket.speech_pace,planning:ticket.planning,planner,onPlanningRecord:(name,fields)=>diagnose(name,fields)});
+      const teaching=new TeachingSession({sessionId:ticket.session_id,mode:ticket.mode,memory:ticket.identity.memory,mission:ticket.identity.mission,speechPace:ticket.speech_pace,planning:ticket.planning,planner,resourceResolver:planningPort?({signal})=>planningPort.getResource(ticket.identity,{mode:'topic',topic_id:'sports'},{signal}):null,onPlanningRecord:(name,fields)=>diagnose(name,fields)});
       const policy=new SafetyPolicy();
       const started=performance.now();metrics?.count(providerKind,'sessions');
       let restricted=false,controlCount=0,controlAt=Date.now(),replyAt=null,firstAudio=false;

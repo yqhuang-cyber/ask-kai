@@ -53,7 +53,7 @@ export function createMockHskai({secret,clock=()=>Date.now(),initialMemory,missi
         const record=validateLearningRecord(input.record);
         if(input.idempotency_key!==record.session_id)return json(res,400,{error:'INVALID_IDEMPOTENCY_KEY'});
         const r=record.resource_ref===null?null:record.resource_ref.id==='sports'?SPORTS_RESOURCE:record.resource_ref.id===mission?.id?missionResource(mission):undefined;
-        if(r===undefined||r&&r.version!==record.resource_ref.version||record.observations.some(o=>!r?.key_points.some(k=>k.id===o.kp_id&&k.evidence_rule!=='unassessed')))return json(res,400,{error:'INVALID_RECORD_RESOURCE'});
+        if(r===undefined||r&&r.version!==record.resource_ref.version||record.observations.some(o=>!r?.key_points.some(k=>k.id===o.kp_id&&k.evidence_rule!=='unassessed'&&(record.schema_version!=='learning-record-v2'||k.evidence_rule===o.attempt_rule_ref&&r.goals.some(g=>g.id===o.goal_id&&g.kp_ids.includes(k.id))))))return json(res,400,{error:'INVALID_RECORD_RESOURCE'});
         const recordKey=JSON.stringify([key(identity),record.session_id]);let stored=learningRecords.get(recordKey);
         if(stored&&JSON.stringify(stored.record)!==JSON.stringify(record))return json(res,409,{error:'RECORD_CONFLICT'});
         if(!stored){if(learningRecords.size>=1000)throw new Error('MOCK_CAPACITY');bump(identity);stored={owner:key(identity),record,receipt_id:randomUUID(),revision:revisions.get(key(identity))};learningRecords.set(recordKey,stored);}

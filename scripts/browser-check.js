@@ -6,6 +6,9 @@ import { createGateway } from '../apps/realtime-gateway/src/server.js';
 import { createDoubaoProvider } from '../packages/provider-doubao/seeduplex.js';
 import { startMockBackend } from '../apps/hskai-mock/src/backend.js';
 import { summaryFixture } from '../tests/helpers/summary.js';
+import { ConversationInitializer } from '../packages/agent-core/conversation-initializer.js';
+import { Preparations } from '../apps/realtime-gateway/src/preparations.js';
+import { TeachingSession } from '../packages/agent-core/teaching.js';
 const server=createGateway({paceMs:1});server.listen(0,'127.0.0.1');await once(server,'listening');
 const servers=[server];
 const backends=[];
@@ -218,6 +221,21 @@ try {
   await page.locator('#connect').click();await page.getByText('实时语音尚未开通。需完成豆包协议和服务端连接验证。',{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.microphoneRequests),0);assert.equal(await page.locator('#connection-status').textContent(),'未连接');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'.local/browser-check/dynamic-free-mobile.png',fullPage:true});
+  const goalIdentity=dynamicBackend.bridge.verify(await dynamicBackend.pocPort.issue(),'session:create'),goalInitializer=new ConversationInitializer({port:dynamicBackend.planningPort});
+  const goalBound=new Preparations({initializer:goalInitializer}).bind(await goalInitializer.prepare({mode:'topic',topic_id:'sports'},goalIdentity),'browser-goals');
+  const goalSession=new TeachingSession({sessionId:'browser-goals',mode:'sports',planning:goalBound});
+  for(const [i,text] of ['我下午打篮球。','我想练习喜好表达。','我喜欢跑步。','取消这个目标。'].entries()) {
+    const e={version:1,event_id:'browser-input-'+i,session_id:'browser-goals',seq:i+1,at_ms:i,type:'user.final',turn_id:'browser-turn-'+i,payload:{text}};
+    goalSession.accept(e);await goalSession.planTurn(e);
+  }
+  const goalSummary=goalSession.finalize({businessSource:'mock_hskai',providerKind:'test',ready:true});
+  await page.evaluate(async()=>{const {SummaryCards}=await import('/summary-cards.js');window.summaryFixture=new SummaryCards({root:document.querySelector('#session-summary'),link:document.querySelector('#summary-jump')});});
+  await showSummary({type:'teaching.summary',session_id:'browser-goals',summary:goalSummary});
+  assert.equal(await page.locator('#session-summary .summary-goal').count(),2);
+  assert.equal(await page.locator('#session-summary .summary-observation').count(),2);
+  assert.match(await page.locator('#session-summary').textContent(),/已停止/);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.locator('#session-summary').screenshot({path:'.local/browser-check/dynamic-goals-summary-mobile.png'});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,adaptive_language_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,dynamic_preparations:true,dynamic_evidence_goal:true,dynamic_free_empty:true,dynamic_entry_race:true,replay:true,page_errors:0}));
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,adaptive_language_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,dynamic_preparations:true,dynamic_evidence_goal:true,dynamic_free_empty:true,dynamic_entry_race:true,dynamic_goal_history_summary:true,replay:true,page_errors:0}));
 }finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}for(const backend of backends)await backend.close();}

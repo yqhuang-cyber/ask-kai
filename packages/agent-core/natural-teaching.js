@@ -19,7 +19,7 @@ export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY
 
 // Quoted examples cannot operate the conversation controls. These patterns are
 // intentionally narrow; unmatched language stays with the realtime model.
-function controlText(text) {
+export function controlText(text) {
   return text.replace(/“[^”]*”|「[^」]*」|『[^』]*』|"[^"]*"|(?<![\p{L}\p{N}])'[^'\n]+'(?![\p{L}\p{N}])|‘[^’]*’/gu,' ').trim();
 }
 const endIntent=/^(?:(?:我(?:要|想)?|我们)?(?:不聊了|结束(?:对话|聊天|这轮)|先聊到这里)|(?:今天)?(?:就)?到这里|(?:我要走了|再见|拜拜|先这样)|(?:bye|goodbye|stop chatting|end (?:the )?(?:chat|conversation)|i (?:want to end|have to go|need to go)|that'?s (?:all|enough for today)))(?:[。.!！,，\s]|$)/iu;

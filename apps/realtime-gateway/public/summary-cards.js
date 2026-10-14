@@ -16,7 +16,7 @@ function projectRecap(recap,sessionId,finalTurns) {
 }
 export function projectSummary(packet,{sessionId,mode}) {
   const s=packet?.summary;
-  if(s?.schema_version===3&&s.policy_version==='kai-dynamic-summary-v1')return projectDynamicSummary(packet,{sessionId,mode});
+  if(s?.schema_version===3&&['kai-dynamic-summary-v1','kai-dynamic-summary-v2'].includes(s.policy_version))return projectDynamicSummary(packet,{sessionId,mode});
   if(packet?.type!=='teaching.summary' || packet.session_id!==sessionId || !id(sessionId) || !Object.hasOwn(modes,mode) || s?.session_id!==sessionId || s.mode!==mode || !(s.schema_version===1&&s.policy_version==='kai-summary-v1'||s.schema_version===2&&['kai-summary-v2','kai-summary-v3'].includes(s.policy_version)) || !focuses.has(s.focus))return null;
   if(!['ended','failed'].includes(s.outcome) || typeof s.partial!=='boolean' || !['mock_hskai','external_hskai','unconfigured'].includes(s.business_source) || !['not_connected','synthetic','real_provider'].includes(s.voice?.kind) || s.voice.real_experience_accepted!==false)return null;
   if(!count(s.counts?.attempts) || !count(s.counts.student_final_turns) || !count(s.counts.forwarded_completed_replies,10000) || !line(s.headline?.zh) || !line(s.headline.en))return null;
@@ -47,10 +47,12 @@ export function projectSummary(packet,{sessionId,mode}) {
 function projectDynamicSummary(packet,{sessionId,mode}) {
   const s=packet.summary;
   if(packet.type!=='teaching.summary'||packet.session_id!==sessionId||s.session_id!==sessionId||s.mode!==mode||!id(sessionId)||!Object.hasOwn(modes,mode)||!focuses.has(s.focus)||!['ended','failed'].includes(s.outcome)||typeof s.partial!=='boolean'||!line(s.headline?.zh)||!line(s.headline.en)||s.business_source!=='mock_hskai'||!['not_connected','synthetic','real_provider'].includes(s.voice?.kind)||s.voice.real_experience_accepted!==false||!count(s.counts?.student_final_turns)||!count(s.counts.attempts)||s.assessment?.mastery_assessed!==false||s.assessment.pronunciation_assessed!==false||s.assessment.independent_use_assessed!==false||s.planning?.controlled_execution!==false||!['next_turn_advisory','controlled'].includes(s.planning.path))return null;
-  if(!Array.isArray(s.goals)||s.goals.length>1||s.goals.some(g=>!id(g.id)||!line(g.label,100)||typeof g.attempt_rule_supported!=='boolean')||!Array.isArray(s.dynamic_observations)||s.dynamic_observations.length>100||s.counts.attempts<s.dynamic_observations.length||s.counts.attempts>s.counts.student_final_turns||s.dynamic_observations.some(o=>o.session_id!==sessionId||![o.observation_id,o.turn_id,o.source_event_id,o.kp_id].every(id)||!line(o.label,100)||o.state!=='attempted'||!['unknown','prompted'].includes(o.support)||o.execution_ref!==null&&!id(o.execution_ref))||new Set(s.dynamic_observations.map(o=>o.turn_id)).size!==s.dynamic_observations.length)return null;
+  const v2=s.policy_version==='kai-dynamic-summary-v2';
+  if(!Array.isArray(s.goals)||s.goals.length>(v2?8:1)||s.goals.some(g=>!id(g.id)||!line(g.label,100)||typeof g.attempt_rule_supported!=='boolean')||!Array.isArray(s.dynamic_observations)||s.dynamic_observations.length>100||s.counts.attempts<s.dynamic_observations.length||s.counts.attempts>s.counts.student_final_turns||s.dynamic_observations.some(o=>o.session_id!==sessionId||![o.observation_id,o.turn_id,o.source_event_id,o.kp_id].every(id)||!line(o.label,100)||o.state!=='attempted'||!['unknown','prompted'].includes(o.support)||o.execution_ref!==null&&!id(o.execution_ref))||new Set(s.dynamic_observations.map(o=>o.turn_id)).size!==s.dynamic_observations.length)return null;
+  if(v2&&(new Set(s.goals.map(g=>g.id)).size!==s.goals.length||s.goals.some(g=>!['paused','retired','unverified'].includes(g.status)||g.assessment?.goal_id!==g.id||g.assessment.status!=='unverified'||g.assessment.mastery_assessed!==false||!count(g.assessment.attempt_count)||!Array.isArray(g.assessment.missing)||!g.assessment.missing.includes('semantic_review')&&g.assessment.success_rule_ref!=='unassessed'||!Array.isArray(g.assessment.observation_refs)||g.assessment.observation_refs.length>12||g.assessment.observation_refs.some(ref=>!s.dynamic_observations.some(o=>o.observation_id===ref&&o.goal_id===g.id)))||s.dynamic_observations.some(o=>!id(o.goal_id)||!s.goals.some(g=>g.id===o.goal_id)||!count(o.plan_revision)||o.plan_revision<1||!['likes-attempt-v1','time-attempt-v1'].includes(o.attempt_rule_ref))))return null;
   if(s.focus==='unavailable')return {...structuredClone(empty),mode,reason:s.end_reason};
   const observed=new Map();for(const o of s.dynamic_observations){const row=observed.get(o.kp_id)??{label:o.label,count:0};row.count++;observed.set(o.kp_id,row);}
-  return {mode,focus:s.focus,headline:s.headline,items:[],observations:[...observed.values()],recap:{topics:[],expressions:[]},review:null,goal:s.goals[0]?{label:s.goals[0].label,supported:s.goals[0].attempt_rule_supported}:null,partial:s.partial,synthetic:s.voice.kind==='synthetic',mock:true};
+  return {mode,focus:s.focus,headline:s.headline,goals:v2?s.goals.map(g=>({label:g.label,status:g.status})):[],items:[],observations:[...observed.values()],recap:{topics:[],expressions:[]},review:null,goal:s.goals[0]?{label:s.goals[0].label,supported:s.goals[0].attempt_rule_supported}:null,partial:s.partial,synthetic:s.voice.kind==='synthetic',mock:true};
 }
 export class SummaryState {
   constructor(){this.reset();}
@@ -78,7 +80,8 @@ export class SummaryCards {
     if(data.partial)bilingual(this.root,'对话提前结束，仅展示已收到的部分记录。','The conversation ended early; only received records are shown.');
     if(data.focus==='unavailable')bilingual(this.root,'没有可展示的总结，请重新开始一轮。','No summary is available. You can start another conversation.');
     else {
-      if(data.goal)this.root.append(element('p',`本轮对话目标：${data.goal.label}`,'summary-goal'));
+      if(data.goals?.length){for(const goal of data.goals)this.root.append(element('p','会话中的练习方向：'+goal.label+'（'+(goal.status==='paused'?'已暂停':goal.status==='retired'?'已停止':'达成尚未确认')+'）','summary-goal'));}
+      else if(data.goal)this.root.append(element('p',`本轮对话目标：${data.goal.label}`,'summary-goal'));
       if(data.goal && !data.goal.supported)bilingual(this.root,'当前目标暂未自动评估，未据此判断学习结果。','This target has not been assessed; no learning result is inferred.');
       if(data.recap?.topics.length)this.root.append(element('p',`本轮提到的话题：${data.recap.topics.join('、')}`,'summary-topics'));
       if(data.recap?.expressions.length){
