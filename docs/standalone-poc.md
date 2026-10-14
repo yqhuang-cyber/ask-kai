@@ -1,6 +1,6 @@
 # Standalone Ask Kai Agent POC
 
-> 2026-10-14 动态规划更新：独立 mock 默认使用 next_turn_advisory，已接入三类学生上下文、可信资源、建连前整体计划与 MiniMax M3 逐轮提案；保留豆包实时全双工，本轮生成门控未证实。下文旧 Task 行为保留为 legacy／历史说明，新行为、尝试写回和验收范围见[实施记录](dynamic-planning-implementation.md)及[验证报告](eval-results/2026-10-14-dynamic-planning.md)。
+> 2026-10-14 动态规划更新：独立 mock 默认使用 next_turn_advisory，已接入四位可切换 Mock 学习者的三类资料接口、可信资源、建连前整体计划与 MiniMax M3 逐轮提案；保留豆包实时全双工，本轮生成门控未证实。下文旧 Task 行为保留为 legacy／历史说明，新行为、尝试写回和验收范围见[实施记录](dynamic-planning-implementation.md)及[验证报告](eval-results/2026-10-14-dynamic-planning.md)。
 
 
 This repository is an independent POC. It does not require the
@@ -44,12 +44,12 @@ during implementation; the key on your local machine is needed for listening.
 
 | Part | POC implementation |
 | --- | --- |
-| Web | Same-origin launch refresh, modes, continuous microphone, playback, progressive subtitles, ended-session summary cards and preference controls |
+| Web | Same-origin launch refresh, modes, continuous microphone, playback, progressive subtitles, ended-session summary cards, four fictional learner selections, three-part profile inspection and preference controls |
 | POC BFF/gateway | Existing owner/scopes/signature checks, single-use launch nonce and WebSocket ticket; forwards business operations through ports |
-| HSKai interface | `apps/hskai-mock` local HTTP service implements signed launch, memory, privacy and safeguarding contracts |
-| Identity/course | One fixed fictional adult learner and an authored completed Mission fixture; not a real account, consent record or completed course |
+| HSKai interface | `apps/hskai-mock` local HTTP service implements signed launch, three learner-data interfaces, memory, privacy and safeguarding contracts |
+| Identity/course | Four fictional adult learners (HSK1/3/5/7) with UID-scoped profiles and an authored completed Mission fixture; not real accounts, consent records or completed courses |
 | Preferences | Five bounded fields: interest, correction, language support, reported comprehension and known expressions; source/update/expiry validation and owner isolation; process memory only |
-| Learning evidence | Task 07 builds sourced, bounded summaries for all entries; Task 08 renders expression cards and one optional review. Supported sports-likes rules separate target text and attempts. No mock mastery, pronunciation score or durable history is invented |
+| Learning evidence | Task 07 builds sourced, bounded summaries for all entries; Task 08 renders expression cards and one optional review. Supported sports-likes rules separate target text and attempts. Authored mock mastery is explicitly separate from live attempted-only evidence; no live mastery or pronunciation score is inferred |
 | Voice | Real Doubao adapter, independent from mock business state; readiness, response ownership, interruption and context ACK rules unchanged |
 | Safety | Local mock case ACK returns `mocked: true`, `delivered: false`; UI says no human handoff, and human-delivered metrics are not incremented |
 | Privacy workflow | Export/erase/status simulate local preference processing only; mock completion does not assert vendor deletion or a full learner-data export |
@@ -65,10 +65,10 @@ system. This build remains loopback-only and internal.
 ## Contracts
 
 The Web calls `GET /api/runtime` to discover the backend. In mock mode it calls
-same-origin `POST /api/poc/launch` with `{}` before protected operations. The gateway
-asks the local service for the fixed fixture's signed assertion and sets a 60-second
-HttpOnly SameSite=Strict cookie at `/api`. No identity, scopes or Mission contents
-are accepted from the browser, and the assertion is absent from response JSON.
+same-origin `POST /api/poc/launch` with a selected, allowlisted mock `uid` (or `{}` for Alex) before protected operations. The gateway
+asks the local service for that fictional learner's signed assertion and sets a 60-second
+HttpOnly SameSite=Strict cookie at `/api`. Only the mock UID selector is accepted; arbitrary owner/learner identities, scopes or Mission contents
+are not accepted from the browser, and the assertion is absent from response JSON.
 The ordinary HskaiBridge still verifies it. Cookie refresh supports new sessions,
 expired access and preference export after a long conversation. Local HTTP cookies
 omit Secure; no public cookie-routing behavior is claimed.
@@ -86,6 +86,8 @@ integration inventory and foundation plan are historical context. Production
 release checks still report their separate real-user/service acceptance gaps;
 they do not block starting the independent POC. Tasks 05–10 continue against
 the local business backend and real voice when configured.
+
+See [four learners, data contracts and follow-up plan](mock-learners.md) for the new three-interface integration and pending differentiated goals / conversation comparison.
 
 ## Engineering verification
 

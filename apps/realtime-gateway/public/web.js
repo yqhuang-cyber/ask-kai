@@ -6,6 +6,7 @@ import { PreparationClient } from './preparation-client.js';
 import { failureCode,failureMessage } from './failure-messages.js';
 const diagnosticsEnabled=new URLSearchParams(location.search).get('diagnostics')==='1';
 const trace=diagnosticsEnabled?new ExperienceTrace():null;
+let selectedLearner='poc-learner',learnerEpoch=0,learnerSwitching=false,authorizationQueue=Promise.resolve();
 const runtimeReady=fetch('/api/runtime').then(r=>{if(!r.ok)throw new Error('RUNTIME_UNAVAILABLE');return r.json();}).then(runtime=>{
   if(runtime.backend==='mock_hskai') {
     document.querySelector('#backend-note').hidden=false;
@@ -13,12 +14,22 @@ const runtimeReady=fetch('/api/runtime').then(r=>{if(!r.ok)throw new Error('RUNT
   }
   return runtime;
 }).catch(()=>({backend:'unconfigured'}));
-async function authorizedFetch(path,options={}) {
-  if((await runtimeReady).backend==='mock_hskai') {
-    const launch=await fetch('/api/poc/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(3000)});
-    if(!launch.ok)throw new Error('MOCK_HSKAI_UNAVAILABLE');
-  }
-  return fetch(path,options);
+function authorizedFetch(path,options={}) {
+  const uid=selectedLearner,epoch=learnerEpoch;
+  const work=authorizationQueue.then(async()=> {
+    if(epoch!==learnerEpoch)throw new Error('LEARNER_CHANGED');options.signal?.throwIfAborted();
+    const mock=(await runtimeReady).backend==='mock_hskai';
+    if(mock) {
+      const launch=await fetch('/api/poc/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid}),signal:options.signal?AbortSignal.any([options.signal,AbortSignal.timeout(3000)]):AbortSignal.timeout(3000)});
+      if(!launch.ok)throw new Error('MOCK_HSKAI_UNAVAILABLE');
+    }
+    if(epoch!==learnerEpoch)throw new Error('LEARNER_CHANGED');
+    const headers=new Headers(options.headers);if(mock)headers.set('X-Ask-Kai-Mock-Uid',uid);
+    const response=await fetch(path,{...options,headers});if(epoch!==learnerEpoch)throw new Error('LEARNER_CHANGED');return response;
+  });
+  // The launch cookie is shared: serialize authorization + request so pending
+  // preparation, profile and session requests cannot borrow another learner's cookie.
+  authorizationQueue=work.catch(()=>{});return work;
 }
 const diagnosticPanel=document.querySelector('#diagnostics'),caseSelect=document.querySelector('#diagnostic-case'),outcomeSelect=document.querySelector('#diagnostic-outcome');
 let diagnosticCase='unselected';
@@ -41,6 +52,7 @@ const connect=document.querySelector('#connect'),status=document.querySelector('
 const summaryCards=new SummaryCards({root:document.querySelector('#session-summary'),link:document.querySelector('#summary-jump'),onRestart:()=>connect.click()});
 const mute=document.querySelector('#mute'),end=document.querySelector('#end'),caption=document.querySelector('#caption'),student=document.querySelector('#student-caption');
 const paceSelect=document.querySelector('#speech-pace'),paceHint=document.querySelector('#speech-pace-hint');
+const learnerSelect=document.querySelector('#mock-learner-select'),learnerHint=document.querySelector('#mock-learner-hint');
 let paceSupported=false;
 let mode='sports',ws,io,generation=0,config,muted=false,mission=null,safetyMessage=null;
 let entryPreviews={},dynamicPlanning=false,preparationPromise=null,preparationEpoch=0;
@@ -81,7 +93,7 @@ function selectMode(button) {
 for(const button of modes)button.addEventListener('click',()=>selectMode(button));
 paceSelect.addEventListener('change',prepareSelected);
 void runtimeReady.then(runtime=>{entryPreviews=runtime.entry_previews??{};dynamicPlanning=runtime.planning?.available===true;saveLearning.hidden=!dynamicPlanning||runtime.planning.mode==='shadow';if(entryPreviews[mode])learning(entryPreviews[mode]);});
-function controls(active) {connect.disabled=active;caseSelect.disabled=active;paceSelect.disabled=active || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active || (button.dataset.mode==='mission' && !mission);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
+function controls(active) {connect.disabled=active||learnerSwitching;learnerSelect.disabled=active||learnerSwitching;caseSelect.disabled=active;paceSelect.disabled=active||learnerSwitching || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active||learnerSwitching || (button.dataset.mode==='mission' && !mission);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
 async function loadSpeechPaces() {
   try {
     const response=await fetch('/api/speech-paces');if(!response.ok)throw new Error('PACE_UNAVAILABLE');
@@ -180,36 +192,97 @@ document.querySelector('#subtitle-size').addEventListener('change',event=>{capti
 window.addEventListener('pagehide',()=>{void stop();});
 const memoryStatus=document.querySelector('#memory-status');
 async function loadMemory() {
+  const epoch=learnerEpoch;
   const response=await authorizedFetch('/api/memory');if(!response.ok)throw new Error('MEMORY_UNAVAILABLE');
-  const result=await response.json(),list=document.querySelector('#memory-list');list.replaceChildren();
+  const result=await response.json(),list=document.querySelector('#memory-list');if(epoch!==learnerEpoch)return;list.replaceChildren();
   document.querySelector('#memory-save').disabled=!result.writable;document.querySelector('#memory-delete').disabled=!result.can_delete;
   const names={interest:'兴趣',correction_preference:'纠错偏好',support_language:'语言支架',chinese_comprehension:'中文理解情况（自述）',known_expressions:'已知表达（自述或授权画像）'};
   for(const record of result.records){const item=document.createElement('li');item.textContent=`${names[record.field]}：${record.value}（来源：${record.source}；更新：${record.updated_at.slice(0,10)}）`;list.append(item);}
   memoryStatus.textContent=result.records.length?'只使用与你当前练习相关、仍有效的偏好。':'目前没有有效偏好。';
 }
 async function bootstrap() {
+  const epoch=learnerEpoch;
   try {
     const response=await authorizedFetch('/api/bootstrap');if(!response.ok){await loadMemory();return;}const result=await response.json();
+    if(epoch!==learnerEpoch)return;
     mission=result.mission;
     if(result.mission_preview)entryPreviews.mission=result.mission_preview;
     const missionButton=document.querySelector('[data-mode="mission"]');missionButton.disabled=!mission;missionButton.textContent=mission?(await runtimeReady).backend==='mock_hskai'?'Mission 后对话 · 示例':'Mission 后对话':'Mission 后对话 · 待授权';missionButton.title=mission?'':'等待课程服务接入';
     document.querySelector('#memory-save').disabled=!result.memory_writable;document.querySelector('#memory-delete').disabled=!result.memory_writable;
     await loadMemory();
-    if(dynamicPlanning)prepareSelected();
-  }catch{memoryStatus.textContent='偏好服务暂不可用。';}
+    if(epoch!==learnerEpoch)return;
+    if((await runtimeReady).backend==='mock_hskai')await loadLearnerProfile(epoch,{setPace:true});
+    if(epoch!==learnerEpoch)return;
+    if(dynamicPlanning)prepareSelected();else if(entryPreviews[mode])learning(entryPreviews[mode]);
+  }catch{if(epoch===learnerEpoch)memoryStatus.textContent='画像或偏好服务暂不可用。';}
 }
 document.querySelector('#memory-form').addEventListener('submit',async event=> {
   event.preventDefault();
   const field=document.querySelector('#memory-field').value,raw=document.querySelector('#memory-value').value;
   const value=field==='known_expressions'?raw.split(/[,，、]/u).map(v=>v.trim()).filter(Boolean):raw;
-  try{const response=await authorizedFetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});if(!response.ok)throw new Error('WRITE_FAILED');await loadMemory();memoryStatus.textContent='偏好已更正；后续回合将使用新偏好。';}
+  try{const response=await authorizedFetch('/api/memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({field,value})});if(!response.ok)throw new Error('WRITE_FAILED');await loadMemory();if((await runtimeReady).backend==='mock_hskai')await loadLearnerProfile(learnerEpoch);memoryStatus.textContent='偏好已更正；后续回合将使用新偏好。';}
   catch{memoryStatus.textContent='更正未成功，请检查授权或偏好值。';}
 });
 document.querySelector('#memory-delete').addEventListener('click',async()=> {
-  try{const response=await authorizedFetch('/api/memory',{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('DELETE_FAILED');suppressLearning('authorization');await loadMemory();await stop('偏好已删除，当前对话已结束。');}
+  try{const response=await authorizedFetch('/api/memory',{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'});if(!response.ok)throw new Error('DELETE_FAILED');suppressLearning('authorization');await loadMemory();if((await runtimeReady).backend==='mock_hskai')await loadLearnerProfile(learnerEpoch);await stop('偏好已删除，当前对话已结束。');}
   catch{memoryStatus.textContent='删除未成功，请检查授权或服务。';}
 });
-void bootstrap();
+async function loadLearnerProfile(epoch,{setPace=false}={}) {
+  const parts=await Promise.all(['personal-profile','learning-profile','learning-history'].map(async part=>{
+    const response=await authorizedFetch(`/api/learner/${part}`);if(!response.ok)throw new Error('PROFILE_UNAVAILABLE');return response.json();
+  }));
+  if(epoch!==learnerEpoch)return;
+  if(parts.some(p=>p.uid!==selectedLearner||p.revision!==parts[0].revision||p.snapshot_id!==parts[0].snapshot_id||p.fixture_version!==parts[0].fixture_version))throw new Error('PROFILE_CHANGED');
+  const [personal,learning,history]=parts.map(p=>p.data),root=document.querySelector('#learner-profile-content');
+  const title=document.createElement('p');title.textContent=`${personal.preferred_name??'示例学习者'} · ${learning.course_level} · UID ${selectedLearner} · Mock 资料版本 ${parts[0].revision}`;
+  root.replaceChildren(title);
+  const section=(heading,rows)=>{const h=document.createElement('h3');h.textContent=heading;const list=document.createElement('ul');for(const text of rows){const li=document.createElement('li');li.textContent=text;list.append(li);}root.append(h,list);};
+  section('个人画像',[`成年学习者；母语：${personal.native_language==='en'?'英语':personal.native_language}；兴趣：${personal.interests.map(i=>i.label).join('、')}`,`语速：${personal.conversation_preferences.pace==='slow'?'慢速':'正常'}；纠错：${personal.conversation_preferences.correction==='gentle'?'温和':'按请求'}`, ...Object.values(personal.background??{}).map(v=>Array.isArray(v)?v.join('、'):v)]);
+  const statusNames={mock_mastered:'模拟掌握',practicing:'练习中',introduced:'已接触',not_started:'尚未开始'};
+  const inventory=parts[1].inventory;
+  section('学习画像',[learning.ability_summary??'当前为合成测试场景',`语言支架：${({auto:'按需',zh:'中文',zh_en:'双语'})[learning.language_support]}；理解情况：${({beginner:'初学者',comfortable:'能理解熟悉交流',unknown:'未知'})[learning.comprehension]}`,...(inventory?[`已模拟通过 HSK${inventory.completed_level}；正在学习 ${inventory.current_study_scope==='7-9'?'高级共同范围':`HSK${inventory.current_study_scope}`}`,`累计模拟掌握 ${inventory.grammar_mastered} 项大纲语法细目；完整目录 ${inventory.grammar_total} 项（含下一阶段）`, `大纲词汇参照：${inventory.vocabulary.reference_cumulative} 条${inventory.completed_level===7?'（七至九级共同范围，未宣称全部掌握）':''}；模拟已知范围 ${inventory.vocabulary.estimated_known_range.join('～')}，未经真实测量`]:[])]);
+  if(learning.skill_profile)section('听、说、读、写、译的模拟能力',Object.entries(learning.skill_profile).map(([k,v])=>`${({listening:'听',speaking:'说',reading:'读',writing:'写',translation:'译'})[k]}：${v}`));
+  if(inventory) {
+    const heading=document.createElement('h3');heading.textContent='完整累计知识目录（按等级展开）';root.append(heading);
+    for(const [level,counts] of Object.entries(inventory.per_level)) {
+      const details=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('ul');
+      summary.textContent=`HSK${level}：${counts.total} 项；模拟掌握 ${counts.mastered} 项`;
+      for(const k of inventory.grammar_points.filter(k=>k.introduced_level===level)){const li=document.createElement('li');li.textContent=`${k.label} · ${statusNames[k.mastery_status]} · 大纲第 ${k.source_page} 页`;list.append(li);}
+      details.append(summary,list);root.append(details);
+    }
+  }
+  section('交流技能摘要（供规划选取，不是全部知识点）',(learning.knowledge_points??[]).map(k=>`${k.label}：${statusNames[k.mastery_status]}；示例：${k.examples.join(' / ')}`));
+  section(`近期学习记录${parts[2].history_page.truncated?'（最近 10 项，已截断）':''}`,history.map(h=>`${new Date(h.updated_at).toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai'})} · ${({ask_kai:'对话',lesson:'课程',mission:'任务'})[h.activity_type]} · ${h.observations.join(' ')}`));
+  document.querySelector('#learner-profile').hidden=false;
+  document.querySelector('#learner-level').textContent=`${learning.course_level} · Mock 学习者`;
+  learnerHint.textContent=`当前：${personal.preferred_name??'示例学习者'}。结束对话后可切换；画像和记录按 UID 隔离。`;
+  if(setPace&&paceSupported)paceSelect.value=personal.conversation_preferences.pace;
+}
+learnerSelect.addEventListener('change',async()=> {
+  if(learnerSwitching||ws||connect.disabled)return;
+  const next=learnerSelect.value;if(next===selectedLearner)return;
+  learnerSwitching=true;controls(false);
+  try {
+    await stop('正在切换学习者……');
+    const revoked=await authorizedFetch('/api/authorization/revoke',{method:'POST'});if(!revoked.ok)throw new Error('REVOKE_FAILED');
+    learnerEpoch++;selectedLearner=next;summaryCards.reset();mission=null;entryPreviews=(await runtimeReady).entry_previews??{};
+    document.querySelector('#save-learning-input').checked=false;document.querySelector('#memory-list').replaceChildren();document.querySelector('#learner-profile-content').replaceChildren();document.querySelector('#learner-profile').hidden=true;document.querySelector('#learner-level').textContent='正在加载画像';
+    goal.textContent='正在为当前学习者准备对话。';promptHint.textContent='';document.querySelector('.word-card').hidden=true;
+    await bootstrap();
+  }catch{learnerSelect.value=selectedLearner;learnerHint.textContent='学习者切换未完成，请重试或刷新。';}
+  finally{learnerSwitching=false;controls(false);}
+});
+void (async()=> {
+  if((await runtimeReady).backend==='mock_hskai') {
+    learnerSwitching=true;controls(false);document.querySelector('#mock-learner-switch').hidden=false;
+    try {
+      const response=await fetch('/api/poc/learners');if(!response.ok)throw new Error('LEARNERS_UNAVAILABLE');const data=await response.json();
+      learnerSelect.replaceChildren();for(const learner of data.learners){const option=document.createElement('option');option.value=learner.uid;option.textContent=`${learner.name} · ${learner.course_level}`;learnerSelect.append(option);}
+      selectedLearner=learnerSelect.value;await bootstrap();
+    }catch{learnerHint.textContent='Mock 学习者资料加载失败，请刷新。';}
+    finally{learnerSwitching=false;controls(false);}
+  }else await bootstrap();
+})();
 document.querySelector('#memory-export').addEventListener('click',async event=>{
   event.preventDefault();
   try{const response=await authorizedFetch('/api/memory/export');if(!response.ok)throw new Error('EXPORT_FAILED');const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download='ask-kai-preferences.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}

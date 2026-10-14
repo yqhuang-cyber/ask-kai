@@ -203,6 +203,22 @@ try {
   await page.goto(pocOrigin);await page.waitForFunction(()=>!document.querySelector('[data-mode=mission]').disabled && !document.querySelector('#memory-save').disabled);
   assert.equal(await page.locator('#backend-note').isVisible(),true);assert.match(await page.locator('#backend-note').textContent(),/mock HSKai/);
   assert.equal(await page.evaluate(()=>document.cookie.includes('ask_kai_launch')),false);
+  await page.waitForFunction(()=>!document.querySelector('#mock-learner-select').disabled && !document.querySelector('#learner-profile').hidden);
+  assert.equal(await page.locator('#mock-learner-select option').count(),4);
+  await page.locator('#learner-profile > summary').click();
+  assert.match(await page.locator('#learner-profile-content').textContent(),/Alex.*HSK1/s);
+  const switchCases=[['mock-maya-hsk3','Maya','HSK3'],['mock-leo-hsk5','Leo','HSK5'],['mock-nina-hsk7','Nina','HSK7'],['poc-learner','Alex','HSK1']];
+  for(const [uid,name,level] of switchCases) {
+    await page.locator('#mock-learner-select').selectOption(uid);
+    await page.waitForFunction(({name,level})=>!document.querySelector('#mock-learner-select').disabled && document.querySelector('#learner-profile-content').textContent.includes(name+' · '+level),{name,level});
+    const content=await page.locator('#learner-profile-content').textContent();assert.match(content,/个人画像/);assert.match(content,/学习画像/);assert.match(content,/近期学习记录/);assert.match(content,/模拟掌握/);
+    assert.match(content,/完整累计知识目录/);assert.match(content,/交流技能摘要/);assert.match(content,/已模拟通过/);
+    if(level==='HSK3'){assert.match(content,/HSK1：70 项；模拟掌握 70 项/);assert.match(content,/HSK2：78 项；模拟掌握 78 项/);assert.match(content,/累计模拟掌握 244/);}
+    if(level==='HSK7')assert.match(content,/HSK7-9：134 项；模拟掌握 72 项/);
+    assert.equal(await page.evaluate(()=>window.microphoneRequests),0);
+    assert.equal(await page.locator('#connection-status').textContent(),'未连接');
+  }
+  await page.locator('#learner-profile').screenshot({path:'.local/browser-check/four-learners-mobile.png'});
   await page.locator('[data-mode=mission]').click();assert.match(await page.locator('#prompt-title').textContent(),/示例 Mission/);
   await page.locator('.memory').first().locator('summary').click();
   // Expire the launch cookie without waiting 60 seconds. Each protected action refreshes it.
@@ -252,5 +268,5 @@ try {
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#session-summary').screenshot({path:'.local/browser-check/dynamic-goals-summary-mobile.png'});
   assert.equal(errors.length,0);
-  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,adaptive_language_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,dynamic_preparations:true,dynamic_evidence_goal:true,dynamic_free_empty:true,dynamic_entry_race:true,dynamic_goal_history_summary:true,replay:true,page_errors:0}));
+  console.log(JSON.stringify({browser:'chromium',input:'synthetic_device',provider_connected:false,web_controls:true,mobile_overflow:false,microphone_before_readiness:false,audio_worklet_pcm:true,capture_continues_during_output_stop:true,progressive_captions:true,native_caption_clock:true,caption_pause_resume:true,caption_controls:true,diagnostics_export:true,audio_metadata:true,speech_pace_selection:true,speech_pace_session_lock:true,speech_pace_wire_payload:true,poc_mock_backend:true,four_learner_switching:true,three_learner_services:true,poc_cookie_refresh:true,poc_mission:true,poc_preferences:true,adaptive_language_preferences:true,summary_cards:true,summary_empty_partial_states:true,summary_session_isolation:true,summary_safety_revocation:true,summary_restart:true,summary_literal_text:true,dynamic_preparations:true,dynamic_evidence_goal:true,dynamic_free_empty:true,dynamic_entry_race:true,dynamic_goal_history_summary:true,replay:true,page_errors:0}));
 }finally{await browser?.close();for(const item of servers){item.stopRealtime();await new Promise(resolve=>{item.close(resolve);item.closeAllConnections();});}for(const backend of backends)await backend.close();}

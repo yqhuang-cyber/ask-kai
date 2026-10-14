@@ -2,9 +2,9 @@
 
 面向 HSK 1 初学者的实时中文对话教学 Agent。
 
-> 更新于 2026-10-14。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。420 项测试、三个回放和 Chromium 合成设备检查通过。可替换 LLM 的接口、原始规划快照、Agent reasoning／learner feedback、shadow ObservationPort、辅助规划语义审阅及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
+> 更新于 2026-10-14。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。433 项测试、三个回放和 Chromium 合成设备检查通过。可替换 LLM 的接口、原始规划快照、Agent reasoning／learner feedback、shadow ObservationPort、辅助规划语义审阅及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
 
-[产品介绍](#1-产品介绍) · [架构设计](#2-架构设计) · [三个入口](#3-使用方式三个入口) · [评测](#4-评测机制与现有结果) · [现状](#5-实现范围与当前状态) · [计划](#6-接下来的计划) · [启动](#7-快速启动) · [文档](#8-文档导航)
+[产品介绍](#1-产品介绍) · [学习者画像](docs/learner-profiles.md) · [架构设计](#2-架构设计) · [三个入口](#3-使用方式三个入口) · [评测](#4-评测机制与现有结果) · [现状](#5-实现范围与当前状态) · [计划](#6-接下来的计划) · [启动](#7-快速启动) · [文档](#8-文档导航)
 
 ## 1. 产品介绍
 
@@ -57,7 +57,7 @@ flowchart TD
 | **M1 Web 交互与呈现** | 入口选择、采音、播放、渐进字幕、Start Tips／词卡、总结卡、连接与异常状态 | 感知输入、行动呈现、反馈采集 | 三入口与基本音频／展示已实现；目标、Start Tip 和词卡已改为服务端计划，准备与入口竞态已检查 |
 | **M2 会话网关与运行编排** | BFF 授权、一次性票据、会话／话轮／回复状态、迟到事件隔离、打断、超时、上下文更新与回执 | 感知归属、决策提交、行动编排、执行反馈；约束落地 | 已实现准备版本核对、一次性消费和迟到规划隔离；当前自动回复可早于后台更新，本轮受控生成仍待验证 |
 | **M3 Agent Core** | Kai 人设、目标与策略、语言支架、Context Compiler、整体／逐轮 Planner、计划校验、教学状态及观察／总结 | 目标与约束、工作记忆、规划、决策、教学行动、反馈与适应 | 会话和逐轮 M3 提案、来源校验与 learner feedback 已接入；困难／实际尝试／提示输出分开；通用语义 KP 与独立表达仍未验收 |
-| **M4 业务数据与课程资源** | HSKai Bridge／数据端口、本地 Mock；身份、偏好、Mission／主题资源、个人画像、学习画像和近期记录 | 长期记忆输入、目标／知识依据、工具读写、反馈保存 | 三类合成资料、有限完整课程、A～E fixture 和自愿尝试写回已实现；记录仅存进程内存，生产持久化待补 |
+| **M4 业务数据与课程资源** | HSKai Bridge／数据端口、本地 Mock；身份、偏好、Mission／主题资源、个人画像、学习画像和近期记录 | 长期记忆输入、目标／知识依据、工具读写、反馈保存 | 四位可切换学习者、三个资料接口、有限课程、A～E fixture 和自愿尝试写回已实现；记录仅存进程内存，生产持久化待补 |
 | **M5 模型与语音适配** | Doubao Adapter、供应商事件映射、音频格式、上下文／取消控制；MiniMax M3 PlannerPort 与受控生成能力边界 | 语音感知、模型推理能力供给、语言／语音行动及执行回执 | MiniMax M3 提案与豆包全双工已接入；没有已验证的本轮生成门控，controlled 保持关闭 |
 
 实现位置：M1／M2 在 `apps/realtime-gateway/`；M3 在 `packages/agent-core/`；M4 在 `packages/hskai-bridge/` 与 `apps/hskai-mock/`；M5 在 `packages/provider-doubao/` 与 `packages/provider-minimax/`，合成供应商在 `packages/provider-replay/`。
@@ -121,7 +121,7 @@ Harness 的横向职责覆盖五个模块：状态版本、权限、取消、预
 | 运动主题 | `sports` 兼容映射为 `topic:sports`；兴趣选择内容，学习证据选择目标及支架，先修未知不擅自升级 | 篮球／跑步等内容可不同；有喜好独立表现及时间练习证据时可选择简单时间表达目标 | 喜好表达及限定时间句规则只记录 attempted；提示程度、独立使用和发音继续未知 |
 | 自由聊天 | 读取三类资料，初始 `primary_goal:null`、`key_points:[]`，学生当前选题优先 | 无强制目标，提示和词卡可为空；普通交流允许零知识点 | 库外表达不自动变成正式 KP；当前不把局部求助登记为整场已学目标 |
 
-**当前学生数据与保存边界：** 新签名 `HskaiPlanningPort` 聚合个人画像、学习画像和最近最多 10 项活动，并显式返回 available／partial／unavailable、revision、来源及截断。Mock 有 A～E 合成 fixture；普通页面仍使用固定虚构成年学习者，浏览器不能选择学习者身份。原 `/api/memory` 五字段接口继续用于查看／更正／删除偏好，更正会使准备与旧规划失效，并刷新活动会话的最小学生上下文。
+**当前学生数据与保存边界：** 新签名 `HskaiPlanningPort` 聚合个人画像、学习画像和最近最多 10 项活动，并显式返回 available／partial／unavailable、revision、来源及截断。Mock 有四位可切换的虚构成年学习者（Alex／HSK1、Maya／HSK3、Leo／HSK5、Nina／HSK7），三类资料分别通过独立签名接口读取后聚合；A～E 保留为测试场景。网页可查看知识点、模拟掌握和近期历史。模拟掌握来自作者设定，不由本轮尝试升级。见 [四位学习者完整画像与累计知识](docs/learner-profiles.md)及[Mock 服务计划](docs/mock-learners.md)。原 `/api/memory` 五字段接口继续用于查看／更正／删除偏好，更正会使准备与旧规划失效，并刷新活动会话的最小学生上下文。
 
 学习状态来自合成后端证据，与本轮实际观察分开。结束时默认不写回；学生主动勾选保存后，提交经过校验、按 learner＋session 去重的最小尝试记录，并等待 mock 回执。没有原始音频／逐字稿或自动掌握写入；仅存本地进程内存，重启重置。写回失败不显示保存成功。
 
@@ -297,7 +297,7 @@ sequenceDiagram
 | 短回复、语言支架、规则教学与拒绝／换题暂停 | 已实现 | 真实内容已有改善及退化，残留失败见第 4 节 |
 | 渐进字幕、词卡与 Web 总结 | 已实现 | 同步按播放进度近似处理；真实设备及改造受影响项待复验 |
 | 有来源的会内学习证据 | 已实现，范围有限 | 主要支持运动喜好及受支持表达；其他 KP 未评估，不输出掌握或发音结论 |
-| Mock 身份、Mission、偏好和管理接口 | 已实现 | 固定虚构成年学习者；五字段偏好仅存内存，重启重置，业务闭环待验 |
+| Mock 身份、Mission、偏好和管理接口 | 已实现 | 四个独立 UID、三类资料接口、网页切换；五字段偏好仅存内存，重启重置，分层目标与会话对比待补 |
 | 三类学生数据、动态初始化与整体／逐轮规划 | 工程已接入，MiniMax M3＋本地 Mock | 同组旧契约与 Draft 对照均大量超时／降级，尚无可靠性提升证据；可替换 adapter 已拆分，当前为后续输入建议，不代表本轮先规划后生成通过 |
 | 会中目标替换／暂停／停止、自愿练习与来源记录 | 当前两个可信目标范围内已实现 | 规则／网关／页面已检查；独立表达、迁移及语义达成继续未评估，真实 M3 仍大量降级 |
 | 跨会话记录、生产持久化、独立发音评分 | 自愿 mock 尝试写回已实现；后两者尚未实现 | 内存记录可进入下一会话历史，重启重置；不自动升级能力，真实业务库与发音服务另列 |
@@ -374,7 +374,7 @@ Agent 检查：npm run eval:agent 使用 20 个独立案例验证角色、尝试
 
 | 方向 | 主要入口 |
 | --- | --- |
-| 产品与范围 | [PRD](docs/prd/ask-kai-agent-prd-v1.1.md) · [独立 POC 与 Mock](docs/standalone-poc.md) |
+| 产品与范围 | [PRD](docs/prd/ask-kai-agent-prd-v1.1.md) · [独立 POC 与 Mock](docs/standalone-poc.md) · [学习者画像与累计知识](docs/learner-profiles.md) · [四位学习者与三接口](docs/mock-learners.md) |
 | Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [Planner reliability 与模型替换](docs/planner-reliability-design.md) · [Agent reasoning 与 feedback](docs/agent-feedback-design.md) · [四项后续工程](docs/agent-four-tasks.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
 | 接口与实时运行 | [多端接入与集成](docs/multi-client-integration.md) · [事件契约](docs/contracts.md) · [HSKai 边界](docs/hskai-bridge.md) · [协议接入](docs/protocol/seeduplex-integration.md) · [上下文快照](docs/context-snapshots.md) |
 | 教学与呈现 | [自然教学](docs/natural-teaching.md) · [语言支架](docs/language-support.md) · [渐进字幕](docs/progressive-captions.md) · [学习总结](docs/session-summary.md) |

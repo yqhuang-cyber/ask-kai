@@ -12,6 +12,7 @@ import { ConversationInitializer } from '../../../packages/agent-core/conversati
 import { Preparations } from './preparations.js';
 import { PLANNING_MODES } from '../../../packages/contracts/planning.js';
 import { TeachingSession } from '../../../packages/agent-core/teaching.js';
+import { LEARNER_PARTS } from '../../../packages/contracts/learner-data.js';
 
 const publicDir = new URL('../public/', import.meta.url);
 const staticFiles = new Map([
@@ -60,14 +61,20 @@ export async function readJson(req,maxBytes=4096) {
   for await(const chunk of req){size+=chunk.length;if(size>maxBytes)throw new Error('REQUEST_TOO_LARGE');chunks.push(chunk);}
   return JSON.parse(Buffer.concat(chunks).toString());
 }
-export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, pocPort, planningPort, planner, planningMode='legacy', speechPaceSupported = false, ...realtimeOptions } = {}) {
+export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, pocPort, planningPort, learnerDataPort, planner, planningMode='legacy', speechPaceSupported = false, ...realtimeOptions } = {}) {
   if(!PLANNING_MODES.includes(planningMode))throw new Error('INVALID_PLANNING_MODE');
   if(planningMode!=='legacy'&&!planningPort)throw new Error('PLANNING_PORT_REQUIRED');
   const preparations=planningMode!=='legacy'&&planningPort?new Preparations({initializer:new ConversationInitializer({port:planningPort,planner,mode:planningMode})}):null;
   const metrics=realtimeOptions.metrics ?? new Metrics();
   const speechAvailable=speechPaceSupported===true && typeof realtimeOptions.providerFactory==='function';
   const authorize=(req,scope)=> {
-    if(bridge)return bridge.authorize(req,scope);
+    if(bridge) {
+      const identity=bridge.authorize(req,scope);
+      // A shared browser cookie may be replaced by another tab. This hint only
+      // rejects a mismatch; it never grants access or overrides signed identity.
+      if(pocPort&&req.headers['x-ask-kai-mock-uid']!==undefined&&req.headers['x-ask-kai-mock-uid']!==identity.learner_id)throw new Error('MOCK_LEARNER_MISMATCH');
+      return identity;
+    }
     if(realtimeOptions.providerKind==='test')return {owner_id:'test-owner',learner_id:'test-learner',market:'SG',expires:Date.now()+60000,authorization_until:Date.now()+600000,memory:[],mission:null,scopes:['session:create','memory:read','memory:write','memory:delete']};
     throw new Error('UNAUTHORIZED');
   };
@@ -100,15 +107,27 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, p
           return json(res,405,{error:'METHOD_NOT_ALLOWED'});
         }catch(error){return json(res,error.message==='PREPARATION_CAPACITY'?429:error.message==='PREPARATION_NOT_FOUND'?404:400,{error:error.message==='PREPARATION_CAPACITY'?'PREPARATION_CAPACITY':'INVALID_PREPARATION'});}
       }
+      if(req.method==='GET'&&url.pathname==='/api/poc/learners') {
+        if(!pocPort)return json(res,404,{error:'NOT_FOUND'});
+        try{return json(res,200,await pocPort.list());}catch{return json(res,503,{error:'MOCK_HSKAI_UNAVAILABLE'});}
+      }
+      const learnerPartName=url.pathname.startsWith('/api/learner/')?url.pathname.slice('/api/learner/'.length):null;
+      if(learnerPartName&&Object.hasOwn(LEARNER_PARTS,learnerPartName)) {
+        if(req.method!=='GET')return json(res,405,{error:'METHOD_NOT_ALLOWED'});
+        if(!learnerDataPort)return json(res,501,{error:'LEARNER_DATA_NOT_CONFIGURED'});
+        if(url.search)return json(res,400,{error:'IDENTITY_QUERY_FORBIDDEN'});
+        let identity;try{identity=authorize(req,LEARNER_PARTS[learnerPartName].scope);}catch{return json(res,401,{error:'HSKAI_AUTHORIZATION_REQUIRED'});}
+        try{return json(res,200,await learnerDataPort.readPart(identity,learnerPartName));}catch{return json(res,503,{error:'HSKAI_LEARNER_DATA_UNAVAILABLE'});}
+      }
       if(req.method==='POST' && url.pathname==='/api/poc/launch') {
         if(!pocPort)return json(res,404,{error:'NOT_FOUND'});
         if(req.headers.origin!==`http://${req.headers.host}`)return json(res,403,{error:'ORIGIN_REQUIRED'});
-        let input;try{input=await readJson(req,128);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
-        if(!input || typeof input!=='object' || Array.isArray(input) || Object.keys(input).length)return json(res,400,{error:'INVALID_MOCK_LAUNCH'});
+        let input;try{input=await readJson(req,256);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
+        if(!input || typeof input!=='object' || Array.isArray(input) || Object.keys(input).some(k=>k!=='uid')||input.uid!==undefined&&(typeof input.uid!=='string'||!pocPort.has(input.uid)))return json(res,400,{error:'INVALID_MOCK_LAUNCH'});
         try {
-          const assertion=await pocPort.issue();bridge.verify(assertion,'session:create');
+          const assertion=await pocPort.issue(input.uid),identity=bridge.verify(assertion,'session:create');
           res.setHeader('Set-Cookie',`ask_kai_launch=${assertion}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=60`);
-          return json(res,200,{source:'mock_hskai',learner:'POC 示例学习者',persistence:'process_memory'});
+          return json(res,200,{source:'mock_hskai',uid:identity.learner_id,persistence:'process_memory'});
         }catch{return json(res,503,{error:'MOCK_HSKAI_UNAVAILABLE'});}
       }
       if (req.method === 'GET' && url.pathname === '/api/speech-paces') return json(res,200,{supported:speechAvailable,default:speechAvailable?DEFAULT_SPEECH_PACE:null,options:speechAvailable?[{id:'slow',label:'慢速（默认）'},{id:'normal',label:'正常'}]:[]});
