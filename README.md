@@ -26,6 +26,8 @@ Ask Kai 希望让学生在真实交流中学习中文：既可以承接刚完成
 
 当前 POC 已有实时对话、动态初始化、会话／逐轮 M3 计划和有来源尝试；逐轮建议在回复边界更新后续输入，完整本轮受控生成尚未验证。产品要求见 [PRD](docs/prd/ask-kai-agent-prd-v1.1.md)。
 
+目标、回复策略及逐轮 `action`／`task`／`expected_observation` 如何传给豆包、用了哪些事件、何时生效及如何区分执行证据，见[规划到豆包实时语音链路](docs/planning-to-doubao-chain.md)。
+
 ## 2. 架构设计
 
 ### 2.1 Agent 核心能力
@@ -398,6 +400,7 @@ Agent 检查：npm run eval:agent 使用 20 个独立案例验证角色、尝试
 | Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [初始化教学决策](docs/initial-planner-teaching-design.md) · [Planner reliability 与模型替换](docs/planner-reliability-design.md) · [Agent reasoning 与 feedback](docs/agent-feedback-design.md) · [四项后续工程](docs/agent-four-tasks.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
 | 降级与规则回退 | [完整清单与评估 TODO](docs/planner-fallback-inventory.md) · [触发场景](docs/planner-fallback-inventory.md#triggers) · [初始化替代规则](docs/planner-fallback-inventory.md#initial-rules) · [逐轮替代规则](docs/planner-fallback-inventory.md#turn-rules) · [非降级边界](docs/planner-fallback-inventory.md#non-fallback) |
 | 接口与实时运行 | [多端接入与集成](docs/multi-client-integration.md) · [事件契约](docs/contracts.md) · [HSKai 边界](docs/hskai-bridge.md) · [协议接入](docs/protocol/seeduplex-integration.md) · [上下文快照](docs/context-snapshots.md) |
+| 规划到语音链路 | [目标、回复策略与逐轮字段到豆包的传递、生效时机和证据边界](docs/planning-to-doubao-chain.md) |
 | 教学与呈现 | [自然教学](docs/natural-teaching.md) · [语言支架](docs/language-support.md) · [渐进字幕](docs/progressive-captions.md) · [学习总结](docs/session-summary.md) |
 | 评测与结果 | [动态规划验证](docs/eval-results/2026-10-14-dynamic-planning.md) · [测试说明](docs/testing.md) · [多轮运行器](docs/multiturn-eval.md) · [真实评分](docs/recorded-scoring.md) · [最新正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md) |
 | 开发与计划 | [POC 收尾](docs/poc-completion-todo.md) · [动态规划清单](docs/dynamic-planning-tasking.md) · [实施记录](docs/implementation-plan.md) |
