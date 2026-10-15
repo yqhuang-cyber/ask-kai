@@ -172,27 +172,35 @@ sequenceDiagram
 sequenceDiagram
     participant W as Web
     participant G as Gateway
-    participant H as mock HSKai
+    participant H as HSKai 业务边界
+    participant T as Topic Manager
     participant C as Initializer / Validator
     participant L as MiniMax M3
     participant P as 豆包实时全双工
-    W->>G: 刷新授权，准备 sports
-    G->>H: 读取三类资料与 sports 主题资源
-    H-->>G: 兴趣、学习证据、近期历史、先修与候选目标
-    G->>C: 分别选择交流内容和本次目标
+    W->>G: 选择已发布主题，准备 topic_id
+    G->>H: 按授权读取个人画像、学习画像与近期记录
+    H-->>G: 资料、来源、覆盖状态与 revision
+    G->>T: 读取指定版本的已发布 Topic Pack
+    T-->>G: 主题范围、关联技能、目标与准入信息
+    G->>C: 兴趣选择内容，学习证据和先修选择目标／支架
     opt 规划模型已配置
-        C->>L: 兴趣、学习证据、历史及主题资源
-        L-->>C: 内容、目标与策略提案
+        C->>L: 有界主题初始化请求，画像和 Topic Pack 只作数据
+        L-->>C: 目标、知识点、表达任务与策略提案
     end
-    C-->>G: 校验并接受计划，未知保持未知
-    G-->>W: 返回计划中的页面目标、提示与词卡
-    W->>G: 刷新授权，消费有效准备并创建会话
-    G->>H: 再核对资料及资源版本
-    W->>G: 一次性票据建立 WebSocket
-    G->>P: 创建会话，应用当前已接受主题计划
+    C->>C: 校验恰好一个合法目标、关联知识点和表达任务
+    C-->>G: 接受计划或明确标记规则降级；无合法目标则准备失败
+    G-->>W: 轮询准备状态，展示目标、知识点与表达任务
+    W->>G: 开始；重新准备并刷新 preparation_id
+    G->>H: 再读资料并核对 revision
+    G->>T: 核对 Topic Pack 版本／hash
+    G->>G: 校验入口、语速、有效期并一次性消费准备
+    G-->>W: 返回一次性 WS 票据
+    W->>G: 建立 WebSocket
+    G->>P: 创建会话并应用完整初始 instructions
     P-->>G: 经核验的真实就绪
-    G-->>W: session.ready
+    G-->>W: session.ready 与配置
     W->>W: 开始持续采音、播放与渐进字幕
+    Note over G,P: 豆包自主全双工；逐轮规划异步更新后续输入，不门控本轮生成
 ```
 
 **入口 3｜自由聊天**
@@ -201,26 +209,32 @@ sequenceDiagram
 sequenceDiagram
     participant W as Web
     participant G as Gateway
-    participant H as mock HSKai
+    participant H as HSKai 业务边界
     participant C as Initializer / Validator
     participant L as MiniMax M3
     participant P as 豆包实时全双工
-    W->>G: 刷新授权，准备 free
-    G->>H: 读取三类授权资料与覆盖限制
-    G->>C: 动态交流策略，不设初始教学目标
+    W->>G: 选择自由聊天，准备 free
+    G->>H: 按授权读取个人画像、学习画像与近期记录
+    H-->>G: 资料、来源、覆盖状态与 revision
+    G->>C: 以学生选题和偏好规划交流；resource 为空
     opt 规划模型已配置
-        C->>L: 有界交流策略规划
-        L-->>C: 无初始目标的提案
+        C->>L: 有界初始化请求及通用 Skill catalog
+        L-->>C: 无初始目标、候选目标或知识点的提案
     end
-    C-->>G: primary_goal 为 null，关键知识点为空
-    G-->>W: 自由交流页面展示，可无提示及词卡
-    W->>G: 刷新授权，核对并消费准备
-    W->>G: 使用一次性票据建立 WebSocket
-    G->>P: 创建会话，学生话题优先的初始策略
+    C->>C: 校验 primary_goal=null、candidate_goal_ids=[]、key_points=[]
+    C-->>G: 接受计划或标记保守规则降级
+    G-->>W: 轮询准备状态；展示自由交流，可无提示及词卡
+    W->>G: 开始；重新准备并刷新 preparation_id
+    G->>H: 再读资料并核对 revision
+    G->>G: 校验入口、语速、有效期并一次性消费准备
+    G-->>W: 返回一次性 WS 票据
+    W->>G: 建立 WebSocket
+    G->>P: 创建会话并应用学生话题优先的初始 instructions
     P-->>G: 经核验的真实就绪
-    G-->>W: session.ready
-    W->>W: 开启持续采音
-    Note over W,P: 学生主动聊宇宙时不强拉回旧运动兴趣
+    G-->>W: session.ready 与配置
+    W->>W: 开始持续采音、播放与渐进字幕
+    Note over G,P: 豆包自主全双工；求助可只影响当前轮，明确持续练习才可选通用技能
+    Note over W,P: 不读取 Topic Pack／课程资源；学生当前话题优先，不强拉回旧兴趣
 ```
 
 **共用逐轮规划与观察：** 每个已接受的唯一 `user.final` 绑定不可变输入、实际此前话轮、上一回复转发结果／播放未知、整体计划、语言与拒绝／冷却状态，调用 MiniMax M3。提案需通过字段、大小、来源引用、目标、回复限制及策略校验；格式修复至多一次，共用截止时间。告别等明确控制可由规则直接处理；模型未配置／超时／非法输出的保守降级单独记录。新输入、偏好更正、打断、撤权或退出使旧在线规划失效，迟到结果不进入新回合。
