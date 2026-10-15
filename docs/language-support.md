@@ -1,5 +1,7 @@
 # 中文优先与自适应英文支架
 
+需求扩展见[自适应语言支架需求](adaptive-language-scaffolding-requirements.md)。该需求尚未实现；本文件记录当前策略与实现边界。
+
 2026-10-10。按用户确认的 PRD §5.4 解释，调整 Task 04 的固定中英句对。
 三个入口共用 `kai-hsk1-v3`、`kai-reply-v2`、`kai-language-v1`。
 工程和合成测试已覆盖；本轮没有调用真实豆包生成或真实 Judge，模型实际遵守及听感仍需验收。
