@@ -1,4 +1,21 @@
-# P0 Task 04: short replies, adaptive English and teaching density
+# Adaptive conversational replies
+
+2026-10-15: the user reported dry, single-sentence acknowledgements and asked to remove artificial reply-length budgets. The current runtime uses `kai-reply-v5`; the older policy below is historical.
+
+Kai first responds to the learner's specific content, question or feeling, then develops the exchange with a relevant observation, explanation or natural follow-up. This is a conversational direction, not a required three-step template. A simple confirmation can remain short; a story or request for explanation deserves enough substance to answer it. Do not replace a meaningful response with generic praise or a new exercise.
+
+There is no fixed character, word, sentence-pair or combined-length allowance. Complexity and information flow adapt to actual understanding, current requests and context; HSK alone does not determine length. Respect requests for a single sentence, no questions, help understanding, or ending. Avoid monologues and leave room for interruption. Chinese-first and sourced English support remain in effect.
+
+A single primary action means one conversational focus. Acknowledging content, adding a relevant observation and asking a connected question can all belong to `RESPOND` or `FOLLOW_UP`. Invite one main answer or exercise at a time; a follow-up is optional, not a mandatory closing question. Ordinary chat may introduce zero teaching points; proactive teaching still focuses on one point/example rather than stacking exercises. These teaching boundaries do not ration ordinary vocabulary or conversational sentences.
+
+For example, after “今天第一次跑完五公里，最后很累，但很开心”, Kai could respond: “第一次跑完五公里，难怪你又累又开心！最后那段还坚持下来了，很不容易。你觉得最难的是哪一段？” This illustrates substantive acknowledgement and a connected follow-up; it is not a script, length target or required answer. A learner asking for a shorter reply, no question or help understanding needs a different response.
+
+The policy reaches initial session instructions and subsequent context updates for all three entries. Both full-contract and draft Planners share it, as does the rule fallback. The planner directive's compatibility field `budget_ref` names the current policy; `reply_budget` length fields are `null`. Per-reply diagnostics retain numeric counts, while `budget_exceeded:null` means no fixed runtime length rule is assessed (null fields are omitted from the metadata export). The 4096-character transient audit buffer remains a memory/privacy bound, not a tutor speaking allowance. Streamed output is not clipped for length.
+
+The frozen `evaluation-reply-v3.js`, authored datasets and historical scores retain their original rules. Their 36-character/shared-length findings describe the old evaluation contract and cannot establish compliance or failure of the new conversational style. A new semantic review must assess whether Kai understood the content, responded with substance, continued naturally and left the learner space; counting sentences cannot prove this. Verification: `npm run verify` passed all 461 tests; `npm run replay` passed all three synthetic scenarios. No new real-provider or browser audio checks were performed; conversational naturalness remains unaccepted.
+
+## Historical Task 04 policy and results
+
 
 Engineering implemented; actual model compliance and listening calibration are
 pending. This task addresses long answers and dense teaching, including the basic

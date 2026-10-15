@@ -1,3 +1,4 @@
+import { REPLY_POLICY_VERSION } from './reply-policy.js';
 import { randomUUID } from 'node:crypto';
 import { planningCapabilities } from './skill-catalog.js';
 import { immutable } from '../contracts/planning.js';
@@ -10,7 +11,7 @@ export const TURN_PLANNING_BUDGET_MS=2000;
 export const TURN_PLANNING_COMMIT_RESERVE_MS=200;
 export function conservativeTurn(input) {
   const d=fallbackDecision(input),p=input.policy;
-  return {interpretation:{intent:d.code,clarity:d.action==='CLARIFY'?'ambiguous':'unknown',refs:[input.turn.source_event_id]},prior_outcome:{execution_ref:input.prior_execution?.execution_id??null,status:input.prior_execution?.status??'none',unknown:['学生理解与完整播放未知']},goal_assessment:null,action:d.action,active_goal_id:null,local_help_target:d.localHelp?'回应本轮表达求助':null,reply_directive:{task:d.task,support_level:d.support,new_points:0,budget_ref:'kai-reply-v4'},expected_observation:{kind:d.action==='CLOSE'?'student_choice':'conversation_continuity',required_student_answer:null},proposed_plan_patch:p.teaching_paused?'pause':d.easier?{op:'replace',goal_id:d.easier.id,refs:[input.turn.source_event_id]}:null,evidence_refs:[input.turn.source_event_id],rationale_code:d.code};
+  return {interpretation:{intent:d.code,clarity:d.action==='CLARIFY'?'ambiguous':'unknown',refs:[input.turn.source_event_id]},prior_outcome:{execution_ref:input.prior_execution?.execution_id??null,status:input.prior_execution?.status??'none',unknown:['学生理解与完整播放未知']},goal_assessment:null,action:d.action,active_goal_id:null,local_help_target:d.localHelp?'回应本轮表达求助':null,reply_directive:{task:d.task,support_level:d.support,new_points:0,budget_ref:REPLY_POLICY_VERSION},expected_observation:{kind:d.action==='CLOSE'?'student_choice':'conversation_continuity',required_student_answer:null},proposed_plan_patch:p.teaching_paused?'pause':d.easier?{op:'replace',goal_id:d.easier.id,refs:[input.turn.source_event_id]}:null,evidence_refs:[input.turn.source_event_id],rationale_code:d.code};
 }
 export class PlanningState {
   constructor({plan,context,resource,planner,observations,resourceVerifier,mode=plan.execution_mode,clock=()=>Date.now(),budgetMs=TURN_PLANNING_BUDGET_MS,onRecord=()=>{},onAcceptedProposal,observationPort}) {

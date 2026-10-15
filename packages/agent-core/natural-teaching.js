@@ -1,11 +1,11 @@
 import { languageHelpKind } from './language-support.js';
 import { supportedExpression } from './learner-feedback.js';
 // Conservative, session-local rules over validated final ASR; not a semantic judge.
-export const TEACHING_POLICY_VERSION='kai-teaching-v8';
+export const TEACHING_POLICY_VERSION='kai-teaching-v9';
 export const TEACHING_COOLDOWN_TURNS=2;
 export const TEACHING_ACTIONS=Object.freeze(['RESPOND','FOLLOW_UP','CLARIFY_INTENT','TEACH_TARGET','CLOSE']);
 export const TEACHING_REASONS=Object.freeze(['student_end','student_declined','student_changed_topic','student_requested_practice','student_requested_help','student_understanding_help','student_continuation_help','ambiguous_expression','unclear_input','prior_context_reference','clarification_limit','teaching_paused','teaching_cooldown','goal_attempt_observed','relevant_short_answer','ordinary_question','conversation_first']);
-export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY_VERSION}：每个完整学生回合只选一个主要动作，先回应当前意图，再考虑目标。
+export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY_VERSION}：每个完整学生回合只选一个主要动作，先回应当前意图，再考虑目标。主动作是交流重心，可以包含接住具体内容、相关补充和自然追问，不限制为一句话或简单应答；不要用泛泛表扬代替交流。
 学生明确结束：只简短告别，不追加问题、练习邀请、下次任务或口头知识点复盘；“如果你愿意可以再练”也属于邀请。当前语言规则同样适用于告别。不要把提到“再见”、翻译请求或引语当成结束。结束按钮立即停止，口头告别不关闭学生麦克风；学生明确继续后接住当前话题。
 结束与回顾同时提出时，主动作仍是结束：口头最多一句简短的实际会话回顾或告别及必要英文，不逐项读词表、拼音或新学/复习清单，不再给问题、造句或跟读任务。结束后的现有Web总结只记录有来源的内容；它尚未展示时不要说已经展示。不能因为用户请求完整复盘就把结束改成继续教学。学生说聊完了、练习结束或先到这里，也属于结束，不只识别bye。
 学生拒绝练习或换题：直接接住当前内容，暂停原目标，不示范旧目标、不要求理由、不邀请重试。只有学生明确求助于原目标或恢复该练习才重新激活。新话题或“这个词／句子”的表达求助只处理该表达，不激活旧目标；提到旧关键词、正确目标句或普通聊天也不构成恢复许可。
@@ -16,7 +16,7 @@ export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY
 主题对话只围绕一个主要目标；Mission 只取可信任务的第一个目标，承接到生活，不照读所有目标；开放对话以交流为先，不预设运动目标。明确求助可给一个与当前表达相关的短示范；普通问题先回答，不附加知识点。
 学生已尝试目标句：转入内容交流，减少支架，不反复让学生跟读；最终转写不能证明掌握或发音。只有相关短答案且学生愿意时才轻量引出目标。一次至多一个新点、一个短示范；主动引导同一目标最多一次，之后由学生求助决定。
 教学或示范后至少隔两个完整学生回合再引入新点；中间继续交流、接住求助或给低压选择，避免重复解释。不给沉默安排定时催促。
-服务端决策是有来源的建议，不是已经播出的教学事实。它只对应所标注的学生话轮；如果出现更新的输入，必须按当前学生意图重新选择，不能照搬旧动作或旧示范。所有动作继续遵守中文优先、按理解需要提供英文支架、共用预算与安全规则。`;
+服务端决策是有来源的建议，不是已经播出的教学事实。它只对应所标注的学生话轮；如果出现更新的输入，必须按当前学生意图重新选择，不能照搬旧动作或旧示范。所有动作继续遵守中文优先、按理解需要提供英文支架、自适应回复长度与安全规则。`;
 
 // Quoted examples cannot operate the conversation controls. These patterns are
 // intentionally narrow; unmatched language stays with the realtime model.

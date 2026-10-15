@@ -18,5 +18,5 @@ test('quoted help and unwillingness do not imply a continuation, and no profile 
   for(const text of ['I have no new topic.',"I don't want to keep chatting.",'She said "I have no new topic but still want to chat".']){
     s.accept(event(text,text.length.toString()));assert.notEqual(s.view().decision.reason,'student_continuation_help',text);
   }
-  assert.deepEqual(REPLY_BUDGET,FROZEN_BUDGET);assert.equal(s.memory.length,0);
+  assert.equal(REPLY_BUDGET.chinese_chars,null);assert.equal(FROZEN_BUDGET.chinese_chars,36);assert.equal(s.memory.length,0);
 });

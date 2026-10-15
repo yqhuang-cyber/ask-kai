@@ -1,5 +1,9 @@
 # Incremental delivery
 
+2026-10-15 降级清单已按当前工作区代码核对：新增[Planner 降级点与替代规则](planner-fallback-inventory.md)，列出 F-01～08 的触发条件、模型修复／时限、三入口初始化和 T-01～13 逐轮替代规则，区分正常控制、Topic 生成失败、取消／过期、观察及呈现 fallback。记录资源失效未标 degraded、规则优先级和适配局限，以及后续分层评估清单；README 已加导航和配置区链接。本项仅更新文档，未改变运行行为、学习者数据或冻结评测，未新增真实模型／豆包／浏览器检查。
+
+2026-10-15 回复机制调整：按用户反馈取消默认一句／最多两句及固定字数预算，`kai-reply-v5` 按语境和理解需要回应；明确先接住具体内容，再相关补充或自然追问，单个主动作可以承载这一过程。同步 Planner、规则降级与语言策略，保留逐轮 2 秒时限、学生控制权与有来源证据。冻结评测数据／历史评分保持原样，本轮 `npm run verify` 461 项测试及 `npm run replay` 三个 synthetic replay 通过；未执行新真实模型／豆包调用或浏览器听感检查，新回复自然度需独立真实验证。见[当前回复策略](short-replies.md)。
+
 2026-10-15 最新优先级：用户要求暂时搁置主题式对话入口工程链路，剩余 review／质量项保留在[主题 TODO](topic-planner-tasking.md#搁置-todo)。本轮只审查自由对话工程链路并记录完善顺序，见[free 审查](free-conversation-engineering-review.md)；未修改运行代码、学习者数据或供应商配置，未执行新真实模型／豆包调用。
 
 2026-10-15 工程 review 第 1 项修复：free 准备／消费／逐轮路径不再请求课程或 Topic Pack；显式练习使用独立通用 Skill catalog，保持三类授权学习者资料与实际前文输入。课程引用为空，未验证观察规则不产生 attempted。页面／后续语音上下文及总结共用同一计划；其余 review 项与 Mission 默认选择留待后续。验证结果见 [主题链路实施记录](topic-chain-implementation.md)。

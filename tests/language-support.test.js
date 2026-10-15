@@ -119,7 +119,7 @@ test('Chinese-only and mixed adaptive replies preserve order, budgets and semant
   for(const text of ['Hello. 你好。','你好。 Hello. More English.','你好。你喜欢茶吗？ Hello. Do you like tea?'])assert.equal(measureReply(text,{englishSupport:'adaptive'}).language_order_issue,true,text);
   assert.equal(measureReply('你好。').language_order_issue,true);
   assert.equal(measureReply('你好。 Hello.',{englishSupport:'off'}).english_support_issue,true);
-  assert.equal(measureReply('一'.repeat(37)+'。',{englishSupport:'off'}).budget_exceeded,true);
+  assert.equal(measureReply('一'.repeat(37)+'。',{englishSupport:'off'}).budget_exceeded,null);
   const audit=new ReplyAudit({englishSupport:'adaptive',languageContextMatched:false});audit.append('你好。');
   assert.equal(audit.finish('done').language_order_issue,null);
 });

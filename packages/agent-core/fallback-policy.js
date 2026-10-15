@@ -1,5 +1,5 @@
 import { eligibleGoal } from './goal-lifecycle.js';
-export const FALLBACK_POLICY_VERSION='kai-planning-fallback-v2';
+export const FALLBACK_POLICY_VERSION='kai-planning-fallback-v3';
 export function fallbackDecision(input) {
   const resource=input.skill_catalog??input.resource;
   const p=input.policy,close=p.action==='CLOSE',clarify=p.action==='CLARIFY_INTENT';
@@ -16,7 +16,7 @@ export function fallbackDecision(input) {
   if(p.reason==='student_requested_practice')return choice(input.plan?.goal_status==='active'?'fallback_requested_practice':'fallback_unverified_practice_choice',input.plan?.goal_status==='active'?'接住学生明确练习意愿，围绕当前已确认目标给一个低压入口；不提高目标或强制跟读':'承接学生的练习意愿，只确认一个必要选择；不恢复原目标或擅自改练其他目标','choice');
   if(p.reason==='student_continuation_help')return choice('fallback_continuation_help','复用实际前文给一个最小话题入口或短承接；不增加句型或安排新练习','choice');
   if(/^(?:老师|他|她|Kai)(?:说|告诉我)/iu.test(input.turn.text?.trim()??''))return choice('fallback_reported_content','承接学生转述的当前内容，不把转述句记为学生本人的喜好、能力或目标尝试');
-  if(input.learner_feedback?.signal==='supported_attempt')return choice('fallback_follow_observed_content','接住学生刚表达的具体内容，继续交流；不重复完整示范，不称独立或掌握，可以不提问','none','FOLLOW_UP');
-  if(p.teaching_paused)return choice('fallback_paused_conversation','只回应当前交流内容，保留旧目标暂停；关键词不构成恢复许可');
-  return choice('conservative_planner_fallback','先回应学生当前内容，不新增目标或强制练习；不确定时低压承接','none',input.goal_review?.assessment?.attempt_count>0?'FOLLOW_UP':'RESPOND');
+  if(input.learner_feedback?.signal==='supported_attempt')return choice('fallback_follow_observed_content','接住学生刚表达的具体内容，给有内容的回应，再按语境补充观察或自然追问；不重复完整示范，不称独立或掌握，可以不提问','none','FOLLOW_UP');
+  if(p.teaching_paused)return choice('fallback_paused_conversation','先回应当前交流的具体内容，再按语境补充或自然追问，保留旧目标暂停；关键词不构成恢复许可');
+  return choice('conservative_planner_fallback','先接住学生当前的具体内容、问题或感受，再按语境补充相关观察、解释或自然追问；不只泛泛确认，不新增目标或强制练习；不确定时低压承接','none',input.goal_review?.assessment?.attempt_count>0?'FOLLOW_UP':'RESPOND');
 }

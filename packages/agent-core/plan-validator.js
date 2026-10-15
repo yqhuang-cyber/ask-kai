@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { PLAN_ACTIONS,LIMITS,exact,boundedText,isId,immutable } from '../contracts/planning.js';
 import { checkGoalPatch,goalChoice } from './goal-lifecycle.js';
 import { validateVisibleInstruction } from './agent-reasoning.js';
-import { measureReply } from './reply-policy.js';
+import { measureReply,REPLY_POLICY_VERSION } from './reply-policy.js';
 export const planHash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export function contextRefs(context,resource) {
   return new Set([context.snapshot_id,...context.student_profile.interests.map(r=>r.record_id),...context.learning_profile.kp_states.map(r=>r.record_id),...context.learning_history.map(r=>r.record_id),...(resource?[resource.id,...resource.goals.map(g=>g.id),...resource.key_points.map(k=>k.id),...resource.cards.map(c=>c.id)]:[])]);
@@ -40,7 +40,7 @@ export function validateTurn(p,{plan,input,policy,allowedRefs,context,resource,p
   if(!exact(p.reply_directive,['task','support_level','new_points','budget_ref'])||!boundedText(p.reply_directive.task,400))throw new Error('INVALID_TURN_DIRECTIVE');
   if(!['none','partial','model','choice'].includes(p.reply_directive.support_level))throw new Error('INVALID_SUPPORT_LEVEL');
   if(![0,1].includes(p.reply_directive.new_points))throw new Error('INVALID_NEW_POINT_COUNT');
-  if(p.reply_directive.budget_ref!=='kai-reply-v4')throw new Error('INVALID_REPLY_BUDGET_REF');
+  if(p.reply_directive.budget_ref!==REPLY_POLICY_VERSION)throw new Error('INVALID_REPLY_BUDGET_REF');
   if(!exact(p.expected_observation,['kind','required_student_answer'])||!boundedText(p.expected_observation.kind,100)||p.expected_observation.required_student_answer!==null)throw new Error('INVALID_EXPECTED_OBSERVATION');
   if(!exact(p.prior_outcome,['execution_ref','status','unknown'])||(p.prior_outcome.execution_ref!==null&&!allowedRefs.has(p.prior_outcome.execution_ref))||!['none','unknown','generated','forwarded','cancelled','partial','completed'].includes(p.prior_outcome.status)||!Array.isArray(p.prior_outcome.unknown)||p.prior_outcome.unknown.length>4||!p.prior_outcome.unknown.every(x=>boundedText(x,100)))throw new Error('INVALID_PRIOR_OUTCOME');
   if(priorExecution!==undefined&&(p.prior_outcome.execution_ref!==(priorExecution?.execution_id??null)||p.prior_outcome.status!==(priorExecution?.status??'none')))throw new Error('PRIOR_OUTCOME_CONFLICT');
