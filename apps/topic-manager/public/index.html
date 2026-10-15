@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Ask Kai · 主题管理</title><link rel="stylesheet" href="/manager.css"><body>
+<h1>主题管理</h1><p>提前生成 Topic Pack，预览准入范围后发布。学习会话只读取已发布版本。辅助审阅不代表独立教学质量认证。</p>
+<label>本机管理凭据 <input id="token" type="password" autocomplete="off"></label><button id="refresh">读取</button>
+<form id="define"><p><label>Topic ID <input name="id" required pattern="[A-Za-z0-9_-]{1,128}"></label> <label>名称 <input name="title" required maxlength="60"></label></p><label>主题范围 <textarea name="brief" required maxlength="500"></textarea></label><button>保存主题</button></form>
+<p><label>Topic ID <input id="topic"></label><button id="generate">生成草稿</button></p>
+<p><label>版本 <input id="version"></label><button id="publish">发布／回滚到此版本</button><button id="revoke">撤销此版本</button><label>Job ID <input id="job"></label><button id="cancel">取消生成</button></p>
+<p id="status" role="status"></p><pre id="result"></pre><script src="/manager.js" type="module"></script></body></html>

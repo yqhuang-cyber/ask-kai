@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { validateLearnerContext,validateCurriculum,validateLearningRecord } from '../packages/contracts/planning.js';
 import { learnerFixture,SPORTS_RESOURCE,missionResource } from '../apps/hskai-mock/src/planning-fixtures.js';
 import { MOCK_IDENTITY,MOCK_MISSION } from '../apps/hskai-mock/src/server.js';
-import { ConversationInitializer,conservativeConversation,normalizeEntry } from '../packages/agent-core/conversation-initializer.js';
+import { ConversationInitializer,INITIAL_PLANNING_BUDGET_MS,conservativeConversation,normalizeEntry } from '../packages/agent-core/conversation-initializer.js';
 import { validateConversation,contextRefs,validateTurn } from '../packages/agent-core/plan-validator.js';
 import { MiniMaxPlanner,boundedProposal } from '../packages/agent-core/planner-port.js';
 import { PlanningState,conservativeTurn } from '../packages/agent-core/planning-state.js';
@@ -28,7 +28,7 @@ test('paired mock fixtures change content independently from evidence-driven goa
   const a=await prepare(),b=await prepare('sports','b'),c=await prepare('sports','c');
   assert.equal(a.plan.content_focus,'篮球');assert.equal(c.plan.content_focus,'跑步');
   assert.equal(a.plan.primary_goal.id,c.plan.primary_goal.id);assert.equal(a.plan.primary_goal.id,'express-likes');assert.equal(b.plan.primary_goal.id,'express-time');
-  assert.equal(b.plan.planner_kind,'rule');assert.equal(b.plan.degraded_reason,'planner_unconfigured');
+  assert.equal(b.plan.planner_kind,'rule');assert.equal(b.plan.degraded_reason,'planner_unconfigured');assert.equal(b.initializer.budgetMs,INITIAL_PLANNING_BUDGET_MS);
   assert.notEqual(a.plan.hash,b.plan.hash);assert.ok(Object.isFrozen(a.plan));
 });
 test('Mission selects all authored targets and unknown/free/declined contexts retain honest limits',async()=> {

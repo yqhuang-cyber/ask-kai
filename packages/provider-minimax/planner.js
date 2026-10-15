@@ -9,7 +9,7 @@ export class MiniMaxJsonTransport {
   }
   async completeJSON({kind,messages,signal}) {
     let response;const started=performance.now(),observe=fields=>{try{this.observe({kind,elapsed_ms:Math.round(performance.now()-started),...fields});}catch{}};
-    const payload={model:this.model,thinking:{type:'disabled'},max_completion_tokens:1600,stream:false,messages};
+    const payload={model:this.model,thinking:{type:'disabled'},max_completion_tokens:kind==='topic_generation'?3200:1600,stream:false,messages};
     observe({state:'request_started',input_bytes:Buffer.byteLength(JSON.stringify(payload))});
     try{response=await this.fetcher(this.endpoint,{method:'POST',redirect:'error',signal,headers:{Authorization:'Bearer '+this.apiKey,'Content-Type':'application/json'},body:JSON.stringify(payload)});}
     catch{observe({state:signal?.aborted?'cancelled':'network_failed'});throw new Error(signal?.aborted?'PLANNER_CANCELLED':'PLANNER_UNAVAILABLE');}
@@ -25,7 +25,7 @@ export class MiniMaxJsonTransport {
     if(result.choices?.[0]?.finish_reason!=='stop')throw new Error('PLANNER_INCOMPLETE_OUTPUT');
     const content=result.choices[0].message?.content;
     observe({state:'output_shape',content_bytes:typeof content==='string'?Buffer.byteLength(content):null,json_prefix:typeof content==='string'&&content.trimStart().startsWith('{'),reasoning_present:typeof result.choices[0].message?.reasoning_content==='string'&&result.choices[0].message.reasoning_content.length>0});
-    if(typeof content!=='string'||Buffer.byteLength(content)>LIMITS.proposal_bytes)throw new Error('PLANNER_INVALID_JSON');
+    if(typeof content!=='string'||Buffer.byteLength(content)>(kind==='topic_generation'?16000:LIMITS.proposal_bytes))throw new Error('PLANNER_INVALID_JSON');
     let value;try{value=JSON.parse(content);}catch{throw new Error('PLANNER_INVALID_JSON');}
     if(!isObject(value))throw new Error('PLANNER_INVALID_JSON');
     return value;

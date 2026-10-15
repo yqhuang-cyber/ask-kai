@@ -1,9 +1,10 @@
 import { eligibleGoal } from './goal-lifecycle.js';
 export const FALLBACK_POLICY_VERSION='kai-planning-fallback-v2';
 export function fallbackDecision(input) {
+  const resource=input.skill_catalog??input.resource;
   const p=input.policy,close=p.action==='CLOSE',clarify=p.action==='CLARIFY_INTENT';
   const declined=input.goal_review?.session_declined_goal_ids??[];
-  const easier=!close&&!p.teaching_paused&&input.goal_review?.difficulty_count>=2?input.resource?.goals.find(g=>!declined.includes(g.id)&&eligibleGoal(g,{learning_profile:input.learning_profile,learning_history:input.learning_history??[]},input.resource)&&input.plan.primary_goal?.kp_ids.some(id=>input.resource.key_points.find(k=>k.id===id).prerequisites.some(kp=>g.kp_ids.includes(kp)))):null;
+  const easier=!close&&!p.teaching_paused&&input.goal_review?.difficulty_count>=2?resource?.goals.find(g=>!declined.includes(g.id)&&eligibleGoal(g,{learning_profile:input.learning_profile,learning_history:input.learning_history??[]},resource)&&input.plan.primary_goal?.kp_ids.some(id=>resource.key_points.find(k=>k.id===id).prerequisites.some(kp=>g.kp_ids.includes(kp)))):null;
   const choice=(code,task,support='none',action='RESPOND')=>({code,task,support,action,localHelp:false,easier:null});
   if(close)return choice('student_end_rule','简短告别，不追加提问、复盘或练习','none','CLOSE');
   if(clarify)return choice('fallback_necessary_clarification','只问一个必要的短澄清问题，依据实际前文；不猜词义或能力','choice','CLARIFY');

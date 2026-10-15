@@ -89,6 +89,7 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, p
       const url = new URL(req.url, 'http://localhost');
       if (req.method === 'GET' && url.pathname === '/healthz') return json(res, 200, { service:'ask-kai', mode:pocPort?'standalone_poc':'synthetic_replay', provider_connected:false, status:'ok' });
       if (req.method === 'GET' && url.pathname === '/api/replays') return json(res, 200, { scenarios:SCENARIOS });
+      if(req.method==='GET'&&url.pathname==='/api/topics'){if(!planningPort?.topics)return json(res,200,{managed:false,topics:[]});try{return json(res,200,{managed:true,topics:await planningPort.topics.list()});}catch{return json(res,503,{managed:true,topics:[],error:'TOPIC_SERVICE_UNAVAILABLE'});}}
       if(req.method==='GET' && url.pathname==='/api/runtime')return json(res,200,{app:'ask-kai-agent-poc',backend:pocPort?'mock_hskai':bridge?'external_hskai':'unconfigured',voice_configured:realtime.available,provider_connected:false,mock_persistence:pocPort?'process_memory':null,planning:{mode:planningMode,available:!!preparations,planner_configured:!!planner,controlled_available:false},entry_previews:planningMode==='legacy'?Object.fromEntries(['sports','free'].map(mode=>[mode,new TeachingSession({sessionId:'preview',mode}).view()])):{}});
       if(url.pathname==='/api/conversation-preparations'||url.pathname.startsWith('/api/conversation-preparations/')) {
         if(!preparations)return json(res,501,{error:'PLANNING_NOT_CONFIGURED'});
@@ -180,8 +181,9 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, p
         let identity;try{identity=authorize(req,'session:create');}catch{return json(res,401,{error:'HSKAI_AUTHORIZATION_REQUIRED'});}
         let input;
         try {input=await readJson(req);}catch{return json(res,400,{error:'INVALID_REQUEST'});}
-        if(!input || !['sports','free','mission'].includes(input.mode) || Object.keys(input).some(k=>!['mode','mission_id','speech_pace','preparation_id'].includes(k)) || (input.mode==='mission' && typeof input.mission_id!=='string'))return json(res,400,{error:'INVALID_MODE'});
+        if(!input || !['sports','topic','free','mission'].includes(input.mode) || Object.keys(input).some(k=>!['mode','topic_id','mission_id','speech_pace','opening_request','preparation_id'].includes(k)) || (input.mode==='mission' && typeof input.mission_id!=='string'))return json(res,400,{error:'INVALID_MODE'});
         if(planningMode==='controlled')return json(res,501,{error:'CONTROLLED_REALTIME_NOT_VERIFIED'});
+        if(input.mode==='topic'&&!preparations)return json(res,400,{error:'TOPIC_PLANNING_REQUIRED'});
         if(input.speech_pace!==undefined && !isSpeechPace(input.speech_pace))return json(res,400,{error:'INVALID_SPEECH_PACE'});
         if(input.speech_pace!==undefined && !speechAvailable)return json(res,400,{error:'SPEECH_PACE_UNSUPPORTED'});
         if(input.mode==='mission' && identity.mission?.id!==input.mission_id)return json(res,403,{error:'TRUSTED_MISSION_REQUIRED'});
@@ -196,7 +198,7 @@ export function createGateway({ paceMs = 120, bridge, memoryPort, privacyPort, p
           }catch{return json(res,409,{error:'PREPARATION_UNAVAILABLE_OR_STALE'});}
         } else if(input.preparation_id!==undefined)return json(res,400,{error:'PLANNING_NOT_CONFIGURED'});
         try{bridge?.consume(identity);}catch{return json(res,401,{error:'LAUNCH_ALREADY_USED'});}
-        try{return json(res,201,realtime.create({origin,mode:input.mode,identity,planning,bindPlanning:preparations?(result,id)=>preparations.bind(result,id):undefined,speechPace:speechAvailable?(input.speech_pace??DEFAULT_SPEECH_PACE):undefined}));}catch{return json(res,429,{error:'SESSION_CAPACITY'});}
+        try{return json(res,201,realtime.create({origin,mode:input.mode==='topic'&&planning?.resource?.id==='sports'?'sports':input.mode,identity,planning,bindPlanning:preparations?(result,id)=>preparations.bind(result,id):undefined,speechPace:speechAvailable?(input.speech_pace??DEFAULT_SPEECH_PACE):undefined}));}catch{return json(res,429,{error:'SESSION_CAPACITY'});}
       }
       if (req.method === 'GET' && url.pathname.startsWith('/api/replays/')) {
         const id = url.pathname.slice('/api/replays/'.length);

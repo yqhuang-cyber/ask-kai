@@ -7,14 +7,19 @@ export const SUCCESS_RULES=Object.freeze({
   'time-independent-session-v1':{kp_id:'time-expression',minimum_opportunities:2,required:['semantic_review','prompt_scope','different_contexts','independent_expression']}
 });
 // These recognize explicit controls, not learner competence or arbitrary intent.
-export function goalChoice(text) {
+export function goalChoice(text,resource) {
   const t=controlText(text);
   if(/(?:怎么(?:说|讲)|什么意思)|\b(?:what does|how (?:do|can|would).*say)\b/iu.test(t))return {kind:'none',goal_id:null};
   if(/^(?:取消|移除|不再练)(?:这个|当前|原来的)?(?:目标|练习)[。！!\s]*$/u.test(t)||/^cancel (?:this |the )?(?:goal|practice)[.!\s]*$/iu.test(t))return {kind:'retire',goal_id:null};
-  const willing=/(?:我想|我要|我愿意|继续|改为|改成|换成|换个|换一个|想换成|想改成)(?:再)?(?:练习|练|学习|学)|\b(?:i want to (?:practice|learn)|let['’]?s (?:practice|learn)|switch to practicing)\b/iu.test(t);
+  const willing=/(?:我(?:现在)?(?:想|要|愿意)(?:继续)?|继续|改为|改成|换成|换个|换一个|想换成|想改成)(?:再)?(?:练习|练|学习|学)|\b(?:i want to (?:practice|learn)|let['’]?s (?:practice|learn)|switch to practicing)\b/iu.test(t);
   if(willing&&!/(?:不想|不要|不愿意|不练|不学)|\b(?:don['’]?t|do not|not want)\b/iu.test(t)) {
     const likes=/(?:喜好|喜欢(?:的表达|这个词)?|express(?:ing)? likes|preferences)/iu.test(t),time=/(?:时间(?:表达)?|运动安排|time expressions?)/iu.test(t);
-    if(likes!==time)return {kind:'select',goal_id:likes?'express-likes':'express-time'};
+    if(['topic-pack-v1','communication-skills-v1'].includes(resource?.schema_version)) {
+      const phrases={'frequency-expression':['频率','每周次数'],'narrative-organization':['复杂经历','信息取舍'],'supporting-opinions':['具体论据','观点依据'],'qualified-claims':['限定观点','限定范围','观点范围'],'register-and-nuance':['措辞','语域'],'event-sequence':['事件顺序'],'comparison':['比较选项'],'simple-reasons':['说明原因']};
+      const matches=resource.goals.filter(g=>t.includes(g.label)||t.includes(g.id)||g.kp_ids.some(id=>t.includes(id)||(phrases[id]??[]).some(p=>t.includes(p))));
+      if(matches.length===1)return {kind:'select',goal_id:matches[0].id};
+      if(likes!==time){const kp=likes?'likes-expression':'time-expression',goal=resource.goals.find(g=>g.kp_ids.includes(kp));if(goal)return {kind:'select',goal_id:goal.id};}
+    } else if(likes!==time)return {kind:'select',goal_id:likes?'express-likes':'express-time'};
   }
   if(/^(?:这个(?:目标|练习)?(?:对我)?太难了|(?:这个|这句|这个练习)我(?:还是)?不会|这个练习我(?:还是)?说不出来)[。！!\s]*$/u.test(t)||/^(?:this (?:goal|practice) is too hard|i still can['’]?t do this practice)[.!\s]*$/iu.test(t))return {kind:'difficulty',goal_id:null};
   return {kind:'none',goal_id:null};

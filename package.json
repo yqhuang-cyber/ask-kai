@@ -37,7 +37,13 @@
     "probe:planning:fc": "node --env-file-if-exists=.env scripts/fc-planning-probe.js",
     "eval:agent": "node --env-file-if-exists=.env scripts/agent-eval.js",
     "review:planning": "node --env-file-if-exists=.env scripts/review-planning.js",
-    "eval:agent:long": "node scripts/long-session-eval.js"
+    "eval:agent:long": "node scripts/long-session-eval.js",
+    "topics": "node --env-file-if-exists=.env apps/topic-manager/src/main.js",
+    "topics:synthetic": "npm run topics -- --synthetic",
+    "eval:topics": "node --env-file-if-exists=.env scripts/topic-eval.js",
+    "test:browser:topics": "node scripts/topic-browser-check.js",
+    "topics:generate": "node --env-file-if-exists=.env scripts/topic-generate.js",
+    "eval:topics:live-planning": "node --env-file-if-exists=.env scripts/topic-live-planning.js"
   },
   "dependencies": {
     "@langchain/core": "1.2.14",

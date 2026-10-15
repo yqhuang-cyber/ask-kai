@@ -16,7 +16,7 @@ function json(res,status,value){res.writeHead(status,{'Content-Type':'applicatio
 async function body(req){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>24576)throw new Error('INVALID_REQUEST');chunks.push(chunk);}const value=JSON.parse(Buffer.concat(chunks).toString());if(!value || typeof value!=='object' || Array.isArray(value))throw new Error('INVALID_REQUEST');return value;}
 
 // Actual local HTTP contract double, never an external HSKai account or human queue.
-export function createMockHskai({secret,clock=()=>Date.now(),initialMemory,mission=MOCK_MISSION,fixtureVariant,fixtureIdentities=[]}={}) {
+export function createMockHskai({secret,clock=()=>Date.now(),initialMemory,mission=MOCK_MISSION,fixtureVariant,fixtureIdentities=[],topicResources}={}) {
   if(typeof secret!=='string' || secret.length<32)throw new Error('BRIDGE_SECRET_REQUIRED');
   const memory=new InMemoryLearnerStore(),used=new Map(),privacy=new Map(),handoffs=new Map();
   const fixtureAt=clock();
@@ -65,7 +65,8 @@ export function createMockHskai({secret,clock=()=>Date.now(),initialMemory,missi
         }
         const record=validateLearningRecord(input.record);
         if(input.idempotency_key!==record.session_id)return json(res,400,{error:'INVALID_IDEMPOTENCY_KEY'});
-        const r=record.resource_ref===null?null:record.resource_ref.id==='sports'?SPORTS_RESOURCE:record.resource_ref.id===mission?.id?missionResource(mission):undefined;
+        let r=record.resource_ref===null?null:record.resource_ref.id==='sports'&&record.resource_ref.version===SPORTS_RESOURCE.version?SPORTS_RESOURCE:record.resource_ref.id===mission?.id?missionResource(mission):undefined;
+        if(r===undefined&&topicResources)try{r=await topicResources.read(record.resource_ref.id,{version:record.resource_ref.version});}catch{return json(res,400,{error:'INVALID_RECORD_RESOURCE'});}
         if(r===undefined||r&&r.version!==record.resource_ref.version||record.observations.some(o=>!r?.key_points.some(k=>k.id===o.kp_id&&k.evidence_rule!=='unassessed'&&(record.schema_version!=='learning-record-v2'||k.evidence_rule===o.attempt_rule_ref&&r.goals.some(g=>g.id===o.goal_id&&g.kp_ids.includes(k.id))))))return json(res,400,{error:'INVALID_RECORD_RESOURCE'});
         const recordKey=JSON.stringify([key(identity),record.session_id]);let stored=learningRecords.get(recordKey);
         if(stored&&JSON.stringify(stored.record)!==JSON.stringify(record))return json(res,409,{error:'RECORD_CONFLICT'});

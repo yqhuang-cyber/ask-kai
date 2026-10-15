@@ -6,6 +6,7 @@ import { MOCK_IDENTITY,MOCK_MISSION } from '../apps/hskai-mock/src/server.js';
 import { ConversationInitializer,normalizeEntry } from '../packages/agent-core/conversation-initializer.js';
 import { Preparations } from '../apps/realtime-gateway/src/preparations.js';
 import { TeachingSession } from '../packages/agent-core/teaching.js';
+import { TURN_PLANNING_BUDGET_MS } from '../packages/agent-core/planning-state.js';
 import { configuredPlanner,PLANNER_PROMPT_VERSION,plannerDescriptor } from '../packages/agent-core/planner-port.js';
 const hash=v=>createHash('sha256').update(v).digest('hex');
 async function sourceHashes(dir) {
@@ -25,7 +26,7 @@ try {
   const variants=probe?['a']:live?['a','b']:['a','b','c','d','e'];
   for(const variant of variants)for(const mode of probe?['sports']:['sports','mission','free']) {
     const port={read:async i=>learnerFixture(i,{variant}),getResource:async(i,e)=>e.mode==='free'?null:e.mode==='mission'?missionResource(i.mission):SPORTS_RESOURCE};
-    const initializer=new ConversationInitializer({port,planner,budgetMs:probe?15000:10000}),entry=normalizeEntry({mode,...(mode==='mission'?{mission_id:MOCK_MISSION.id}:{})},identity);
+    const initializer=new ConversationInitializer({port,planner,budgetMs:15000}),entry=normalizeEntry({mode,...(mode==='mission'?{mission_id:MOCK_MISSION.id}:{})},identity);
     const start=performance.now();let result;
     try{result=await initializer.prepare(entry,identity);}catch{cases.push({fixture:variant,mode,contract_valid:false,status:'initialization_failed_or_deadline',elapsed_ms:Math.round(performance.now()-start),plan_quality:null,execution_control_verified:false,content_score:null});continue;}
     const bound=new Preparations({initializer}).bind(result,`eval-${variant}-${mode}`);
@@ -36,5 +37,5 @@ try {
     teaching.finalize({businessSource:'mock_hskai'});
   }
   const source_hashes={...await sourceHashes('packages'),...await sourceHashes('apps'),...await sourceHashes('scripts')};
-  console.log(JSON.stringify({schema_version:'planning-eval-v1',baseline_commit:baseline.legacy_commit,candidate:{source_hashes,planner_profile:plannerDescriptor(planner),prompt:plannerDescriptor(planner).prompt,contract:PLANNING_VERSION,path:'next_turn_advisory'},input:'synthetic_mock_fixtures',probe_only:probe,budgets:{initial_ms:probe?15000:10000,turn_ms:5000},model_calls_enabled:live,transport,real_provider_connected:false,browser_audio_tested:false,contains_transcripts:false,case_count:cases.length,cases,quality_acceptance:false,unverified:['MiniMax semantic calibration','current-turn generation gate','real duplex and browser audio','latency and cost thresholds']},null,2));
+  console.log(JSON.stringify({schema_version:'planning-eval-v1',baseline_commit:baseline.legacy_commit,candidate:{source_hashes,planner_profile:plannerDescriptor(planner),prompt:plannerDescriptor(planner).prompt,contract:PLANNING_VERSION,path:'next_turn_advisory'},input:'synthetic_mock_fixtures',probe_only:probe,budgets:{initial_ms:15000,turn_ms:TURN_PLANNING_BUDGET_MS},model_calls_enabled:live,transport,real_provider_connected:false,browser_audio_tested:false,contains_transcripts:false,case_count:cases.length,cases,quality_acceptance:false,unverified:['MiniMax semantic calibration','current-turn generation gate','real duplex and browser audio','latency and cost thresholds']},null,2));
 }catch(error){console.error(['MINIMAX_PLANNER_CONFIG_REQUIRED','FROZEN_DATASET_CHANGED','INVALID_PLANNING_EVAL_ARGUMENT'].includes(error.message)?error.message:'PLANNING_EVAL_FAILED');process.exitCode=1;}

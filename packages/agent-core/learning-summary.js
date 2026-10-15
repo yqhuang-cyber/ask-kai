@@ -48,7 +48,7 @@ export class LearningSummary {
     this.recapTopics=new Map();this.recapExpressions=new Map();
     this.mission=mission?structuredClone(mission):null;
     this.rule=mode==='mission'?missionRule(mission.targets[0]):{supported:true,literal:null};
-    this.goal=mode==='free'?null:{id:mode==='sports'?SPORTS_LESSON.goal.id:'mission-target-1',label:mode==='sports'?SPORTS_LESSON.goal.label:mission.targets[0],
+    this.goal=['free','topic'].includes(mode)?null:{id:mode==='sports'?SPORTS_LESSON.goal.id:'mission-target-1',label:mode==='sports'?SPORTS_LESSON.goal.label:mission.targets[0],
       source:mode==='sports'?{kind:SPORTS_LESSON.source,lesson_version:SPORTS_LESSON.version}:{kind:'authorized-hskai-mission',mission_id:mission.id,completion_id:mission.completion_id,target_index:0},
       attempt_rule_supported:this.rule.supported};
   }

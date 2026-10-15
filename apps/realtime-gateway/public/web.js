@@ -55,6 +55,8 @@ const paceSelect=document.querySelector('#speech-pace'),paceHint=document.queryS
 const learnerSelect=document.querySelector('#mock-learner-select'),learnerHint=document.querySelector('#mock-learner-hint');
 let paceSupported=false;
 let mode='sports',ws,io,generation=0,config,muted=false,mission=null,safetyMessage=null;
+let topicManaged=false,topicId='sports',topicAvailable=true;
+const topicSelect=document.querySelector('#topic-select');
 let entryPreviews={},dynamicPlanning=false,preparationPromise=null,preparationEpoch=0;
 const saveLearning=document.querySelector('#save-learning');
 const interrupt=document.querySelector('#interrupt');
@@ -74,13 +76,13 @@ function learning(packet) {
   const count=packet.attempt_count??packet.attempts.length;
   document.querySelector('#learning-attempts').textContent=count ? `本轮记录 ${count} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
 }
-const entry=()=>({mode,...(mode==='mission'?{mission_id:mission.id}:{}),...(paceSupported?{speech_pace:paceSelect.value}:{})});
+const entry=()=>({mode:topicManaged&&mode==='sports'?'topic':mode,...(topicManaged&&mode==='sports'?{topic_id:topicId,...(document.querySelector('#opening-request').value.trim()?{opening_request:document.querySelector('#opening-request').value.trim()}:{})}:{}),...(mode==='mission'?{mission_id:mission.id}:{}),...(paceSupported?{speech_pace:paceSelect.value}:{})});
 const preparer=new PreparationClient({fetcher:authorizedFetch,onView:learning,onStatus:(state,details)=> {
   if(state==='preparing'){message.textContent='正在准备对话……';}
   else if(state==='ready')message.textContent=details?.degraded?'对话已准备；当前使用保守策略，规划模型暂不可用。':'对话已准备，可以开始。';
   else if(state==='failed')message.textContent='对话准备失败，请重新选择或开始。';
 }});
-function prepareSelected(){if(!dynamicPlanning)return;const epoch=++preparationEpoch;preparationPromise=preparer.prepare(entry()).then(id=>epoch===preparationEpoch?id:null);}
+function prepareSelected(){if(!dynamicPlanning||topicManaged&&mode==='sports'&&!topicAvailable)return;const epoch=++preparationEpoch;preparationPromise=preparer.prepare(entry()).then(id=>epoch===preparationEpoch?id:null);}
 function suppressLearning(reason){summaryCards.suppress(reason);goal.textContent='';promptHint.textContent='';document.querySelector('.word-card').hidden=true;document.querySelector('#learning-attempts').textContent='本轮没有可展示的学习记录。';}
 function selectMode(button) {
   summaryCards.reset();document.querySelector('#learning-attempts').textContent='尚无对话记录。';document.querySelector('.word-card').hidden=true;
@@ -88,12 +90,17 @@ function selectMode(button) {
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
   const preview=entryPreviews[mode];
   if(preview)learning(preview);else{goal.textContent='正在准备本次对话。';promptTitle.textContent=mode==='mission'?mission?.title??'准备对话':'准备对话';promptHint.textContent='';}
-  prepareSelected();
+  controls(false);prepareSelected();
 }
 for(const button of modes)button.addEventListener('click',()=>selectMode(button));
 paceSelect.addEventListener('change',prepareSelected);
+const topicsReady=loadTopics();
+async function loadTopics(){try{const response=await fetch('/api/topics');const data=await response.json();topicManaged=data.managed===true;if(!topicManaged){document.querySelector('[data-mode=sports]').textContent='运动主题';return;}topicSelect.replaceChildren();for(const t of data.topics??[]){const option=document.createElement('option');option.value=t.id;option.textContent=t.title+(t.source==='synthetic'?' · 合成测试':'');topicSelect.append(option);}topicAvailable=response.ok&&topicSelect.options.length>0;if([...topicSelect.options].some(o=>o.value===topicId))topicSelect.value=topicId;topicId=topicSelect.value;document.querySelector('#topic-picker').hidden=false;document.querySelector('#topic-status').textContent=topicAvailable?'已发布主题':'暂无可用主题，请先在主题管理发布。';if(!topicAvailable&&mode==='sports')selectMode(document.querySelector('[data-mode=free]'));}catch{topicManaged=true;topicAvailable=false;document.querySelector('#topic-picker').hidden=false;document.querySelector('#topic-status').textContent='主题服务暂不可用。';if(mode==='sports')selectMode(document.querySelector('[data-mode=free]'));}controls(false);}
+document.querySelector('#opening-request').addEventListener('change',prepareSelected);
+topicSelect.addEventListener('change',()=>{topicId=topicSelect.value;prepareSelected();});
+document.querySelector('#refresh-topics').addEventListener('click',()=>{preparer.cancel();void loadTopics().then(prepareSelected);});
 void runtimeReady.then(runtime=>{entryPreviews=runtime.entry_previews??{};dynamicPlanning=runtime.planning?.available===true;saveLearning.hidden=!dynamicPlanning||runtime.planning.mode==='shadow';if(entryPreviews[mode])learning(entryPreviews[mode]);});
-function controls(active) {connect.disabled=active||learnerSwitching;learnerSelect.disabled=active||learnerSwitching;caseSelect.disabled=active;paceSelect.disabled=active||learnerSwitching || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active||learnerSwitching || (button.dataset.mode==='mission' && !mission);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
+function controls(active) {connect.disabled=active||learnerSwitching||topicManaged&&mode==='sports'&&!topicAvailable;topicSelect.disabled=active||learnerSwitching;document.querySelector('#opening-request').disabled=active||learnerSwitching;document.querySelector('#refresh-topics').disabled=active||learnerSwitching;learnerSelect.disabled=active||learnerSwitching;caseSelect.disabled=active;paceSelect.disabled=active||learnerSwitching || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active||learnerSwitching || (button.dataset.mode==='mission' && !mission || button.dataset.mode==='sports'&&topicManaged&&!topicAvailable);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
 async function loadSpeechPaces() {
   try {
     const response=await fetch('/api/speech-paces');if(!response.ok)throw new Error('PACE_UNAVAILABLE');
@@ -138,10 +145,10 @@ connect.addEventListener('click',async()=> {
       if(current!==generation)return;
       if(!preparationId){await stop('对话准备失败，请检查规划或课程服务。');return;}
     }
-    const response=await authorizedFetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{}),...(preparationId?{preparation_id:preparationId}:{})}),signal:AbortSignal.timeout(8000)});
+    const response=await authorizedFetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...entry(),...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{}),...(preparationId?{preparation_id:preparationId}:{})}),signal:AbortSignal.timeout(8000)});
     const result=await response.json();if(current!==generation)return;
     if(!response.ok){await stop(response.status===501?'实时语音尚未开通。需完成豆包协议和服务端连接验证。':'会话无法创建，请检查授权或服务容量。');return;}
-    summaryCards.begin(result.session_id,mode);
+    summaryCards.begin(result.session_id,topicManaged&&mode==='sports'&&topicId!=='sports'?'topic':mode);
     config=null;status.textContent='连接中';
     ws=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}${result.websocket_path}`,[result.protocol,`ticket.${result.ticket}`]);
     ws.onopen=()=>{if(current===generation && diagnosticsEnabled)ws.send(JSON.stringify({type:'diagnostics.enable'}));};
@@ -213,7 +220,7 @@ async function bootstrap() {
     if(epoch!==learnerEpoch)return;
     if((await runtimeReady).backend==='mock_hskai')await loadLearnerProfile(epoch,{setPace:true});
     if(epoch!==learnerEpoch)return;
-    if(dynamicPlanning)prepareSelected();else if(entryPreviews[mode])learning(entryPreviews[mode]);
+    await topicsReady;if(dynamicPlanning)prepareSelected();else if(entryPreviews[mode])learning(entryPreviews[mode]);
   }catch{if(epoch===learnerEpoch)memoryStatus.textContent='画像或偏好服务暂不可用。';}
 }
 document.querySelector('#memory-form').addEventListener('submit',async event=> {

@@ -1,5 +1,5 @@
 import { validateEvent } from '../contracts/events.js';
-import { PERSONA_VERSION,SPORTS_LESSON } from './lessons.js';
+import { PERSONA_VERSION,PERSONA_ADAPTIVE_VERSION,SPORTS_LESSON } from './lessons.js';
 import { speechPaceInstructions } from './speech.js';
 import { REPLY_POLICY_VERSION,REPLY_BUDGET } from './reply-policy.js';
 import { NaturalTeaching,TEACHING_POLICY_VERSION } from './natural-teaching.js';
@@ -11,8 +11,8 @@ import { PlanningState } from './planning-state.js';
 import { PlanningObservations } from './planning-observations.js';
 import { assessGoal } from './goal-lifecycle.js';
 export class TeachingSession {
-  constructor({sessionId,mode='sports',memory=[],mission=null,speechPace,planning,planner,resourceResolver,onPlanningRecord,onAcceptedProposal,observationPort}) {
-    if(!['sports','free','mission'].includes(mode))throw new Error('INVALID_MODE');
+  constructor({sessionId,mode='sports',memory=[],mission=null,speechPace,planning,planner,resourceVerifier,onPlanningRecord,onAcceptedProposal,observationPort}) {
+    if(!['sports','topic','free','mission'].includes(mode))throw new Error('INVALID_MODE');
     if(mode==='mission' && !mission)throw new Error('TRUSTED_MISSION_REQUIRED');
     this.speechInstructions=speechPaceInstructions(speechPace);
     Object.assign(this,{sessionId,mode,memory:structuredClone(memory),mission:mission?structuredClone(mission):null});this.stage='warmup';this.version=1;this.seen=new Set();this.evidence=[];this.completedReplyTurns=new Set();
@@ -21,10 +21,10 @@ export class TeachingSession {
     this.language=new LanguageSupport({memory});
     if(planning) {
       this.observations=new PlanningObservations({sessionId,...planning});
-      this.planning=new PlanningState({...planning,planner,observations:this.observations,resourceResolver,onRecord:onPlanningRecord,onAcceptedProposal,observationPort});
+      this.planning=new PlanningState({...planning,planner,observations:this.observations,resourceVerifier,onRecord:onPlanningRecord,onAcceptedProposal,observationPort});
       if(this.planning.mode!=='shadow') {
-        this.teaching.goal=planning.plan.primary_goal?{id:planning.plan.primary_goal.id,source:'mock_hskai'}:null;
-        this.teaching.likesGoal=planning.plan.primary_goal?.kp_ids.includes('likes-expression')??false;
+        this.teaching.goal=planning.plan.primary_goal?{id:planning.plan.primary_goal.id,source:this.planning.capabilities?.source??'mock_hskai'}:null;
+        this.teaching.likesGoal=planning.plan.mode!=='free'&&(planning.plan.primary_goal?.kp_ids.includes('likes-expression')??false);
       }
     }
   }
@@ -35,10 +35,10 @@ export class TeachingSession {
     if(!this.planning||this.planning.mode==='shadow')return;
     const p=this.planning.plan,goal=p.goal_status==='active'?p.primary_goal:null;
     if(this.teaching.goal?.id!==goal?.id){this.teaching.goalAttempted=false;this.teaching.autoTeachingUsed=false;}
-    this.teaching.goal=goal?{id:goal.id,source:'mock_hskai'}:null;
-    this.teaching.likesGoal=goal?.kp_ids.includes('likes-expression')??false;
+    this.teaching.goal=goal?{id:goal.id,source:this.planning.capabilities?.source??'mock_hskai'}:null;
+    this.teaching.likesGoal=p.mode!=='free'&&(goal?.kp_ids.includes('likes-expression')??false);
     this.teaching.paused=goal?false:p.goal_status==='paused'||p.goal_status==='retired'||this.teaching.paused;
-    if(this.teaching.decision){this.teaching.decision.goal_id=goal?.id??null;this.teaching.decision.goal_source=goal?'mock_hskai':null;this.teaching.decision.teaching_paused=this.teaching.paused;}
+    if(this.teaching.decision){this.teaching.decision.goal_id=goal?.id??null;this.teaching.decision.goal_source=goal?this.planning.capabilities?.source??'mock_hskai':null;this.teaching.decision.teaching_paused=this.teaching.paused;}
   }
   contextSnapshot() {
     const memory=this.language.validMemory().map(m=>({field:m.field,value:m.value,source:m.source,updated_at:m.updated_at}));
@@ -48,6 +48,7 @@ export class TeachingSession {
   accept(event) {
     if(this.closed || !validateEvent(event) || event.session_id!==this.sessionId || event.type!=='user.final' || this.seen.has(event.turn_id))return false;
     if(this.seen.size>=1000)throw new Error('TEACHING_TURN_LIMIT');
+    this.planning?.noteInput(event);
     this.seen.add(event.turn_id);
     this.version++;
     const decision=this.teaching.select(event,this.version);
@@ -87,7 +88,7 @@ export class TeachingSession {
     if(this.planning&&this.planning.mode!=='shadow') {
       const suppressed=['authorization_revoked','safety_restricted'].includes(options.endReason),rows=suppressed?[]:[...this.observations.observations.values()];
       const plan=this.planning.plan,goal=plan.primary_goal;
-      Object.assign(summary,{schema_version:3,policy_version:'kai-dynamic-summary-v2',focus:suppressed?'unavailable':!this.seen.size?'insufficient':rows.length?'practice_observed':'conversation_only',goals:suppressed?[]:[...this.planning.goalOutcomes.values()].map(({goal,status})=>({id:goal.id,label:goal.label,status:status==='active'?'unverified':status,attempt_rule_supported:goal.kp_ids.every(id=>this.planning.resource.key_points.find(k=>k.id===id)?.evidence_rule!=='unassessed'),assessment:assessGoal(goal,rows.slice(-100))})),learning_items:[],review_suggestions:[],dynamic_observations:rows.slice(-100).map(r=>({...r,session_id:this.sessionId,label:this.planning.resource.key_points.find(k=>k.id===r.kp_id).label})),planning:{path:this.planning.mode,plans:this.planning.records.length,controlled_execution:false},coverage:{rule_scope:'trusted_resource_attempt_rules_v2',complete_learning_inventory:false,observations_truncated:rows.length>100}});
+      Object.assign(summary,{schema_version:3,policy_version:'kai-dynamic-summary-v2',focus:suppressed?'unavailable':!this.seen.size?'insufficient':rows.length?'practice_observed':'conversation_only',goals:suppressed?[]:[...this.planning.goalOutcomes.values()].map(({goal,status})=>({id:goal.id,label:goal.label,status:status==='active'?'unverified':status,attempt_rule_supported:goal.kp_ids.every(id=>this.planning.capabilities.key_points.find(k=>k.id===id)?.evidence_rule!=='unassessed'),assessment:assessGoal(goal,rows.slice(-100))})),learning_items:[],review_suggestions:[],dynamic_observations:rows.slice(-100).map(r=>({...r,session_id:this.sessionId,label:this.planning.capabilities.key_points.find(k=>k.id===r.kp_id).label})),planning:{path:this.planning.mode,plans:this.planning.records.length,controlled_execution:false},coverage:{rule_scope:'trusted_resource_attempt_rules_v2',complete_learning_inventory:false,observations_truncated:rows.length>100}});
       summary.counts.student_final_turns=suppressed?0:this.seen.size;summary.counts.attempts=rows.length;
       summary.headline=suppressed?{zh:'本轮总结暂不可用。',en:'This session summary is unavailable.'}:rows.length?{zh:'本轮记录了表达尝试；尚未评估掌握。',en:'Expression attempts were recorded; mastery was not assessed.'}:this.seen.size?{zh:'本轮以交流为主。',en:'This session focused on conversation.'}:{zh:'本轮记录不足。',en:'There is not enough information to summarize.'};
     }
@@ -97,8 +98,8 @@ export class TeachingSession {
   view() {
     const sports=this.mode==='sports';
     const language=this.languageSnapshot();
-    const view={mode:this.mode,stage:this.stage,context_version:this.version,persona_version:PERSONA_VERSION,reply_policy_version:REPLY_POLICY_VERSION,reply_budget:{...REPLY_BUDGET},language_policy:{version:language.policy_version,english_support:language.english_support,reason:language.reason,known_expression_count:language.known_expressions.length},teaching_policy_version:TEACHING_POLICY_VERSION,decision:this.teaching.decision?{...this.teaching.decision}:null,lesson_source:sports?SPORTS_LESSON.source:this.mode==='mission'?'authorized-hskai-mission':null,lesson_version:sports?SPORTS_LESSON.version:null,goal:sports?SPORTS_LESSON.goal.label:this.mode==='mission'?this.mission.targets[0]:'用中文聊感兴趣的话题。',start_tip:sports?SPORTS_LESSON.start_tip:'可以从一句简单的中文开始。',cards:sports?structuredClone(SPORTS_LESSON.cards):[],attempts:structuredClone(this.evidence.slice(-SUMMARY_LIMITS.view_attempts)),attempt_count:this.evidence.length,attempts_truncated:this.evidence.length>SUMMARY_LIMITS.view_attempts,notice:'最终识别仅形成学习尝试；尚未评估掌握或发音。'};
-    if(this.planning&&this.planning.mode!=='shadow'){const projection=planProjection(this.planning.plan,this.planning.resource);Object.assign(view,projection,{attempt_count:this.observations.observations.size,lesson_source:'mock_hskai',lesson_version:this.planning.resource?.version??null});if(this.planning.plan.goal_status!=='active'){view.goal='跟随你当前的话题交流。';view.start_tip='';view.cards=[];}}
+    const view={mode:this.mode,stage:this.stage,context_version:this.version,persona_version:(this.planning?.plan.schema_version==='conversation-plan-v2'||this.planning?.plan.mode==='free')?PERSONA_ADAPTIVE_VERSION:PERSONA_VERSION,reply_policy_version:REPLY_POLICY_VERSION,reply_budget:{...REPLY_BUDGET},language_policy:{version:language.policy_version,english_support:language.english_support,reason:language.reason,known_expression_count:language.known_expressions.length},teaching_policy_version:TEACHING_POLICY_VERSION,decision:this.teaching.decision?{...this.teaching.decision}:null,lesson_source:sports?SPORTS_LESSON.source:this.mode==='mission'?'authorized-hskai-mission':null,lesson_version:sports?SPORTS_LESSON.version:null,goal:sports?SPORTS_LESSON.goal.label:this.mode==='mission'?this.mission.targets[0]:'用中文聊感兴趣的话题。',start_tip:sports?SPORTS_LESSON.start_tip:'可以从一句简单的中文开始。',cards:sports?structuredClone(SPORTS_LESSON.cards):[],attempts:structuredClone(this.evidence.slice(-SUMMARY_LIMITS.view_attempts)),attempt_count:this.evidence.length,attempts_truncated:this.evidence.length>SUMMARY_LIMITS.view_attempts,notice:'最终识别仅形成学习尝试；尚未评估掌握或发音。'};
+    if(this.planning&&this.planning.mode!=='shadow'){const projection=planProjection(this.planning.plan,this.planning.resource);Object.assign(view,projection,{attempt_count:this.observations.observations.size,lesson_source:this.planning.capabilities?.source??'mock_hskai',lesson_version:this.planning.capabilities?.version??null});if(this.planning.plan.goal_status!=='active'){view.goal='跟随你当前的话题交流。';view.start_tip='';view.cards=[];}}
     return view;
   }
 }

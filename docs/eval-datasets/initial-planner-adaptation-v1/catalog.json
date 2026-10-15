@@ -1,0 +1,238 @@
+{
+  "version": "initial-sports-catalog-v1-design",
+  "status": "design_only",
+  "synthetic": true,
+  "source": "authored_synthetic_design",
+  "official_hsk_syllabus": false,
+  "production_enabled": false,
+  "goals": [
+    {
+      "id": "express-likes",
+      "skill_id": "likes-expression",
+      "behavior": "自然表达自己的运动喜好",
+      "required_prerequisite_any_of_clauses": [],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "expresses-personal-preference"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    },
+    {
+      "id": "express-time",
+      "skill_id": "time-expression",
+      "behavior": "用简单时间表达聊一次运动安排",
+      "required_prerequisite_any_of_clauses": [],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "locates-an-activity-in-time"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    },
+    {
+      "id": "narrate-sequence",
+      "skill_id": "event-sequence",
+      "behavior": "让听者理解一段运动经历的先后",
+      "required_prerequisite_any_of_clauses": [
+        [
+          "time-expression",
+          "past-experience"
+        ]
+      ],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "orders-events-with-understandable-relations"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    },
+    {
+      "id": "explain-reason",
+      "skill_id": "simple-reasons",
+      "behavior": "说明一个运动选择的原因",
+      "required_prerequisite_any_of_clauses": [],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "connects-choice-to-a-reason"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    },
+    {
+      "id": "compare-options",
+      "skill_id": "comparison",
+      "behavior": "比较两种运动选择并说明相关差异",
+      "required_prerequisite_any_of_clauses": [],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "compares-options-on-a-relevant-dimension"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    },
+    {
+      "id": "support-opinion",
+      "skill_id": "supporting-opinions",
+      "behavior": "用具体例子支撑一个观点",
+      "required_prerequisite_any_of_clauses": [
+        [
+          "simple-reasons"
+        ]
+      ],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "connects-position-to-specific-example"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    },
+    {
+      "id": "qualify-claim",
+      "skill_id": "qualified-claims",
+      "behavior": "限定一项运动观点的适用范围",
+      "required_prerequisite_any_of_clauses": [
+        [
+          "supporting-opinions"
+        ]
+      ],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "states-applicable-context-or-limits"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    },
+    {
+      "id": "adjust-register",
+      "skill_id": "register-and-nuance",
+      "behavior": "保留意思并调整一句观点的措辞或语气",
+      "required_prerequisite_any_of_clauses": [
+        [
+          "supporting-opinions"
+        ]
+      ],
+      "prerequisite_status": "authored_for_design_review_not_validated_curriculum",
+      "topic_bindings": [
+        "sports"
+      ],
+      "goal_parameters": [
+        "student-chosen-scenario",
+        "one-expression-task"
+      ],
+      "observation_features": [
+        "preserves-intent-while-adjusting-tone"
+      ],
+      "assessment_capability": "unassessed",
+      "allowed_support": [
+        "none",
+        "partial",
+        "model",
+        "choice"
+      ]
+    }
+  ],
+  "topic": {
+    "id": "sports",
+    "content_domains": [
+      "个人运动选择",
+      "运动经历",
+      "团队配合",
+      "竞技规则"
+    ],
+    "goal_ids": [
+      "express-likes",
+      "express-time",
+      "narrate-sequence",
+      "explain-reason",
+      "compare-options",
+      "support-opinion",
+      "qualify-claim",
+      "adjust-register"
+    ]
+  }
+}

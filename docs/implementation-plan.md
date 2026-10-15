@@ -1,8 +1,22 @@
 # Incremental delivery
 
+2026-10-15 最新优先级：用户要求暂时搁置主题式对话入口工程链路，剩余 review／质量项保留在[主题 TODO](topic-planner-tasking.md#搁置-todo)。本轮只审查自由对话工程链路并记录完善顺序，见[free 审查](free-conversation-engineering-review.md)；未修改运行代码、学习者数据或供应商配置，未执行新真实模型／豆包调用。
+
+2026-10-15 工程 review 第 1 项修复：free 准备／消费／逐轮路径不再请求课程或 Topic Pack；显式练习使用独立通用 Skill catalog，保持三类授权学习者资料与实际前文输入。课程引用为空，未验证观察规则不产生 attempted。页面／后续语音上下文及总结共用同一计划；其余 review 项与 Mission 默认选择留待后续。验证结果见 [主题链路实施记录](topic-chain-implementation.md)。
+
+2026-10-15 主题式对话入口工程实施：已新增独立 Topic Manager、已发布 Topic Pack 只读端口与版本固定、通用能力目录与 GoalInstance、三类授权 mock 学习者资料驱动的需要假设、合理无目标、四份最新资料／音乐主题集成、逐轮 2 秒 deadline 与撤销后停止旧目标。管理页面、发布／回滚／撤销、本机持久化、冻结 28 案物化与主题范围 24 案合同 runner 已加入。真实 M3 与豆包／浏览器验收分别见 [主题链路实施记录](topic-chain-implementation.md)；默认语音仍 next_turn_advisory。
+
 2026-10-15 全 Agent tasking 已补齐：[模块任务清单](agent-completion-tasking.md)与[独立评测计划](agent-evaluation-plan.md)。目标为当前 Ask Kai Web 的三个入口针对不同学习需要完成可验证的自适应对话。AC／AE 编号关联既有 TP／DP／IP／ML／TT／收尾任务，工程、语义与设备分别验收；对齐管理端提前生成／发布 TopicPack 与逐轮总预算最多 2 秒。本次只改规划与导航，不修改其他工作区运行代码或提供新增模型／provider／设备通过结论。
 
+2026-10-15 逐轮预算运行修正：PlanningState 默认／最大预算 2000ms，从 TeachingSession 接受输入记录的宿主时间起算，包含等待、状态／资源准备、模型与修复、校验／提交；预留 200ms 提交窗口，不足时规则降级，过期输入／资源／提案不提交，模型忽略 abort 也不能覆盖规则结果。eval:planning 元数据改为实际 2000ms。verify 440 项、三个 synthetic replay、15 案离线规划契约通过，无新模型／豆包调用；TP-07 仅预算子项完成，多主题目标承接与主题服务仍待实施。会中具体链路见 [教学设计 8.1](initial-planner-teaching-design.md#81-会中逐轮的处理链路)。
+
+2026-10-14 用户进一步确认主题式链路：独立主题管理服务提前生成、准入并发布绑定 topic_id 的 TopicPack；学习端只读发布版本，初始化／逐轮／cache miss 均不生成。补齐管理页面、持久化、发布／回滚／撤销的设计，TP-02／03 承担服务实现。新逐轮总 deadline 最多 2 秒，包含从 accepted final 起的排队、请求、修复、校验和提交，TP-07 实施；当前代码旧 5 秒未改。仅更新设计，无新模型／语音调用。见 [服务与时延设计](topic-management-service-design.md)及[最新 tasking](topic-planner-tasking.md)。
+
+2026-10-14 动态 Planner tasking 已重新整理，尚未实施：用户确认 TopicPack 由 LLM 生成，不逐主题人工编写。TP-00～11 覆盖最新资料基线、通用能力／主题契约、生成、准入／缓存／版本、独立评测、初始化决策、首轮／逐轮承接、展示、第二主题验证及真实分层验收；分三批节点同步。原 28 案冻结，最新 mock-learners-v2 另加集成案例。仅更新设计／文档，无运行代码、learner-data 或新模型／豆包调用。见 [正式 tasking](topic-planner-tasking.md)。
+
 2026-10-14 Mock 数据 v2 修正：按官网 2025-11 HSK 大纲建立全部 11000 条词汇编号与 592 个语法表细目索引，区分目录统计单位与官方能力指标。四个已模拟完成等级的学习者累计掌握 70／244／409／530 个语法细目，高级七至九级只标指定子集；低等级基础继承，下一阶段待学单列。完整目录留在学习画像接口，规划读取有来源累计摘要与少量交流技能。补齐四人的个人、五项能力和六条近期实例，并加入 README 顶部导航。见 [完整画像](learner-profiles.md)。
+
+2026-10-14 初始化 Planner 教学决策设计完成，尚未实施：明确三类资料／入口到交流目的与 NeedAssessment、允许与适合分别判断、可信能力目标实例化、合理 null、能力支持到语音、反馈与目标修订边界；独立 4 个基础例子＋24 个对照／边界共 28 项设计案例，输入与 oracle 隔离并绑定哈希。仅验证文档／资料结构与物化一致性，模型／Judge／豆包调用为 0，无新质量通过率；现有两目标、运行契约、learner-data 与旧评测保持当前行为。后续 IP-01～06 均待实施，需先评审再开始。见 [完整设计](initial-planner-teaching-design.md)与[设计案例](eval-datasets/initial-planner-adaptation-v1/README.md)。
 
 2026-10-14 四位 Mock 学习者与三接口：完成 Alex／HSK1、Maya／HSK3、Leo／HSK5、Nina／HSK7 的独立 UID、个人画像、学习画像及六项近期合成记录，v1 当时只含 8／12／16／20 项交流技能；全量累计知识已由上方 v2 修正。三个签名接口按同一 owner／UID 聚合，网页可切换和查看；旧 A～E 测试场景兼容。分层运动目标、能力到实际语音的适配及独立会话对比列为后续 ML-04～06，不代表本次已支持四档不同目标。见 [数据、接口与分阶段计划](mock-learners.md)。
 

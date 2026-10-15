@@ -74,18 +74,24 @@ test('planning diagnostics preserve anonymous causal fields without prompt, stud
   assert.equal(clean.rejection_code,'PREREQUISITE_UNVERIFIED');assert.equal(clean.goal_status,'paused');assert.deepEqual(metadata({rejection_code:'PRIVATE'}),{});
   const trace=new ExperienceTrace();trace.gateway({name:'planning.accepted',at_ms:2,fields:clean});assert.equal(trace.snapshot().timeline[0].turn_ref,'t1');assert.equal(trace.snapshot().contains_text,false);
 });
-test('free practice promotion reads scoped curriculum and changes the same page/voice plan',async t=> {
-  const f=await fixture(t),ticket=await(await f.call('POST','/api/sessions',{mode:'free'})).json();
-  const {ws,provider,packets}=await f.open(ticket);provider.emit('session.ready');
+test('free practice uses host skills without resources and shares the page/voice plan',async t=> {
+  const f=await fixture(t);let reads=0;f.backend.planningPort.getResource=async()=>{reads++;throw new Error('TOPIC_MANAGER_OFFLINE');};
+  const ticket=await(await f.call('POST','/api/sessions',{mode:'free'})).json();
+  const {ws,provider,packets}=await f.open(ticket);
+  provider.updateContext=value=>{provider.contexts.push(value);provider.control('context.updated',{version:value.version});};
+  provider.emit('session.ready');
   provider.emit('user.final',{text:'planet 中文怎么说？'},{turn_id:'local-help'});
   await until(()=>packets.some(p=>p.type==='teaching.state'&&p.decision?.turn_id==='local-help'));
   assert.deepEqual(packets.filter(p=>p.type==='teaching.state').at(-1).cards,[]);
   provider.emit('user.final',{text:'我想练习喜好表达。'},{turn_id:'practice'});
-  await until(()=>packets.some(p=>p.type==='teaching.state'&&p.cards?.some(c=>c.word==='喜欢')));
+  await until(()=>packets.some(p=>p.type==='teaching.state'&&p.decision?.turn_id==='practice'&&p.goal==='表达喜好'));
   const view=packets.filter(p=>p.type==='teaching.state').at(-1);assert.equal(view.mode,'free');assert.match(view.goal,/喜好/);
   provider.emit('user.final',{text:'我喜欢篮球。'},{turn_id:'attempt'});
-  await until(()=>packets.some(p=>p.type==='teaching.state'&&p.attempt_count===1));
+  await until(()=>packets.some(p=>p.type==='teaching.state'&&p.decision?.turn_id==='attempt'));
+  assert.equal(reads,0);assert.deepEqual(view.cards,[]);assert.equal(view.resource_version,null);
+  assert.equal(packets.filter(p=>p.type==='teaching.state').at(-1).attempt_count,0);
+  assert.ok(provider.contexts.some(c=>c.instructions.includes('express-likes')));
   ws.send(JSON.stringify({type:'session.end',save_learning:true}));await once(ws,'close');
   assert.equal(packets.find(p=>p.type==='learning.record.receipt').status,'accepted');
-  const summary=packets.find(p=>p.type==='teaching.summary');assert.equal(projectSummary(summary,{sessionId:ticket.session_id,mode:'free'}).observations[0].count,1);
+  const summary=packets.find(p=>p.type==='teaching.summary');assert.deepEqual(projectSummary(summary,{sessionId:ticket.session_id,mode:'free'}).observations,[]);assert.equal(summary.summary.goals[0].attempt_rule_supported,false);
 });

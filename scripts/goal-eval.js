@@ -32,7 +32,7 @@ export async function runGoalEval({live=false,selected=null,legacyContract=false
     const start=performance.now();let bound;
     try{bound=new Preparations({initializer}).bind(await initializer.prepare(entry,identity),'eval-'+c.id);}
     catch{const row={id:c.id,status:'initialization_failed',initial_accepted:false,turns:[],elapsed_ms:Math.round(performance.now()-start)};results.push(row);onCase(row);continue;}
-    const s=new TeachingSession({sessionId:bound.plan.session_id,mode:c.mode,mission:identity.mission,planning:bound,planner,resourceResolver:async()=>SPORTS_RESOURCE,onAcceptedProposal:captured=>{if(captureReview)privateReview.push(planningReviewRow(c.id,Number(captured.input_snapshot.turn.turn_id.slice(5)),captured));}});
+    const s=new TeachingSession({sessionId:bound.plan.session_id,mode:c.mode,mission:identity.mission,planning:bound,planner,onAcceptedProposal:captured=>{if(captureReview)privateReview.push(planningReviewRow(c.id,Number(captured.input_snapshot.turn.turn_id.slice(5)),captured));}});
     const initial={goal:bound.plan.primary_goal?.id??null,planner:bound.plan.planner_kind,degraded_reason:bound.plan.degraded_reason,attempts:bound.plan.planner_attempts,passed:c.initial_goals.includes(bound.plan.primary_goal?.id??null)};
     const turns=[];
     for(const [index,row] of c.turns.entries()) {

@@ -1,3 +1,4 @@
+import { planningCapabilities } from './skill-catalog.js';
 import { createHash } from 'node:crypto';
 import { PLAN_ACTIONS,LIMITS,exact,boundedText,isId,immutable } from '../contracts/planning.js';
 import { checkGoalPatch,goalChoice } from './goal-lifecycle.js';
@@ -8,13 +9,14 @@ export function contextRefs(context,resource) {
   return new Set([context.snapshot_id,...context.student_profile.interests.map(r=>r.record_id),...context.learning_profile.kp_states.map(r=>r.record_id),...context.learning_history.map(r=>r.record_id),...(resource?[resource.id,...resource.goals.map(g=>g.id),...resource.key_points.map(k=>k.id),...resource.cards.map(c=>c.id)]:[])]);
 }
 const refs=(list,allowed)=>Array.isArray(list)&&list.length<=12&&list.every(id=>isId(id)&&allowed.has(id));
-export function validateConversation(p,{entry,context,resource}) {
-  const allowed=contextRefs(context,resource);
+export function validateConversation(p,{entry,context,resource,allowNoGoal=false}) {
+  const allowed=contextRefs(context,planningCapabilities(entry,resource));
+  if(entry.opening_request)allowed.add('initial-choice');
   if(!exact(p,['conversation_purpose','content_focus','opening_options','primary_goal_id','candidate_goal_ids','key_points','strategy','selection_basis'])||Buffer.byteLength(JSON.stringify(p))>LIMITS.proposal_bytes||!boundedText(p.conversation_purpose)||!boundedText(p.content_focus)||!Array.isArray(p.opening_options)||p.opening_options.length>2||!p.opening_options.every(x=>boundedText(x,100))||!exact(p.strategy,['language_support','support_level','correction','pace'])||!['auto','zh','zh_en'].includes(p.strategy.language_support)||!['none','partial','model','unknown'].includes(p.strategy.support_level)||!['gentle','on_request'].includes(p.strategy.correction)||!['slow','normal'].includes(p.strategy.pace))throw new Error('INVALID_CONVERSATION_PROPOSAL');
   const ids=new Set(resource?.goals.map(g=>g.id)??[]),kp=new Set(resource?.key_points.map(k=>k.id)??[]);
   if(p.primary_goal_id!==null&&!ids.has(p.primary_goal_id)||!Array.isArray(p.candidate_goal_ids)||p.candidate_goal_ids.length>2||!p.candidate_goal_ids.every(id=>ids.has(id))||new Set(p.candidate_goal_ids).size!==p.candidate_goal_ids.length||!Array.isArray(p.key_points)||p.key_points.length>2||!p.key_points.every(id=>kp.has(id)))throw new Error('INVALID_PLAN_RESOURCE_REFERENCE');
   if(entry.mode==='free'&&(p.primary_goal_id!==null||p.candidate_goal_ids.length||p.key_points.length))throw new Error('FREE_INITIAL_GOAL_FORBIDDEN');
-  if(resource&&p.primary_goal_id===null) {
+  if(resource&&p.primary_goal_id===null&&!allowNoGoal) {
     const declined=context.learning_history.flatMap(h=>h.declined_goal_ids);
     const eligible=resource.goals.some(g=>!declined.includes(g.id)&&g.kp_ids.every(id=>resource.key_points.find(k=>k.id===id).prerequisites.every(prior=>context.learning_profile.kp_states.some(s=>s.kp_id===prior&&['demonstrated_independent','demonstrated_transfer'].includes(s.evidence_state)))));
     if(eligible)throw new Error('RESOURCE_GOAL_REQUIRED');
@@ -47,7 +49,8 @@ export function validateTurn(p,{plan,input,policy,allowedRefs,context,resource,p
   if(p.goal_assessment?.progress==='attempted'&&!p.goal_assessment.refs.some(ref=>(review.observed_attempts??[]).some(o=>o.observation_id===ref||o.source_event_id===ref)))throw new Error('UNSUPPORTED_ATTEMPT_ASSESSMENT');
   const patch=p.proposed_plan_patch,structured=exact(patch,['op','goal_id','refs'])&&['replace','retire'].includes(patch.op)&&isId(patch.goal_id)&&refs(patch.refs,allowedRefs);
   if(p.active_goal_id!==null&&p.active_goal_id!==plan.primary_goal?.id||p.local_help_target!==null&&!boundedText(p.local_help_target,100)||patch!==null&&!['pause','resume'].includes(patch)&&!structured)throw new Error('INVALID_GOAL_PATCH');
-  checkGoalPatch(patch,{plan,input,policy,context,resource,review,choice:goalChoice(input.text??'')});
+  const capabilities=planningCapabilities(plan,resource);
+  checkGoalPatch(patch,{plan,input,policy,context,resource:capabilities,review,choice:goalChoice(input.text??'',capabilities)});
   if(input.expires_at<=now)throw new Error('PLAN_EXPIRED');
   if(policy.action==='CLOSE'&&p.action!=='CLOSE'||policy.teaching_paused&&(p.active_goal_id!==null||['INVITE_PRACTICE','REVIEW'].includes(p.action))||policy.teaching_cooldown>0&&p.reply_directive.new_points>0||policy.clarification_pending&&policy.reason==='clarification_limit'&&p.action==='CLARIFY'||p.proposed_plan_patch==='resume'&&policy.teaching_paused)throw new Error('PLAN_POLICY_CONFLICT');
   if(p.action==='CLOSE'&&(p.reply_directive.new_points!==0||p.active_goal_id!==null))throw new Error('CLOSE_TEACHING_FORBIDDEN');

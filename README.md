@@ -1,8 +1,8 @@
 # Ask Kai
 
-面向 HSK 1 初学者的实时中文对话教学 Agent。
+面向不同中文学习阶段的实时对话教学 Agent。
 
-> 更新于 2026-10-14。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。433 项测试、三个回放和 Chromium 合成设备检查通过。可替换 LLM 的接口、原始规划快照、Agent reasoning／learner feedback、shadow ObservationPort、辅助规划语义审阅及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
+> 更新于 2026-10-15。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。主题式对话新链路已加入独立 Topic Manager、已发布 Topic Pack、四位学习者自适应初始化和 2 秒逐轮预算；461 项测试、三个 synthetic replay 及两组 Chromium 合成设备浏览器检查通过。真实 M3 规划在当前 8 组固定包样本全部超时并按规则降级；结果见[主题链路实施记录](docs/topic-chain-implementation.md)。可替换 LLM 的接口、原始规划快照、Agent reasoning／learner feedback、shadow ObservationPort、辅助规划语义审阅及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
 
 [产品介绍](#1-产品介绍) · [学习者画像](docs/learner-profiles.md) · [架构设计](#2-架构设计) · [三个入口](#3-使用方式三个入口) · [评测](#4-评测机制与现有结果) · [现状](#5-实现范围与当前状态) · [计划](#6-接下来的计划) · [启动](#7-快速启动) · [文档](#8-文档导航)
 
@@ -15,7 +15,7 @@ Ask Kai 希望让学生在真实交流中学习中文：既可以承接刚完成
 | 入口 | 使用目的 |
 | --- | --- |
 | Mission Call | 把 Mission 中的内容带入后续生活交流，按学生情况巩固、补缺或迁移 |
-| 主题式对话 | 围绕选定主题，根据兴趣选择内容，根据学习证据选择目标与策略；当前示例为运动 |
+| 主题式对话 | 围绕选定主题，根据兴趣选择内容，根据学习证据选择目标与策略；当前工程示例为运动和音乐；已发布主题由管理端提供 |
 | 自由聊天 | 学生话题优先，按能力与偏好适配交流；初始教学目标为空，允许零知识点 |
 
 目标教学闭环是：根据入口和学生背景制定整体计划，在每轮对话中观察实际表现、规划下一步、执行并获得反馈。一次完整交流可以没有教学动作；计划或关键词命中不能直接证明学生掌握。
@@ -121,13 +121,13 @@ Harness 的横向职责覆盖五个模块：状态版本、权限、取消、规
 | --- | --- | --- | --- |
 | Mission 后对话 | 读取已授权 Mission 的完整本地资源和全部候选目标，结合学习证据／近期记录选择本次承接目标；不固定 `targets[0]` | 同一计划中的目标、内容切入、可选提示和资源词卡 | 课程已完成不代表掌握；目标仅在对应资源规则支持时记录本轮尝试 |
 | 运动主题 | `sports` 兼容映射为 `topic:sports`；兴趣选择内容，学习证据选择目标及支架，先修未知不擅自升级 | 篮球／跑步等内容可不同；有喜好独立表现及时间练习证据时可选择简单时间表达目标 | 喜好表达及限定时间句规则只记录 attempted；提示程度、独立使用和发音继续未知 |
-| 自由聊天 | 读取三类资料，初始 `primary_goal:null`、`key_points:[]`，学生当前选题优先 | 无强制目标，提示和词卡可为空；普通交流允许零知识点 | 库外表达不自动变成正式 KP；当前不把局部求助登记为整场已学目标 |
+| 自由聊天 | 无 Topic Pack／课程资源；读取三类资料，初始 `primary_goal:null`、`key_points:[]`，学生当前选题优先 | 无强制目标，提示和词卡可为空；普通交流允许零知识点 | 库外表达不自动变成正式 KP；当前不把局部求助登记为整场已学目标 |
 
 **当前学生数据与保存边界：** 新签名 `HskaiPlanningPort` 聚合个人画像、学习画像和最近最多 10 项活动，并显式返回 available／partial／unavailable、revision、来源及截断。Mock 有四位可切换的虚构成年学习者（Alex／HSK1、Maya／HSK3、Leo／HSK5、Nina／HSK7），三类资料分别通过独立签名接口读取后聚合；A～E 保留为测试场景。网页可查看知识点、模拟掌握和近期历史。模拟掌握来自作者设定，不由本轮尝试升级。见 [四位学习者完整画像与累计知识](docs/learner-profiles.md)及[Mock 服务计划](docs/mock-learners.md)。原 `/api/memory` 五字段接口继续用于查看／更正／删除偏好，更正会使准备与旧规划失效，并刷新活动会话的最小学生上下文。
 
 学习状态来自合成后端证据，与本轮实际观察分开。结束时默认不写回；学生主动勾选保存后，提交经过校验、按 learner＋session 去重的最小尝试记录，并等待 mock 回执。没有原始音频／逐字稿或自动掌握写入；仅存本地进程内存，重启重置。写回失败不显示保存成功。
 
-**会中目标调整：** 明确选择可替换为可信资源中的目标；拒绝／换题立即暂停，明确取消则停止目标并清空旧提示／词卡。连续两轮明确表示当前练习太难，才允许退回资源中已有的先修目标；英文、单词或沉默不算困难证据。Free 的单次求助只影响当前轮，明确要求持续练习受支持表达时，才按原身份读取课程并设目标，mode 保持 free。观察绑定发生时的目标与计划版本，总结保留会中涉及的目标。达成规则列出语义、提示和不同情境证据缺口，次数或自述不能证明独立／达成。见 [目标生命周期](docs/dynamic-goal-lifecycle.md)。
+**会中目标调整：** 明确选择可替换为可信资源中的目标；拒绝／换题立即暂停，明确取消则停止目标并清空旧提示／词卡。连续两轮明确表示当前练习太难，才允许退回资源中已有的先修目标；英文、单词或沉默不算困难证据。Free 的初始化和逐轮规划只读取三类授权学习者资料与实际对话，不读取 Topic Pack 或课程资源。单次求助只影响当前轮；明确要求持续练习时，从通用 Skill catalog 选择技能并验证先修，内容跟随当前交流，mode 保持 free，`resource` 为 null、`resource_refs` 为空。技能版本独立记入 `skill_catalog_ref`，不套用运动词卡；当前观察规则为 unassessed，不累计表达尝试或声称掌握。观察绑定发生时的目标与计划版本，总结保留会中涉及的目标。达成规则列出语义、提示和不同情境证据缺口，次数或自述不能证明独立／达成。见 [目标生命周期](docs/dynamic-goal-lifecycle.md)。
 
 **入口 1｜Mission 后对话**
 
@@ -300,14 +300,17 @@ sequenceDiagram
 | 渐进字幕、词卡与 Web 总结 | 已实现 | 同步按播放进度近似处理；真实设备及改造受影响项待复验 |
 | 有来源的会内学习证据 | 已实现，范围有限 | 主要支持运动喜好及受支持表达；其他 KP 未评估，不输出掌握或发音结论 |
 | Mock 身份、Mission、偏好和管理接口 | 已实现 | 四个独立 UID、三类资料接口、网页切换；五字段偏好仅存内存，重启重置，分层目标与会话对比待补 |
-| 三类学生数据、动态初始化与整体／逐轮规划 | 工程已接入，MiniMax M3＋本地 Mock | 同组旧契约与 Draft 对照均大量超时／降级，尚无可靠性提升证据；可替换 adapter 已拆分，当前为后续输入建议，不代表本轮先规划后生成通过 |
-| 会中目标替换／暂停／停止、自愿练习与来源记录 | 当前两个可信目标范围内已实现 | 规则／网关／页面已检查；独立表达、迁移及语义达成继续未评估，真实 M3 仍大量降级 |
+| 三类学生数据、动态初始化与整体／逐轮规划 | 工程已接入，MiniMax M3＋本地 Mock；主题入口读取独立已发布 Topic Pack | 同组旧契约与 Draft 对照均大量超时／降级，尚无可靠性提升证据；可替换 adapter 已拆分，当前为后续输入建议，不代表本轮先规划后生成通过 |
+| 独立 Topic Manager、版本发布／回滚／撤销 | 已实现；后台生成、管理页面、持久化和运行只读端口 | synthetic 与真实生成分开记录；辅助内容审阅不等于独立教学质量认证 |
+| 会中目标替换／暂停／停止、自愿练习与来源记录 | 旧资源的两个目标与新 Topic Pack 通用 GoalInstance 均已实现 | 规则／网关／页面已检查；独立表达、迁移及语义达成继续未评估，真实 M3 仍大量降级 |
 | 跨会话记录、生产持久化、独立发音评分 | 自愿 mock 尝试写回已实现；后两者尚未实现 | 内存记录可进入下一会话历史，重启重置；不自动升级能力，真实业务库与发音服务另列 |
 | 生产机构权限与真人接手、正式服务部署 | 尚未完整实现／验收 | 当前只限本机内部 POC，Mock 回执不等于外部处理完成 |
 
 当前 POC 不依赖外部 HSKai 仓库、生产数据库或队列。后续可通过端口替换真实业务提供方，现有 Mock 数据不能当作真实学习者信息。范围依据见 [独立 POC](docs/standalone-poc.md)；正式产品发布条件见 [发布与评测](docs/release-and-eval.md)。
 
 ## 6. 接下来的计划
+
+2026-10-15 最新安排：**主题式对话入口工程链路暂时搁置**，剩余项保留在[主题 TODO](docs/topic-planner-tasking.md#搁置-todo)。当前先审查自由对话入口，已复现的问题、能力缺口与建议顺序见[自由对话工程审查](docs/free-conversation-engineering-review.md)。下列整体计划保留为后续范围。
 
 2026-10-15 已补齐[全模块任务清单](docs/agent-completion-tasking.md)和[独立 Agent 评测计划](docs/agent-evaluation-plan.md)：针对最终三入口自适应对话，明确资源、执行、观察、总结与设备缺口，关联正在推进的 TP／DP 工作。当前为规划，不新增实现或质量通过结论。
 
@@ -318,9 +321,12 @@ sequenceDiagram
 | POC 内容质量 | 复核最新失败、退化与不可比轮；验证首轮语言、歧义进入生成、结束回顾收束及音频完成／取消原因；按类修复 | [正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md)、[收尾 Task05](docs/task05-implementation-tasking.md) |
 | POC 体验与收尾 | 补未覆盖设备／入口旅程、偏好闭环、异常连续使用、安全与隐私边界；最后完成可重复演示 | [收尾 Task06–10](docs/poc-completion-todo.md) |
 | 动态规划基础 | learner feedback、来源判断与辅助语义审阅已加入；当前 prompt-v7、完整契约为默认；后续更强 LLM 用同组数据验收目标选择、超时与语义 | [DP-00–04](docs/dynamic-planning-tasking.md)、[目标迭代验证](docs/eval-results/2026-10-14-dynamic-goals.md) |
+| 初始化教学决策 | 主题管理、通用能力目录、Topic Pack 准入与版本、自适应初始化和第二主题已落地；逐轮规划上限 2 秒。当前 M3 的 8/8 初始化与 8/8 逐轮均为超时规则降级；豆包初始配置只观察到连接就绪，语义与完整设备验收待单独完成 | [正式 tasking](docs/topic-planner-tasking.md)、[主题服务与时延](docs/topic-management-service-design.md)、[教学决策设计](docs/initial-planner-teaching-design.md) |
 | 动态规划执行与验收 | 验证豆包本轮门控与受控执行；完善语义 KP 观察、播放消费范围、跨入口真实音频与费用验收 | [DP-05–10](docs/dynamic-planning-tasking.md) |
 
 当前优先完善 Agent：完整原始快照审阅、shadow 观察候选、贴合明确意图的降级与长会话回归已完成工程；更强 LLM 使用相同契约和评测。豆包门控与设备验收继续单独推进。见 [Agent feedback 设计](docs/agent-feedback-design.md)。
+
+主题式对话当前从管理端定义主题、LLM／合成生成、准入审阅和发布进入学习端只读准备；四位学习者可在相同资源上得到不同教学方向，当前明确只想聊天可无目标。原 28 案保留设计 hash，主题范围内 24 案有工程契约 runner；语义仍待独立校准。真实模型与浏览器检查按 [本轮实施记录](docs/topic-chain-implementation.md) 分层报告。
 
 动态规划的核心验收条件是本轮计划先于受控生成，并依据实际执行与学生反应继续规划。用户确认保持豆包实时全双工，本轮不引入独立 ASR／TTS。Seeduplex 本轮生成门控未证实前保留 next_turn_advisory，不能用延迟播放或迟到 ACK 证明本轮受控生成。
 
@@ -335,8 +341,11 @@ sequenceDiagram
 ```bash
 npm ci --ignore-scripts
 npm run verify
-npm run poc
+npm run topics # 单独终端：本机主题管理 http://127.0.0.1:4320
+npm run poc    # 学习端 http://127.0.0.1:4310
 ```
+
+先在主题管理页面定义、生成、预览并发布主题；管理凭据可从本机忽略目录 `.local/topic-manager/credentials.json` 读取，两个服务自动共享只读凭据。`npm run topics:synthetic` 只用于工程演示，其包明确标记 synthetic。学习端不会在进入主题、初始化或逐轮规划时生成 Topic Pack；主题管理离线或尚未发布时，主题入口不可用，自由聊天仍可进入。
 
 打开 http://127.0.0.1:4310。未配置语音时可以查看入口和偏好；不能进行真实对话，也不会申请麦克风。合成工程回放在 http://127.0.0.1:4310/dev/replay，始终标记“豆包未连接”。
 
@@ -351,7 +360,7 @@ DOUBAO_REALTIME_PROFILE=./.local/seeduplex-profile.json
 
 首次设置参照 `.env.example`；已有 `.env` 保留并修改。profile 模板审核开关默认关闭，复制模板不等于已完成协议／账号验证；GitHub Secret 不自动出现在本机环境。完整步骤见 [Seeduplex 接入](docs/protocol/seeduplex-integration.md)和 [Web 音频](docs/web-realtime.md)。密钥、原始 wire trace 和真实学生录音不提交仓库。
 
-工程检查使用 `npm run verify`、`npm run replay`；浏览器检查按 [测试说明](docs/testing.md) 执行。真实模型调用须使用已配置权限并显式启动，合成测试成功不替代真实验收。
+工程检查使用 `npm run verify`、`npm run replay`、`npm run test:browser:topics` 和 `npm run eval:topics`；真实后台生成／规划检查需显式执行 `npm run eval:topics -- --live --publish`，会写入本机忽略的 Topic Manager 存储。浏览器检查按 [测试说明](docs/testing.md) 执行。真实模型调用须使用已配置权限并显式启动，合成测试成功不替代真实验收。
 
 ### 7.1 动态规划配置与检查
 
@@ -364,9 +373,9 @@ MINIMAX_BASE_URL=https://api.minimax.cn/v1
 MINIMAX_PLANNER_MODEL=MiniMax-M3
 ```
 
-密钥仅放本机 `.env`。M3 初始化／逐轮请求与豆包实时 Key 分开；不启用额外 trace 或保存模型思维链。未配置 M3 时显示保守策略并记录 `planner_unconfigured`，不冒充真实语义规划。当前试点规划用时上限为初始化 10 秒、逐轮 5 秒，仍需真实校准。`npm run eval:planning` 使用 15 组独立合成 fixture 做离线契约检查；显式 `npm run eval:planning -- --live` 使用 6 组 fixture，最多 12 次规划请求及各至多一次格式修复，不调用豆包、Judge 或真实学生音频。`npm run probe:planning:voice` 单独验证一个动态初始上下文的真实连接，不上传麦克风。规划质量、生成因果、原十维内容和浏览器听感分别验收。
+密钥仅放本机 `.env`。M3 初始化／逐轮请求与豆包实时 Key 分开；不启用额外 trace 或保存模型思维链。未配置 M3 时显示保守策略并记录 `planner_unconfigured`，不冒充真实语义规划。当前初始化规划用时上限为 15 秒、逐轮规划总用时上限为 2 秒；真实模型完成率与首音仍需校准。`npm run eval:planning` 使用 15 组独立合成 fixture 做离线契约检查；显式 `npm run eval:planning -- --live` 使用 6 组 fixture，最多 12 次规划请求及各至多一次格式修复，不调用豆包、Judge 或真实学生音频。`npm run probe:planning:voice` 单独验证一个动态初始上下文的真实连接，不上传麦克风。规划质量、生成因果、原十维内容和浏览器听感分别验收。
 
-目标生命周期检查：npm run eval:goals。当前默认仍为完整契约 full_contract_v3，prompt 已加入通用 Agent reasoning 并升级为 kai-planner-v7；冻结对照仍为 kai-planner-v3。Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化规划总用时上限仍为 10 秒、逐轮 5 秒，初始化预留 50ms 提交明确降级。完整语义、当前轮控制和听感分别验收。
+目标生命周期检查：npm run eval:goals。当前默认仍为完整契约 full_contract_v3，prompt 已加入通用 Agent reasoning 并升级为 kai-planner-v8；冻结对照仍为 kai-planner-v3。Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化规划总用时上限为 15 秒、逐轮规划总用时上限为 2 秒；逐轮从接受输入计时并预留 200ms 提交窗口，修复不重置 deadline，超时明确降级；初始化预留 50ms。完整语义、当前轮控制和听感分别验收。
 
 豆包 FC 检查为单独实验：先 npm run prepare:planning:fc，用本机系统语音生成固定作者输入；再 npm run probe:planning:fc -- --all --rule-planner 验证等待时序，或 --case=chat 用已配置 M3 联调。只上传这组本机合成 PCM，继续采音，不调用外部 ASR／TTS 服务；输出只有时序／数量／安全诊断。它不会改变普通 Web profile 或启用 controlled，亦不验证真实麦克风／听感。
 
@@ -379,7 +388,8 @@ Agent 检查：npm run eval:agent 使用 20 个独立案例验证角色、尝试
 | 方向 | 主要入口 |
 | --- | --- |
 | 产品与范围 | [PRD](docs/prd/ask-kai-agent-prd-v1.1.md) · [独立 POC 与 Mock](docs/standalone-poc.md) · [学习者画像与累计知识](docs/learner-profiles.md) · [四位学习者与三接口](docs/mock-learners.md) |
-| Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [Planner reliability 与模型替换](docs/planner-reliability-design.md) · [Agent reasoning 与 feedback](docs/agent-feedback-design.md) · [四项后续工程](docs/agent-four-tasks.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
+| 主题式对话实现 | [主题链路实施记录](docs/topic-chain-implementation.md) · [Topic Manager 与时延设计](docs/topic-management-service-design.md) · [TP tasking](docs/topic-planner-tasking.md) |
+| Agent 设计 | [动态规划实施](docs/dynamic-planning-implementation.md) · [动态规划详细设计](docs/dynamic-planning-design.md) · [初始化教学决策](docs/initial-planner-teaching-design.md) · [Planner reliability 与模型替换](docs/planner-reliability-design.md) · [Agent reasoning 与 feedback](docs/agent-feedback-design.md) · [四项后续工程](docs/agent-four-tasks.md) · [Harness Review](docs/tutor-agent-harness-review.md) · [Pi 理想架构](docs/pi-ideal-tutor-harness-design.md) |
 | 接口与实时运行 | [多端接入与集成](docs/multi-client-integration.md) · [事件契约](docs/contracts.md) · [HSKai 边界](docs/hskai-bridge.md) · [协议接入](docs/protocol/seeduplex-integration.md) · [上下文快照](docs/context-snapshots.md) |
 | 教学与呈现 | [自然教学](docs/natural-teaching.md) · [语言支架](docs/language-support.md) · [渐进字幕](docs/progressive-captions.md) · [学习总结](docs/session-summary.md) |
 | 评测与结果 | [动态规划验证](docs/eval-results/2026-10-14-dynamic-planning.md) · [测试说明](docs/testing.md) · [多轮运行器](docs/multiturn-eval.md) · [真实评分](docs/recorded-scoring.md) · [最新正式报告](docs/eval-results/2026-10-13-harness-formal-comparison.md) |

@@ -29,8 +29,8 @@ export class MockLaunchPort {
   async list(){return this.request('list');}
 }
 
-export async function startMockBackend({fetcher=fetch,initialMemory,mission,fixtureVariant,fixtureIdentities}={}) {
-  const secret=randomBytes(48).toString('base64url'),server=createMockHskai({secret,initialMemory,mission,fixtureVariant,fixtureIdentities});
+export async function startMockBackend({fetcher=fetch,initialMemory,mission,fixtureVariant,fixtureIdentities,topicResources}={}) {
+  const secret=randomBytes(48).toString('base64url'),server=createMockHskai({secret,initialMemory,mission,fixtureVariant,fixtureIdentities,topicResources});
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const base=`http://127.0.0.1:${server.address().port}/internal/ask-kai/`;
   const options={secret,fetcher,allowLocal:true};

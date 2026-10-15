@@ -1,5 +1,5 @@
 // Versioned, session-owned, ephemeral view; never display IDs or transcripts.
-const modes={sports:'运动主题',mission:'Mission 后对话',free:'自由聊天'};
+const modes={topic:'主题对话',sports:'运动主题',mission:'Mission 后对话',free:'自由聊天'};
 const focuses=new Set(['practice_observed','target_text_observed','conversation_only','insufficient','unavailable']);
 const id=v=>typeof v==='string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
 const count=(v,max=1000)=>Number.isSafeInteger(v) && v>=0 && v<=max;

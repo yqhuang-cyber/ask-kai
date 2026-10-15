@@ -20,6 +20,12 @@
 
 目标生命周期详情见 [实施规则](dynamic-goal-lifecycle.md)与[新验证报告](eval-results/2026-10-14-dynamic-goals.md)。初始化 10 秒总预算包含读取与规划，预留 50ms 提交明确降级；读取失败／用户取消仍失败，不伪装成功。
 
+2026-10-14 [初始化教学决策设计](initial-planner-teaching-design.md)已补完整，配套 [28 项独立设计案例](eval-datasets/initial-planner-adaptation-v1/README.md)。IP-01～06 为后续独立实施／验收项：资源与契约、案例与初始化快照、needs／选择／无目标、能力执行适配、新模型对照、校准后的进展调整。目前均未开始；设计案例没有模型结果，现有 DP 状态和 goal lifecycle 限制仍保留。
+
+最新主题式对话实施安排以 [TP-00～11 tasking](topic-planner-tasking.md)为准：通用 Planner＋交流能力资源＋LLM 生成 TopicPack，增加准入、缓存、版本和第二主题验证。TP 展开旧 IP-01～05，IP-06 仍为校准后的后续项；全部 TP 待实施，DP-05／06 当轮控制工作独立，不由主题材料生成替代。
+
+最新约束：独立主题管理服务提前生成并发布，在线仅消费已发布包；逐轮总预算最多 2 秒。2026-10-15 已落实现有 PlanningState 的 2 秒默认／上限、从输入接受开始计时、共享修复／校验截止与迟到拒绝。本节先前 5 秒保留为历史预算，主题服务与通用目标承接仍待实施。见 [服务设计](topic-management-service-design.md)与[会中逐轮](initial-planner-teaching-design.md#81-会中逐轮的处理链路)。
+
 ## 1. 交付目标与顺序
 
 三个入口共用动态初始化；Mission／主题有基于学生情况的整体目标，自由聊天初始目标为空；每个有效完整话轮根据实际上下文规划下一步，再由可核验执行路径生成回复；执行与学习观察进入下一轮，并在获准后形成跨会话记录。

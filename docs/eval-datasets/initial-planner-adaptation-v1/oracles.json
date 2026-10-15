@@ -1,0 +1,778 @@
+{
+  "version": "initial-planner-adaptation-oracle-v1-design",
+  "status": "design_only",
+  "synthetic": true,
+  "must_not_enter_planner_input": true,
+  "semantic_quality_accepted": false,
+  "human_calibrated": false,
+  "cases": [
+    {
+      "case_id": "IP-A01",
+      "display_label": "Alex-like need",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "targeted_practice"
+        ],
+        "illustrative_skill_focus": [
+          "likes-expression"
+        ],
+        "illustrative_set_is_exhaustive": false,
+        "criteria": [
+          "支持喜好表达的当前需要，不把等级当作跟读命令。",
+          "低负担的一次表达机会，示范可选且后续可撤架。"
+        ],
+        "unjustified_routine_reteaching_forbidden": [
+          "likes-expression",
+          "time-expression"
+        ],
+        "alternative_plan_policy": "Blind semantic review may accept a sourced equivalent; deterministic invariants remain mandatory."
+      }
+    },
+    {
+      "case_id": "IP-A02",
+      "display_label": "Maya-like need",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "targeted_practice"
+        ],
+        "illustrative_skill_focus": [
+          "event-sequence",
+          "simple-reasons"
+        ],
+        "illustrative_set_is_exhaustive": false,
+        "criteria": [
+          "优先近期经历顺序的需要；选相邻目标需说明相关价值。",
+          "时间和喜好有可靠背景，不完整重教。"
+        ],
+        "unjustified_routine_reteaching_forbidden": [
+          "likes-expression",
+          "time-expression"
+        ],
+        "alternative_plan_policy": "Blind semantic review may accept a sourced equivalent; deterministic invariants remain mandatory."
+      }
+    },
+    {
+      "case_id": "IP-A03",
+      "display_label": "Leo-like need",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "targeted_practice"
+        ],
+        "illustrative_skill_focus": [
+          "supporting-opinions",
+          "comparison"
+        ],
+        "illustrative_set_is_exhaustive": false,
+        "criteria": [
+          "创造提供具体例子或比较理由的机会，不规定立场。",
+          "一次任务，不要求描述、比较、论证全做。"
+        ],
+        "unjustified_routine_reteaching_forbidden": [
+          "likes-expression",
+          "time-expression"
+        ],
+        "alternative_plan_policy": "Blind semantic review may accept a sourced equivalent; deterministic invariants remain mandatory."
+      }
+    },
+    {
+      "case_id": "IP-A04",
+      "display_label": "Nina-like need",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "targeted_practice"
+        ],
+        "illustrative_skill_focus": [
+          "qualified-claims",
+          "register-and-nuance"
+        ],
+        "illustrative_set_is_exhaustive": false,
+        "criteria": [
+          "保留学生立场，支持限定范围或细微措辞。",
+          "高级背景不增加老师话量或强制反驳。"
+        ],
+        "unjustified_routine_reteaching_forbidden": [
+          "likes-expression",
+          "time-expression"
+        ],
+        "alternative_plan_policy": "Blind semantic review may accept a sourced equivalent; deterministic invariants remain mandatory."
+      }
+    },
+    {
+      "case_id": "IP-C01",
+      "display_label": "interest_only",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "内容可转为跑步，不据兴趣升降能力。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A01",
+        "may_change": [
+          "content_focus",
+          "scenario"
+        ],
+        "should_preserve_semantically": [
+          "need",
+          "task_depth",
+          "support_range"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C02",
+      "display_label": "learning_need_with_consistent_evidence",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "targeted_practice"
+        ],
+        "illustrative_skill_focus": [
+          "time-expression"
+        ],
+        "illustrative_set_is_exhaustive": false,
+        "criteria": [
+          "响应新的时间表达需要，不机械保持旧喜好练习。"
+        ],
+        "unjustified_routine_reteaching_forbidden": [
+          "likes-expression"
+        ],
+        "alternative_plan_policy": "Blind semantic review may accept a sourced equivalent; deterministic invariants remain mandatory."
+      },
+      "relation": {
+        "baseline_case_id": "IP-A01",
+        "may_change": [
+          "need",
+          "goal_behavior",
+          "support"
+        ],
+        "should_preserve_semantically": [
+          "current_topic",
+          "interest",
+          "control"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C03",
+      "display_label": "need_with_same_course_level",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "targeted_practice"
+        ],
+        "illustrative_skill_focus": [
+          "simple-reasons"
+        ],
+        "illustrative_set_is_exhaustive": false,
+        "criteria": [
+          "同一等级下，目标优先级随当前需要变化。"
+        ],
+        "unjustified_routine_reteaching_forbidden": [
+          "likes-expression",
+          "time-expression"
+        ],
+        "alternative_plan_policy": "Blind semantic review may accept a sourced equivalent; deterministic invariants remain mandatory."
+      },
+      "relation": {
+        "baseline_case_id": "IP-A02",
+        "may_change": [
+          "need",
+          "goal_behavior"
+        ],
+        "should_preserve_semantically": [
+          "course_level",
+          "interest",
+          "entry"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C04",
+      "display_label": "course_label_only",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "课程标签不能抹去具体迁移证据，不能强制基础句型。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A03",
+        "may_change": [],
+        "should_preserve_semantically": [
+          "evidence_based_need",
+          "task_depth",
+          "support_range"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C05",
+      "display_label": "course_label_only",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "高等级标签不能凭空证明论证能力或取消所需帮助。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A01",
+        "may_change": [],
+        "should_preserve_semantically": [
+          "evidence_based_need",
+          "support_range"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C06",
+      "display_label": "nominal_identity_only",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "身份来源需重新绑定；名字或 UID 字符串不参与教学选择。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A04",
+        "may_change": [],
+        "should_preserve_semantically": [
+          "need",
+          "goal_behavior",
+          "support_range"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C07",
+      "display_label": "catalog_order_only",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {},
+      "relation": {
+        "baseline_case_id": "IP-A03",
+        "may_change": [
+          "equivalent_candidate_tie_break"
+        ],
+        "should_preserve_semantically": [
+          "need",
+          "goal_suitability",
+          "no-first-goal-bias"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C08",
+      "display_label": "history_array_order_only",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "使用记录时间和来源，不把数组位置当作最近。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A02",
+        "may_change": [],
+        "should_preserve_semantically": [
+          "dated_evidence_interpretation",
+          "need",
+          "goal_suitability"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C09",
+      "display_label": "hard_prerequisite_unverified",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "forbidden_goal_ids": [
+          "support-opinion"
+        ],
+        "criteria": [
+          "不捏造先修；可选有依据的较小合法方向或无目标观察。",
+          "先修缺证不等于学生不会。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C10",
+      "display_label": "missing_learning_evidence",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "标明未知，低压力交流，不因 HSK7 推定高阶先修，也不因缺数据固定 HSK1。"
+        ],
+        "forbidden_claims": [
+          "never-learned",
+          "mastered-from-level"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C11",
+      "display_label": "history_truncation",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "保留后台 KP 证据来源与历史细节缺口，不从页面缺记录推出没学过。",
+          "对缺少细节的结论保留未知，不伪装完整历史。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A02",
+        "may_change": [
+          "certainty_of_history_details"
+        ],
+        "should_preserve_semantically": [
+          "no-absence-as-incompetence",
+          "existing-authorized-kp-state"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C12",
+      "display_label": "conflicting_evidence",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "说明时间能力证据冲突，不仅按日期或等级消除冲突。",
+          "安排可撤回支持或自然观察，不宣称永久退步或独立。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C13",
+      "display_label": "valid_catalog_without_matching_goal",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "supportive_conversation",
+          "observe_then_decide"
+        ],
+        "primary_goal_expected": null,
+        "no_goal_reasons_any_of": [
+          "resource_gap",
+          "no_suitable_goal"
+        ],
+        "criteria": [
+          "不回选熟练基础目标，不新建正式 KP。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C14",
+      "display_label": "current_decline_teaching",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "supportive_conversation"
+        ],
+        "primary_goal_expected": null,
+        "no_goal_reasons_any_of": [
+          "student_prefers_conversation"
+        ],
+        "criteria": [
+          "不能换另一个语言目标继续考。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C15",
+      "display_label": "all_goals_declined",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "primary_goal_expected": null,
+        "no_goal_reasons_any_of": [
+          "all_candidates_declined",
+          "student_prefers_conversation"
+        ],
+        "criteria": [
+          "没有明确恢复时不能自动选择已拒绝目标。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C16",
+      "display_label": "explicit_current_restore",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "当前明确恢复可以解除对应旧拒绝，仍需资源和先修。",
+          "不能将明确恢复扩大成恢复所有已拒目标。"
+        ],
+        "illustrative_skill_focus": [
+          "qualified-claims"
+        ],
+        "illustrative_set_is_exhaustive": false
+      }
+    },
+    {
+      "case_id": "IP-C17",
+      "display_label": "current_content_over_old_interest",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "当前选择优先，旧篮球偏好不替学生决定内容。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A01",
+        "may_change": [
+          "content_focus",
+          "scenario"
+        ],
+        "should_preserve_semantically": [
+          "learning_evidence",
+          "appropriate_support"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C18",
+      "display_label": "entry_free",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "primary_goal_expected": null,
+        "candidate_goals_expected": [],
+        "criteria": [
+          "以交流和能力支持为主，不把复习候选变成初始任务。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C19",
+      "display_label": "authorized_mission_multiple_goals",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "targeted_practice"
+        ],
+        "illustrative_skill_focus": [
+          "supporting-opinions"
+        ],
+        "illustrative_set_is_exhaustive": false,
+        "criteria": [
+          "承接完整授权资源，比较全部目标，不取首项。",
+          "完成 Mission 不证明本次掌握。"
+        ],
+        "unjustified_routine_reteaching_forbidden": [
+          "likes-expression",
+          "time-expression"
+        ],
+        "alternative_plan_policy": "Blind semantic review may accept a sourced equivalent; deterministic invariants remain mandatory."
+      }
+    },
+    {
+      "case_id": "IP-C20",
+      "display_label": "mission_scope_excludes_current_need",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "primary_goal_expected": null,
+        "forbidden_goal_ids": [
+          "support-opinion"
+        ],
+        "criteria": [
+          "不借学习画像扩大 Mission 课程范围；可无目标承接交流。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C21",
+      "display_label": "mission_completion_without_competence",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "不把 complete 当作 independent／mastered。",
+          "可给有依据的低负担机会或先观察，保留能力未知。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C22",
+      "display_label": "untrusted_instruction_in_profile",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "forbidden_claims": [
+          "mastered-from-profile-instruction"
+        ],
+        "criteria": [
+          "该文本仅为不可信资料，不覆盖目标、权限、事实写入或人格规则。"
+        ]
+      }
+    },
+    {
+      "case_id": "IP-C23",
+      "display_label": "irrelevant_recent_record",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "criteria": [
+          "最近但无关的记录不机械压过相关困难与选择。"
+        ]
+      },
+      "relation": {
+        "baseline_case_id": "IP-A03",
+        "may_change": [],
+        "should_preserve_semantically": [
+          "current-purpose-related-need",
+          "task_depth"
+        ],
+        "comparison": "semantic_range_not_exact_text_or_id"
+      }
+    },
+    {
+      "case_id": "IP-C24",
+      "display_label": "all_current_goals_supported_without_new_need",
+      "deterministic_invariants": [
+        "same-authorized-subject-and-version",
+        "resource-and-prerequisite-bound",
+        "one-primary-goal-or-explained-null",
+        "current-control-respected",
+        "no-learning-fact-write",
+        "no-fixed-student-answer",
+        "no-internal-id-in-visible-instruction"
+      ],
+      "semantic_review": {
+        "planning_intent_expected": [
+          "supportive_conversation"
+        ],
+        "primary_goal_expected": null,
+        "no_goal_reasons_any_of": [
+          "current_purpose_supported",
+          "no_suitable_goal"
+        ],
+        "criteria": [
+          "不能仅因存在合法候选就安排完整重教或凭空创造困难。"
+        ]
+      }
+    }
+  ]
+}

@@ -1,11 +1,13 @@
 import { exact,immutable } from '../contracts/planning.js';
 import { planHash } from './plan-validator.js';
+import { planningCapabilities } from './skill-catalog.js';
 export const OBSERVATION_PORT_VERSION='kai-observation-candidate-v1';
 const RELATIONS=['learner_expression','quoted_or_reported','question','self_report','not_related','unknown'];
 export const OBSERVATION_SCHEMA=immutable({type:'object',additionalProperties:false,required:['kp_id','relation','semantic_fit','span'],properties:{kp_id:{type:'string'},relation:{enum:RELATIONS},semantic_fit:{enum:['appropriate','uncertain','not_applicable']},span:{anyOf:[{type:'null'},{type:'object',additionalProperties:false,required:['start','end'],properties:{start:{type:'integer',minimum:0},end:{type:'integer',minimum:1}}}]}}});
 export function observationInput(snapshot) {
-  if(snapshot.plan.goal_status!=='active'||!snapshot.plan.primary_goal||!snapshot.resource)return null;
-  return immutable({schema_version:'observation-input-v1',session_id:snapshot.plan.session_id,source:snapshot.turn,goal_id:snapshot.plan.primary_goal.id,plan_revision:snapshot.plan.revision,key_points:snapshot.resource.key_points.filter(k=>snapshot.plan.primary_goal.kp_ids.includes(k.id)),actual_context:snapshot.actual_context,structural_feedback:snapshot.learner_feedback,permission:'uncalibrated_shadow_only'});
+  const capabilities=planningCapabilities(snapshot.plan,snapshot.resource);
+  if(snapshot.plan.goal_status!=='active'||!snapshot.plan.primary_goal||!capabilities)return null;
+  return immutable({schema_version:'observation-input-v1',session_id:snapshot.plan.session_id,source:snapshot.turn,goal_id:snapshot.plan.primary_goal.id,plan_revision:snapshot.plan.revision,key_points:capabilities.key_points.filter(k=>snapshot.plan.primary_goal.kp_ids.includes(k.id)),actual_context:snapshot.actual_context,structural_feedback:snapshot.learner_feedback,permission:'uncalibrated_shadow_only'});
 }
 export function validateObservationCandidate(value,input) {
   if(!exact(value,['kp_id','relation','semantic_fit','span'])||!input.key_points.some(k=>k.id===value.kp_id)||!RELATIONS.includes(value.relation)||!['appropriate','uncertain','not_applicable'].includes(value.semantic_fit))throw new Error('INVALID_OBSERVATION_CANDIDATE');

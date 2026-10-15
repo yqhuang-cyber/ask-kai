@@ -18,7 +18,7 @@ async function prepared({mode='topic',variant='b'}={}) {
   return new Preparations({initializer}).bind(p,'session-goals');
 }
 async function session(options={}) {
-  return new TeachingSession({sessionId:'session-goals',mode:options.mode==='free'?'free':'sports',planning:await prepared(options),planner:options.planner,resourceResolver:options.resourceResolver});
+  return new TeachingSession({sessionId:'session-goals',mode:options.mode==='free'?'free':'sports',planning:await prepared(options),planner:options.planner});
 }
 async function turn(s,text){const e=event(text);assert.equal(s.accept(e),true);const p=await s.planTurn(e);return {e,p};}
 test('explicit choices replace a trusted goal; old attempts retain their original goal and revision',async()=> {
@@ -57,23 +57,25 @@ test('missing prerequisites do not silently replace the requested target with an
   assert.deepEqual(s.view().cards,[]);assert.equal(s.learningRecord().observations.length,0);
 });
 test('local help expires on the next input and never requests formal curriculum or creates a goal',async()=> {
-  let reads=0;const s=await session({mode:'free',resourceResolver:async()=>{reads++;return SPORTS_RESOURCE;},planner:{planTurn:async input=>({...conservativeTurn(input),local_help_target:input.turn.text.includes('怎么说')?'表达当前词':null})}});
+  const s=await session({mode:'free',planner:{planTurn:async input=>({...conservativeTurn(input),local_help_target:input.turn.text.includes('怎么说')?'表达当前词':null})}});
   await turn(s,'planet 中文怎么说？');assert.equal(s.planning.localHelp.text,'表达当前词');assert.equal(s.planning.plan.primary_goal,null);
-  await turn(s,'我们继续聊宇宙。');assert.equal(s.planning.localHelp,null);assert.equal(s.planning.plan.primary_goal,null);assert.equal(reads,0);
+  await turn(s,'我们继续聊宇宙。');assert.equal(s.planning.localHelp,null);assert.equal(s.planning.plan.primary_goal,null);assert.equal(s.planning.resource,null);
 });
-test('free promotion needs an explicit sustained practice choice and authorized curriculum',async()=> {
-  let reads=0;const s=await session({mode:'free',resourceResolver:async()=>{reads++;return SPORTS_RESOURCE;}});
-  await turn(s,'“我想练习喜好表达”是什么意思？');assert.equal(reads,0);assert.equal(s.planning.plan.primary_goal,null);
-  await turn(s,'我想练习喜好表达。');assert.equal(reads,1);assert.equal(s.planning.plan.mode,'free');assert.equal(s.planning.plan.primary_goal.id,'express-likes');assert.equal(s.planning.plan.resource_refs[0].version,SPORTS_RESOURCE.version);
-  await turn(s,'我喜欢篮球。');assert.equal(s.learningRecord().observations[0].goal_id,'express-likes');
+test('free promotion uses host capabilities only after explicit sustained choice, without curriculum',async()=> {
+  const s=await session({mode:'free'});
+  await turn(s,'“我想练习喜好表达”是什么意思？');assert.equal(s.planning.plan.primary_goal,null);
+  await turn(s,'我想练习喜好表达。');assert.equal(s.planning.plan.mode,'free');assert.equal(s.planning.plan.primary_goal.id,'express-likes');assert.equal(s.planning.resource,null);assert.deepEqual(s.planning.plan.resource_refs,[]);assert.equal(s.planning.plan.skill_catalog_ref.id,'kai-communication-skills');
+  await turn(s,'我喜欢篮球。');assert.deepEqual(s.learningRecord().observations,[]);assert.deepEqual(s.view().cards,[]);assert.equal(s.teaching.decision.goal_attempt_observed,false);
+  await turn(s,'我不想练习了。');await turn(s,'篮球中文怎么说？');assert.equal(s.planning.plan.goal_status,'paused');
+  const summary=s.finalize();assert.equal(summary.goals[0].attempt_rule_supported,false);assert.equal(summary.goals[0].assessment.mastery_assessed,false);
 });
-test('late resource reads after new input or close cannot promote a free session',async()=> {
+test('late model results after new input or close cannot restore a free practice goal',async()=> {
   for(const close of [false,true]) {
-    let release;const state=new PlanningState({...await prepared({mode:'free'}),resourceResolver:()=>new Promise(r=>{release=()=>r(SPORTS_RESOURCE);})});
+    let release;const state=new PlanningState({...await prepared({mode:'free'}),planner:{planTurn:input=>new Promise(r=>{release=()=>r(conservativeTurn(input));})}});
     const policy={action:'RESPOND',teaching_paused:false,teaching_cooldown:0};
     const old=state.acceptInput(event('我想练习喜好表达。'),policy,{});await Promise.resolve();
-    if(close)state.close();else await state.acceptInput(event('我们聊宇宙。'),policy,{});
-    release();assert.equal(await old,null);assert.equal(state.plan.primary_goal,null);assert.equal(state.resource,null);
+    if(close)state.close();else state.controls(event('取消这个目标。'),policy);
+    release();assert.equal(await old,null);assert.equal(state.resource,null);assert.equal(state.plan.goal_status,close?'active':'retired');
   }
 });
 test('repeated attempts and self reports cannot satisfy independent success rules',async()=> {

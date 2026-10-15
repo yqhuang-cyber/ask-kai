@@ -5,14 +5,14 @@ export class PreparationClient {
   cancel(){this.epoch++;this.controller?.abort();const id=this.id;this.id=null;if(id)void this.fetcher(`/api/conversation-preparations/${id}`,{method:'DELETE'}).catch(()=>{});}
   async prepare(entry) {
     this.cancel();const epoch=this.epoch,controller=new AbortController();this.controller=controller;this.onStatus('preparing');let timedOut=false;
-    const deadline=setTimeout(()=>{timedOut=true;controller.abort();},15000);
+    const deadline=setTimeout(()=>{timedOut=true;controller.abort();},15000); // Matches the 15s initialization planning limit.
     const current=()=>epoch===this.epoch&&!controller.signal.aborted;
     try {
       const response=await this.fetcher('/api/conversation-preparations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(entry),signal:controller.signal});
       if(!response.ok)throw new Error('PREPARATION_FAILED');const created=await response.json();
       if(!current()){void this.fetcher(`/api/conversation-preparations/${created.preparation_id}`,{method:'DELETE'}).catch(()=>{});if(timedOut&&epoch===this.epoch)this.onStatus('failed');return null;}
       this.id=created.preparation_id;
-      for(let attempt=0;attempt<120;attempt++) {
+      for(let attempt=0;attempt<160;attempt++) {
         if(!current())return null;
         const poll=await this.fetcher(`/api/conversation-preparations/${this.id}`,{signal:controller.signal});if(!poll.ok)throw new Error('PREPARATION_FAILED');const result=await poll.json();
         if(!current())return null;

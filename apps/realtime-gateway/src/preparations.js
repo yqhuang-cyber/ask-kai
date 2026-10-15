@@ -19,15 +19,15 @@ export class Preparations {
     this.prune();requireIdentity(identity,'session:create',this.clock());
     const item=this.items.get(id);if(!item||item.owner!==owner(identity)||item.epoch!==(this.epochs.get(item.owner)??0))throw new Error('PREPARATION_NOT_FOUND');return item;
   }
-  view(identity,id){const item=this.get(identity,id);const view=item.status!=='ready'?null:item.plan.execution_mode==='shadow'?new TeachingSession({sessionId:'shadow-preview',mode:item.entry.mode==='topic'?'sports':item.entry.mode,mission:identity.mission,memory:identity.memory}).view():planProjection(item.plan,item.resource);return {preparation_id:id,status:item.status,error:item.error,expires_at:item.expires,...(view?{view}:{})};}
+  view(identity,id){const item=this.get(identity,id);const view=item.status!=='ready'?null:item.plan.execution_mode==='shadow'?new TeachingSession({sessionId:'shadow-preview',mode:item.entry.mode==='topic'&&item.resource?.schema_version!=='topic-pack-v1'?'sports':item.entry.mode,mission:identity.mission,memory:identity.memory}).view():planProjection(item.plan,item.resource);return {preparation_id:id,status:item.status,error:item.error,expires_at:item.expires,...(view?{view}:{})};}
   cancel(identity,id){const item=this.get(identity,id);item.controller.abort();item.status='cancelled';delete item.context;delete item.resource;delete item.plan;}
   async consume(identity,id,input) {
     const item=this.get(identity,id);if(item.status!=='ready')throw new Error('PREPARATION_NOT_READY');
     const entry=normalizeEntry(input,identity);if(JSON.stringify(entry)!==JSON.stringify(item.entry))throw new Error('PREPARATION_ENTRY_MISMATCH');
-    const [context,resource]=await Promise.all([this.initializer.port.read(identity),this.initializer.port.getResource(identity,entry)]);
+    const [context,resource]=await Promise.all([this.initializer.port.read(identity),entry.mode==='free'?null:this.initializer.port.getResource(identity,entry,{version:item.resource?.schema_version==='topic-pack-v1'?item.resource.version:undefined})]);
     // Another request may consume/cancel/revoke while revisions are in flight.
     if(this.get(identity,id)!==item||item.status!=='ready')throw new Error('PREPARATION_ALREADY_USED');
-    if(context.revision!==item.context.revision||resource?.version!==item.resource?.version){item.status='failed';item.error='PREPARATION_STALE';throw new Error('PREPARATION_STALE');}
+    if(context.revision!==item.context.revision||resource?.version!==item.resource?.version||resource?.hash!==item.resource?.hash){item.status='failed';item.error='PREPARATION_STALE';throw new Error('PREPARATION_STALE');}
     item.status='consumed';this.items.delete(id);return {plan:item.plan,context:item.context,resource:item.resource};
   }
   bind(result,sessionId){const {hash,...base}=result.plan;const plan={...base,session_id:sessionId};return {...result,plan:immutable({...plan,hash:planHash(plan)})};}

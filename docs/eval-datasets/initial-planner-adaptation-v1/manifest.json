@@ -1,0 +1,69 @@
+{
+  "version": "initial-planner-adaptation-manifest-v1-design",
+  "status": "design_only",
+  "synthetic": true,
+  "counts": {
+    "anchors": 4,
+    "counterfactual_or_boundary": 24,
+    "total": 28
+  },
+  "model_calls": 0,
+  "judge_calls": 0,
+  "real_provider_connected": false,
+  "browser_audio_tested": false,
+  "evaluated_cases": 0,
+  "semantic_quality_accepted": false,
+  "human_calibrated": false,
+  "production_enabled": false,
+  "canonicalization": "UTF-8 JSON; recursively sorted object keys; array order preserved; ensure_ascii=false; separators=comma/colon; no trailing newline",
+  "files": {
+    "catalog.json": {
+      "sha256": "5917e26292097d45d1c99cfc40b6c4512ddb98f65075c7def1811e08ee0e3e4c",
+      "bytes": 6175
+    },
+    "inputs.json": {
+      "sha256": "96643bf7a1deb80983ff1444c6448db2474d27e08a1dfe33daf8d210a08dc99a",
+      "bytes": 97290
+    },
+    "oracles.json": {
+      "sha256": "0636bf81d7a4f0772c1317a1a331a3e1d271495527c29d47aec7fa7ea32faf1f",
+      "bytes": 25045
+    }
+  },
+  "materialized_case_sha256": {
+    "IP-A01": "522aa486522007775fad130b5f08af9354e0832029dbeb06ac1cb1eada52af06",
+    "IP-A02": "ac6325955eb209923ac1ec5e63c0bad8b53f5b2ec5d809558b3cecd51025224a",
+    "IP-A03": "28a7307f1fbc1e12dfb977e253485ec55d80f356ac4db2ca23a5c3ea015e899f",
+    "IP-A04": "155565db5123de8864e7a2a83a1d1a3985b17433cdf021c899553545529a2981",
+    "IP-C01": "b407a8cb05f14e8da3a691df950dc6902115e452778942f57acd059f1b7f5938",
+    "IP-C02": "a235061237b2c2d1fdcd37fdd744a04c14364570e9fe71d80fcf35d99f65691b",
+    "IP-C03": "97598081a295894550bb99a0e5e9bdc87c5dbe5f8eda71bd52a485b76d592e6c",
+    "IP-C04": "a1891660dadf61514767d8e67dc31a264403c10c4c7844e7d0871d44786ca238",
+    "IP-C05": "0b6278eef17e3103fd2fdb9173c901e8c1ed02547a3b04084cdc2d5536b880c6",
+    "IP-C06": "ca98b8f46ecb5e674127bb23c1752124d1408dc6284b6af04054ca796ebf7cb2",
+    "IP-C07": "1aacaf94cbf002a700690e5901e1e34aaf49b1cecc113a37cdf39d3c6a4b4b4b",
+    "IP-C08": "4ccece4ca23d9860eec7559edfa27c006198d22268ce764dca5fb7f588a04dde",
+    "IP-C09": "7d6d9fc8aaf7a3f6122ab86a70447f0492b671e752a79b767ea9218dba0d86b4",
+    "IP-C10": "2c709ced8eebf241f9b9ad20a17b80634c4903472588d3ec6e3d64e0eb856a66",
+    "IP-C11": "7d5c635ceb31fffb081dc1a62cf664a6a8f7cc0e5b3ca84d60772bfdd969a4f8",
+    "IP-C12": "214e30e3223c56c72d9d4dffdba51a4be9475e02a34fa258bc3b339a58b939b8",
+    "IP-C13": "5a90dad9c6932818f75ddc82aa47874c6fbc6df54e77544ff50c5880d68b4434",
+    "IP-C14": "ca9724376d6d8259bd03572bd2f617a4bab58548fd4d143f1bb8fac8078a3ea0",
+    "IP-C15": "4fc8d02a9aa17a42f3578104e0a4e441409592df5aaf464705e95c30f4e32835",
+    "IP-C16": "7eded0cbfabb4def16ee8154907b0ac9ad31b8218cf2363d03b714bc1c4c1983",
+    "IP-C17": "85f2ea3f38fdfdf47fb959382e9b88405c6ca0f9a1f10364b145220251619f70",
+    "IP-C18": "53813e9ec4fc00aa7848ed5f21837e32d61c088b917517531e85c5770de811e5",
+    "IP-C19": "102f1de2319554a65c84cdb78fab222534df83ea4792a68ceb3039e895b0123e",
+    "IP-C20": "3cd78a5ab289af826361aaf37d6286998f6299e55b786dbb4be5117f6ccb5beb",
+    "IP-C21": "cf0b397db277bc4ea03f09e9f2b3812e31e4486310e8fec39d7f3f4fd9586249",
+    "IP-C22": "f2027ba8b8d7856ae40fdc704f2c32cbcffccd60b1077006ddfa51205f05457e",
+    "IP-C23": "408efe4edf2397f673b16578c22ab4f8155f5021714cbe2bbdffacdf93d4c8fd",
+    "IP-C24": "a7100629eb491c6d287a3f0cb77182ff648576b818267fc3e68816b07bbce192"
+  },
+  "boundaries": [
+    "Design examples are not executed results.",
+    "No runtime loader or model prompt imports the oracle.",
+    "Future harness must freeze final model-visible input separately after host binding and clipping.",
+    "Existing mock learner files and fixed evaluation datasets are unchanged."
+  ]
+}
