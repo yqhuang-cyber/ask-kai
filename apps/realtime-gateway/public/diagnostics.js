@@ -28,7 +28,7 @@ names.add('teaching.decision');names.add('teaching.response');
 for(const name of ['context.queued','context.confirmation.ignored'])names.add(name);
 numeric.add('current_decision_context_version');
 numeric.add('current_state_version');
-Object.assign(enums,{context_policy_version:['kai-context-v1','kai-context-v2','kai-context-v3','kai-context-v4'],context_scope:['initial','subsequent_inputs']});
+Object.assign(enums,{context_policy_version:['kai-context-v1','kai-context-v2','kai-context-v3','kai-context-v4','kai-context-v5'],context_scope:['initial','subsequent_inputs']});
 enums.reason.push('wrong_version','no_pending');
 for(const key of ['applied_context_version','decision_context_version','new_points','turn_count','teaching_cooldown'])numeric.add(key);
 for(const key of ['decision_context_matched','goal_attempt_observed','teaching_paused','clarification_pending'])boolean.add(key);

@@ -9,14 +9,15 @@ export function contextRefs(context,resource) {
   return new Set([context.snapshot_id,...context.student_profile.interests.map(r=>r.record_id),...context.learning_profile.kp_states.map(r=>r.record_id),...context.learning_history.map(r=>r.record_id),...(resource?[resource.id,...resource.goals.map(g=>g.id),...resource.key_points.map(k=>k.id),...resource.cards.map(c=>c.id)]:[])]);
 }
 const refs=(list,allowed)=>Array.isArray(list)&&list.length<=12&&list.every(id=>isId(id)&&allowed.has(id));
-export function validateConversation(p,{entry,context,resource,allowNoGoal=false}) {
+export function validateConversation(p,{entry,context,resource}) {
   const allowed=contextRefs(context,planningCapabilities(entry,resource));
   if(entry.opening_request)allowed.add('initial-choice');
   if(!exact(p,['conversation_purpose','content_focus','opening_options','primary_goal_id','candidate_goal_ids','key_points','strategy','selection_basis'])||Buffer.byteLength(JSON.stringify(p))>LIMITS.proposal_bytes||!boundedText(p.conversation_purpose)||!boundedText(p.content_focus)||!Array.isArray(p.opening_options)||p.opening_options.length>2||!p.opening_options.every(x=>boundedText(x,100))||!exact(p.strategy,['language_support','support_level','correction','pace'])||!['auto','zh','zh_en'].includes(p.strategy.language_support)||!['none','partial','model','unknown'].includes(p.strategy.support_level)||!['gentle','on_request'].includes(p.strategy.correction)||!['slow','normal'].includes(p.strategy.pace))throw new Error('INVALID_CONVERSATION_PROPOSAL');
   const ids=new Set(resource?.goals.map(g=>g.id)??[]),kp=new Set(resource?.key_points.map(k=>k.id)??[]);
   if(p.primary_goal_id!==null&&!ids.has(p.primary_goal_id)||!Array.isArray(p.candidate_goal_ids)||p.candidate_goal_ids.length>2||!p.candidate_goal_ids.every(id=>ids.has(id))||new Set(p.candidate_goal_ids).size!==p.candidate_goal_ids.length||!Array.isArray(p.key_points)||p.key_points.length>2||!p.key_points.every(id=>kp.has(id)))throw new Error('INVALID_PLAN_RESOURCE_REFERENCE');
   if(entry.mode==='free'&&(p.primary_goal_id!==null||p.candidate_goal_ids.length||p.key_points.length))throw new Error('FREE_INITIAL_GOAL_FORBIDDEN');
-  if(resource&&p.primary_goal_id===null&&!allowNoGoal) {
+  if(entry.mode==='topic'&&p.primary_goal_id===null)throw new Error('TOPIC_GOAL_REQUIRED');
+  if(resource&&p.primary_goal_id===null) {
     const declined=context.learning_history.flatMap(h=>h.declined_goal_ids);
     const eligible=resource.goals.some(g=>!declined.includes(g.id)&&g.kp_ids.every(id=>resource.key_points.find(k=>k.id===id).prerequisites.every(prior=>context.learning_profile.kp_states.some(s=>s.kp_id===prior&&['demonstrated_independent','demonstrated_transfer'].includes(s.evidence_state)))));
     if(eligible)throw new Error('RESOURCE_GOAL_REQUIRED');

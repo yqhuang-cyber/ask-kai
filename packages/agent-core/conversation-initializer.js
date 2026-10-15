@@ -1,5 +1,6 @@
 import { FREE_PRACTICE_CATALOG,planningCapabilities } from './skill-catalog.js';
-import { assessNeeds,topicFallback,validateTopicConversation,topicModelInput } from './topic-initialization.js';
+import { assessNeeds,topicFallback,validateTopicConversation,topicModelInput,requireTopicGoal } from './topic-initialization.js';
+import { goalDetails } from './goal-details.js';
 import { randomUUID } from 'node:crypto';
 import { immutable,exact,isId,boundedText,requireIdentity,PLANNING_VERSION } from '../contracts/planning.js';
 import { boundedProposal,plannerDescriptor } from './planner-port.js';
@@ -17,13 +18,14 @@ export function conservativeConversation(entry,context,resource) {
   const independent=id=>learning.kp_states.some(s=>s.kp_id===id&&['demonstrated_independent','demonstrated_transfer'].includes(s.evidence_state));
   const eligible=resource?.goals.filter(g=>!declined.includes(g.id)&&g.kp_ids.every(id=>resource.key_points.find(k=>k.id===id).prerequisites.every(independent)))??[];
   const goal=entry.mode==='free'?null:eligible.find(g=>g.kp_ids.some(id=>learning.review_candidates.includes(id)))??eligible.find(g=>!g.kp_ids.every(independent))??eligible[0]??null;
+  if(entry.mode==='topic'&&!goal)throw new Error('TOPIC_NO_ELIGIBLE_GOAL');
   const state=learning.kp_states.find(k=>goal?.kp_ids.includes(k.kp_id));
   const interest=profile.interests.find(i=>i.topic_id===entry.topic_id||entry.mode==='mission');
   return {conversation_purpose:entry.mode==='free'?'跟随学生选择进行自然交流':`围绕${resource.title}进行简短交流`,content_focus:entry.mode==='free'?'由学生选择话题':interest?.label??resource.title,opening_options:[],primary_goal_id:goal?.id??null,candidate_goal_ids:[],key_points:goal?.kp_ids??[],strategy:{language_support:learning.language_support,support_level:state?.support_needed??'unknown',correction:profile.conversation_preferences.correction,pace:entry.speech_pace??profile.conversation_preferences.pace},selection_basis:[{reason:entry.mode==='free'?'free_student_choice':goal?'conservative_evidence_selection':'declined_or_unverified_goals',refs:[context.snapshot_id,...(goal?[goal.id]:[]),...(state?[state.record_id]:[]),...(interest&&entry.mode!=='free'?[interest.record_id]:[])]}]};
 }
 export function planProjection(plan,resource) {
   const goal=plan.primary_goal;
-  return {mode:plan.mode==='topic'?(resource?.id==='sports'?'sports':'topic'):plan.mode,topic_id:plan.mode==='topic'?resource?.id:null,goal:goal?.label??'由你选择话题，自然交流。',prompt_title:plan.content_focus,start_tip:goal?(plan.teaching_decision?.task??goal.start_tip):'',cards:goal?planningCapabilities(plan,resource).cards.filter(c=>goal.card_ids.includes(c.id)).map(({id,...c})=>c):[],attempts:[],attempt_count:0,notice:resource?.schema_version==='topic-pack-v1'?`学习资料来自本地 mock；Topic Pack：${resource.source}；练习方向未评估。`:'示例学习资料来自本地 mock；目标不是学习成果。',teaching_decision:plan.teaching_decision??null,resource_version:resource?.version??null,planning:{mode:plan.execution_mode,planner_kind:plan.planner_kind,degraded:!!plan.degraded_reason}};
+  return {mode:plan.mode==='topic'?(resource?.id==='sports'?'sports':'topic'):plan.mode,topic_id:plan.mode==='topic'?resource?.id:null,goal:goal?.label??'由你选择话题，自然交流。',goal_details:goalDetails(plan,planningCapabilities(plan,resource)),prompt_title:plan.content_focus,start_tip:goal?(plan.teaching_decision?.task??goal.start_tip):'',cards:goal?planningCapabilities(plan,resource).cards.filter(c=>goal.card_ids.includes(c.id)).map(({id,...c})=>c):[],attempts:[],attempt_count:0,notice:resource?.schema_version==='topic-pack-v1'?`学习资料来自本地 mock；Topic Pack：${resource.source}；练习方向未评估。`:'示例学习资料来自本地 mock；目标不是学习成果。',teaching_decision:plan.teaching_decision??null,resource_version:resource?.version??null,planning:{mode:plan.execution_mode,planner_kind:plan.planner_kind,degraded:!!plan.degraded_reason}};
 }
 export const INITIAL_PLANNING_BUDGET_MS=15000;
 export class ConversationInitializer {
@@ -36,6 +38,7 @@ export class ConversationInitializer {
     const [context,resource]=await Promise.race([Promise.all([this.port.read(identity),entry.mode==='free'?null:this.port.getResource(identity,entry,{signal:combined})]),new Promise((_,reject)=>{aborted=()=>reject(new Error('PREPARATION_CANCELLED'));combined.addEventListener('abort',aborted,{once:true});if(combined.aborted)aborted();})]).finally(()=>combined.removeEventListener('abort',aborted));
     combined.throwIfAborted();requireIdentity(identity,'session:create',this.clock());
     const topic=resource?.schema_version==='topic-pack-v1';
+    if(entry.mode==='topic')requireTopicGoal(entry,context,resource);
     const input=immutable({...(topic?{planning_needs:assessNeeds(context,resource)}:{}),entry,...(topic?topicModelInput(context,resource):{student_profile:context.student_profile,learning_profile:context.learning_profile,learning_history:context.learning_history}),coverage:context.coverage,history_page:context.history_page,snapshot_ref:context.snapshot_id,...(entry.mode==='free'?{skill_catalog:FREE_PRACTICE_CATALOG}:{}),required_strategy:{language_support:context.learning_profile.language_support,correction:context.student_profile.conversation_preferences.correction,pace:entry.speech_pace??context.student_profile.conversation_preferences.pace},resource});
     const result=await boundedProposal({planner:topic?(typeof this.planner?.planTopicConversation==='function'?this.planner:null):this.planner,method:topic?'planTopicConversation':'planConversation',input,signal:combined,budgetMs:Math.max(1,expiresAt-this.clock()-50),clock:this.clock,deadlineAt:expiresAt-50,validate:p=>(topic?validateTopicConversation:validateConversation)(p,{entry,context,resource}),fallback:()=>(topic?topicFallback:conservativeConversation)(entry,context,resource)});
     combined.throwIfAborted();requireIdentity(identity,'session:create',this.clock());

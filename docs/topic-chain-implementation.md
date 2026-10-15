@@ -2,6 +2,19 @@
 
 2026-10-15。实现范围是独立 Web POC 的主题式对话。身份、三类学习者资料、课程记录仍由授权的本地 Mock HSKai 端口提供；共享 Topic Pack 不包含学习者资料。Mission 保留原入口契约；free 的依赖隔离修复见下文。豆包仍使用已审核的实时语音 profile，逐轮决策仍为 `next_turn_advisory`。
 
+## 主题目标准备与展示
+
+2026-10-15 用户最新决定取代早先的“主题可无目标”：主题初始化必须选择一个合法教学目标。`kai-initial-teaching-v2` 固定 `plan_kind:targeted_practice`、`no_goal_reason:null`，目标关联的 `key_points` 必须与资源一致，`teaching_decision.task` 必须非空，明确本次表达任务。这里的知识点是已发布主题包关联的交流能力条目；没有扩展为完整 HSK 语法／词汇教学资源，也没有新增未经准入的语言例句。
+
+- LLM 空目标或不完整提案在同一初始化期限内最多修复一次；仍无有效提案时使用经过同样校验的规则计划。
+- 规则优先使用有来源的支持／复习需要；未命中需要时，从合法候选中按先修数量、目标 ID 排序，选择探索性表达或新情境应用目标。后者只说明安排的任务，不断定学生有薄弱点，也不把旧内容重新判为未掌握。
+- 当前明确拒绝练习返回 `TOPIC_PRACTICE_DECLINED`；明确请求但先修不满足返回 `TOPIC_REQUESTED_GOAL_UNAVAILABLE`；全部候选被拒绝或先修不满足返回 `TOPIC_NO_ELIGIBLE_GOAL`。准备状态为 failed，不返回 view、不允许消费创建会话，Web 提示调整主题／意愿或选择自由聊天。
+- Free 仍不读取 Topic Pack，初始目标、知识点和任务为空。会中学生仍可暂停、停止或换目标；初始化有目标不构成强制跟读或必须完成练习。
+
+`planProjection()` 输出 `goal_details:{goal_id,status,key_points:[{id,label}],expression_task}`；无目标时为 null。知识点名称来自同一固定版本资源，任务来自已接受计划；页面不自行生成。准备成功后显示目标、知识点、表达任务，切换学习者／主题／入口、重新准备或失败会清空旧内容。初次与后续语音上下文携带同一 details；同一目标暂停／恢复保留个性化任务，替换目标时重取对应知识点和任务。此变更沿用 `next_turn_advisory`，不能证明当轮语音按外部规划生成。
+
+原 28 案设计输入／oracle／hash 均保留；其中原无教学／无合法候选案例在当前产品规则下改为准备失败。契约测试只核对新规则，未把原集合重新标成语义评测通过。本轮 `npm run verify` **463/463**、三个 synthetic replay 通过；Chromium 主题专项检查覆盖两个主题、四位合成学习者、目标／知识点／任务展示、跨主题清理、拒绝导致准备失败、free 无目标与撤销刷新，页面错误及移动端横向溢出均为 0。注入规划器覆盖空目标修复和规则回退；这些属于合成工程检查，未调用真实规划模型或豆包，也未做真人麦克风／听感检查。
+
 ## 工程 review 第 1 项：free 入口隔离
 
 移除 Gateway 中 free 显式练习时读取 `topic:sports` 的 resolver。free 准备、消费及逐轮输入始终 `resource:null`，不需要 Topic Manager 或课程读取权限；三类授权学习者资料与实际对话仍进入通用 Planner。初始化无目标、单次求助仅限本轮，明确持续练习才从宿主通用 Skill catalog 选技能并验证先修。计划使用独立 `skill_catalog_ref`／GoalInstance `catalog_ref`，课程 `resource_refs` 为空，页面无运动词卡。通用技能当前均为 unassessed；旧运动尝试标记也不会作用于 free。shadow ObservationPort 可提出未校准候选，但不产生学习事实或保存的 attempted。
@@ -14,7 +27,7 @@
 
 1. 独立 `apps/topic-manager` 定义 `topic_id`、名称和 brief，在后台排队生成草稿。`npm run topics` 使用本机已配置的 MiniMax M3；`npm run topics:synthetic` 只生成明确标记的工程测试包。Generator 只能从通用通信能力目录选择 skill，并生成主题情境和开场；skill、先修、证据规则由宿主定义，词卡／语言例句目前不准入。
 2. 草稿经过结构校验、安全字段筛查和辅助内容审阅，成为 `validated_restricted` 版本。管理端显式发布后才进入只读目录。不可用版本可撤销，旧已发布版本可再次发布作为回滚。版本、来源、prompt 与输入 hash 存在 `.local/topic-manager`；写入采用原子 manifest 和进程锁。
-3. 学习端 `GET /api/topics` 只展示已发布主题。准备阶段通过只读服务读取固定版本，并由三类授权 learner data 推导需要假设。Planner 可选择一个适合的 GoalInstance，或给出有理由的无目标对话。准备与一次性消费检查相同学习者、资料 revision、pack version/hash；服务离线、未发布或撤销时失败关闭。Gateway 对包内容使用 hash/ETag 缓存，但每次命中仍由主题服务确认版本处于 published；撤销、服务离线都不能复用旧缓存。在线读路径没有 Generator 调用。
+3. 学习端 `GET /api/topics` 只展示已发布主题。准备阶段通过只读服务读取固定版本，并由三类授权 learner data 推导需要假设。Planner 必须选择一个合法 GoalInstance 并提供知识点和表达任务，否则准备失败。准备与一次性消费检查相同学习者、资料 revision、pack version/hash；服务离线、未发布或撤销时失败关闭。Gateway 对包内容使用 hash/ETag 缓存，但每次命中仍由主题服务确认版本处于 published；撤销、服务离线都不能复用旧缓存。在线读路径没有 Generator 调用。
 4. 页面预览、初次实时语音上下文和后续教学状态使用同一 plan 与 pack。当前学生选择、拒绝、困难、换题及原有防迟到／话轮归属规则继续生效；读取到撤销状态的会话在下一次规划前停止旧目标。新 topic skill 的观察规则为 `unassessed`，不会记录为表达尝试或掌握。
 5. 每个已接受的 final 从 TeachingSession 接收时开始共用最多 2 秒规划期限，资源确认、LLM／修复、验证和提交共享期限，并预留 200ms；超时使用有来源的规则回退。此期限不等于首音或教师实际遵循率。
 

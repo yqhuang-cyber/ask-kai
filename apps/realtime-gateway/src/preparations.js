@@ -12,7 +12,7 @@ export class Preparations {
     if(this.items.size>=this.capacity)throw new Error('PREPARATION_CAPACITY');
     const entry=normalizeEntry(input,identity),id=randomUUID(),controller=new AbortController(),epoch=this.epochs.get(owner(identity))??0;
     const item={id,identity:{...identity},owner:owner(identity),entry,status:'preparing',epoch,expires:Math.min(this.clock()+this.ttlMs,identity.authorization_until),controller};this.items.set(id,item);
-    item.done=this.initializer.prepare(entry,identity,{signal:controller.signal}).then(result=>{if(item.status!=='preparing'||controller.signal.aborted||item.epoch!==(this.epochs.get(item.owner)??0)||item.expires<=this.clock())return;Object.assign(item,result,{status:'ready'});}).catch(()=>{if(item.status==='preparing'){item.status='failed';item.error='CONVERSATION_PREPARATION_FAILED';}});
+    item.done=this.initializer.prepare(entry,identity,{signal:controller.signal}).then(result=>{if(item.status!=='preparing'||controller.signal.aborted||item.epoch!==(this.epochs.get(item.owner)??0)||item.expires<=this.clock())return;Object.assign(item,result,{status:'ready'});}).catch(error=>{if(item.status==='preparing'){item.status='failed';item.error=['TOPIC_PRACTICE_DECLINED','TOPIC_REQUESTED_GOAL_UNAVAILABLE','TOPIC_NO_ELIGIBLE_GOAL'].includes(error.message)?error.message:'CONVERSATION_PREPARATION_FAILED';}});
     return {preparation_id:id,status:item.status,expires_at:item.expires};
   }
   get(identity,id) {

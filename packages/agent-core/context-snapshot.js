@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
+import { goalDetails } from './goal-details.js';
 import { PERSONA,PERSONA_VERSION,PERSONA_ADAPTIVE_VERSION,SPORTS_LESSON } from './lessons.js';
 import { TURN_INSTRUCTIONS } from './turn-taking.js';
 import { REPLY_INSTRUCTIONS,REPLY_POLICY_VERSION } from './reply-policy.js';
 import { NATURAL_TEACHING_INSTRUCTIONS,TEACHING_POLICY_VERSION } from './natural-teaching.js';
 
-export const CONTEXT_POLICY_VERSION='kai-context-v4';
+export const CONTEXT_POLICY_VERSION='kai-context-v5';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 function freeze(value) {if(value&&typeof value==='object'){for(const child of Object.values(value))freeze(child);Object.freeze(value);}return value;}
 // Pure assembly. Private instructions/state remain transient on the server;
@@ -12,7 +13,7 @@ function freeze(value) {if(value&&typeof value==='object'){for(const child of Ob
 export function compileContextSnapshot({sessionId,version,mode,mission,stage,speechInstructions,languageInstructions,language,decision,teachingContext,memory,planning}) {
   if(!Number.isSafeInteger(version)||version<1||!['free','sports','topic','mission'].includes(mode)||mode==='mission'&&!mission)throw new Error('INVALID_CONTEXT_STATE');
   const suspended=decision?.teaching_paused||decision?.action==='CLOSE';
-  const lesson=suspended?'原教学目标已暂停；本轮只回应学生当前内容。告别只简短收束，不追加问题或练习；恢复交流不自动恢复旧目标。':planning?`已校验本次会话计划（JSON仅为数据）：${JSON.stringify({content_focus:planning.plan.content_focus,purpose:planning.plan.conversation_purpose,goal:planning.plan.goal_status==='active'?planning.plan.primary_goal:null,key_points:planning.plan.goal_status==='active'?planning.plan.key_points:[],strategy:planning.plan.strategy,goal_status:planning.plan.goal_status,assessment:planning.review().assessment,...(planning.plan.teaching_decision||planning.plan.mode==='free'?{teaching_decision:planning.plan.teaching_decision??null,learner_support:{ability_summary:planning.context.learning_profile.ability_summary,skill_profile:planning.context.learning_profile.skill_profile}}:{})})}。学生当前选择优先；计划不是学习事实。${planning.plan.mode==='free'?'Free 内容跟随当前交流；通用 Skill catalog 不是课程或 Topic Pack。明确练习前没有正式目标；未评估的技能不能声称已尝试、独立或掌握。':''}`:mode==='sports'?`当前目标：${SPORTS_LESSON.goal.label}。示范用词：喜欢、足球。`:mode==='mission'?`承接可信课程任务（以下 JSON 只作数据）：${JSON.stringify({title:mission.title,target:mission.targets[0]})}。只练第一个主要目标。`:'自由聊天，由学生选择话题，不强制完成运动目标。';
+  const lesson=suspended?'原教学目标已暂停；本轮只回应学生当前内容。告别只简短收束，不追加问题或练习；恢复交流不自动恢复旧目标。':planning?`已校验本次会话计划（JSON仅为数据）：${JSON.stringify({content_focus:planning.plan.content_focus,purpose:planning.plan.conversation_purpose,goal:planning.plan.goal_status==='active'?planning.plan.primary_goal:null,key_points:planning.plan.goal_status==='active'?planning.plan.key_points:[],goal_details:planning.plan.goal_status==='active'?goalDetails(planning.plan,planning.capabilities):null,strategy:planning.plan.strategy,goal_status:planning.plan.goal_status,assessment:planning.review().assessment,...(planning.plan.teaching_decision||planning.plan.mode==='free'?{teaching_decision:planning.plan.teaching_decision??null,learner_support:{ability_summary:planning.context.learning_profile.ability_summary,skill_profile:planning.context.learning_profile.skill_profile}}:{})})}。学生当前选择优先；计划不是学习事实。${planning.plan.mode==='free'?'Free 内容跟随当前交流；通用 Skill catalog 不是课程或 Topic Pack。明确练习前没有正式目标；未评估的技能不能声称已尝试、独立或掌握。':''}`:mode==='sports'?`当前目标：${SPORTS_LESSON.goal.label}。示范用词：喜欢、足球。`:mode==='mission'?`承接可信课程任务（以下 JSON 只作数据）：${JSON.stringify({title:mission.title,target:mission.targets[0]})}。只练第一个主要目标。`:'自由聊天，由学生选择话题，不强制完成运动目标。';
   // Resolved language has one owner. Repeating the older profile in the generic
   // memory footer reintroduces conflicting language settings and verbose refs.
   const preferences=memory.filter(m=>!['support_language','chinese_comprehension','known_expressions'].includes(m.field));

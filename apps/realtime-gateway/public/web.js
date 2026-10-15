@@ -70,21 +70,26 @@ const presentation=new Presentation({render:(text,parts)=>{
 },onObserve:diagnosticsEnabled?observe:undefined});
 function learning(packet) {
   goal.textContent=packet.goal;promptHint.textContent=packet.start_tip;
+  const details=packet.goal_details;
+  clearGoalDetails();
+  if(details){document.querySelector('#goal-details').hidden=false;document.querySelector('#goal-state').textContent=details.status==='active'?'已准备；交流中可以调整或暂停。':'该练习已暂停。';document.querySelector('#goal-expression-task').textContent=details.expression_task;document.querySelector('#goal-key-points').replaceChildren(...details.key_points.map(k=>{const li=document.createElement('li');li.textContent=k.label;return li;}));}
   if(packet.prompt_title)promptTitle.textContent=packet.prompt_title;
   const card=packet.cards[0];document.querySelector('.word-card').hidden=!card;
   if(card)for(const [key,id] of Object.entries({word:'word-chinese',pinyin:'word-pinyin',english:'word-english',example:'word-example'}))document.getElementById(id).textContent=card[key];
   const count=packet.attempt_count??packet.attempts.length;
   document.querySelector('#learning-attempts').textContent=count ? `本轮记录 ${count} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
 }
+function clearGoalDetails(){document.querySelector('#goal-details').hidden=true;document.querySelector('#goal-key-points').replaceChildren();document.querySelector('#goal-expression-task').textContent='';document.querySelector('#goal-state').textContent='';}
 const entry=()=>({mode:topicManaged&&mode==='sports'?'topic':mode,...(topicManaged&&mode==='sports'?{topic_id:topicId,...(document.querySelector('#opening-request').value.trim()?{opening_request:document.querySelector('#opening-request').value.trim()}:{})}:{}),...(mode==='mission'?{mission_id:mission.id}:{}),...(paceSupported?{speech_pace:paceSelect.value}:{})});
 const preparer=new PreparationClient({fetcher:authorizedFetch,onView:learning,onStatus:(state,details)=> {
-  if(state==='preparing'){message.textContent='正在准备对话……';}
+  if(state==='preparing'){clearGoalDetails();goal.textContent='正在规划本次对话……';promptHint.textContent='';document.querySelector('.word-card').hidden=true;message.textContent='正在准备对话……';}
   else if(state==='ready')message.textContent=details?.degraded?'对话已准备；当前使用保守策略，规划模型暂不可用。':'对话已准备，可以开始。';
-  else if(state==='failed')message.textContent='对话准备失败，请重新选择或开始。';
+  else if(state==='failed'){clearGoalDetails();goal.textContent='本次对话尚未准备完成。';message.textContent=({TOPIC_PRACTICE_DECLINED:'主题式对话需要一个练习目标。如果只想聊天，请选择自由聊天。',TOPIC_NO_ELIGIBLE_GOAL:'当前主题没有符合学习条件的目标，请更换主题或选择自由聊天。',TOPIC_REQUESTED_GOAL_UNAVAILABLE:'所选目标暂不符合学习条件，请调整练习意愿、主题或选择自由聊天。'})[details?.error]??'对话准备失败，请重新选择或开始。';}
 }});
 function prepareSelected(){if(!dynamicPlanning||topicManaged&&mode==='sports'&&!topicAvailable)return;const epoch=++preparationEpoch;preparationPromise=preparer.prepare(entry()).then(id=>epoch===preparationEpoch?id:null);}
-function suppressLearning(reason){summaryCards.suppress(reason);goal.textContent='';promptHint.textContent='';document.querySelector('.word-card').hidden=true;document.querySelector('#learning-attempts').textContent='本轮没有可展示的学习记录。';}
+function suppressLearning(reason){summaryCards.suppress(reason);clearGoalDetails();goal.textContent='';promptHint.textContent='';document.querySelector('.word-card').hidden=true;document.querySelector('#learning-attempts').textContent='本轮没有可展示的学习记录。';}
 function selectMode(button) {
+  clearGoalDetails();
   summaryCards.reset();document.querySelector('#learning-attempts').textContent='尚无对话记录。';document.querySelector('.word-card').hidden=true;
   mode=button.dataset.mode;
   for(const item of modes)item.setAttribute('aria-pressed',String(item===button));
@@ -143,7 +148,7 @@ connect.addEventListener('click',async()=> {
       // may have changed while the learner was reviewing the entry.
       preparationEpoch++;preparationId=await preparer.prepare(entry());
       if(current!==generation)return;
-      if(!preparationId){await stop('对话准备失败，请检查规划或课程服务。');return;}
+      if(!preparationId){await stop(message.textContent);return;}
     }
     const response=await authorizedFetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...entry(),...(selectedPace?{speech_pace:selectedPace}:{}),...(mode==='mission'?{mission_id:mission.id}:{}),...(preparationId?{preparation_id:preparationId}:{})}),signal:AbortSignal.timeout(8000)});
     const result=await response.json();if(current!==generation)return;
@@ -268,7 +273,7 @@ async function loadLearnerProfile(epoch,{setPace=false}={}) {
 learnerSelect.addEventListener('change',async()=> {
   if(learnerSwitching||ws||connect.disabled)return;
   const next=learnerSelect.value;if(next===selectedLearner)return;
-  learnerSwitching=true;controls(false);
+  learnerSwitching=true;clearGoalDetails();goal.textContent='正在切换学习者……';promptHint.textContent='';controls(false);
   try {
     await stop('正在切换学习者……');
     const revoked=await authorizedFetch('/api/authorization/revoke',{method:'POST'});if(!revoked.ok)throw new Error('REVOKE_FAILED');

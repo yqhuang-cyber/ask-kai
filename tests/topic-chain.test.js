@@ -10,7 +10,7 @@ import { createTopicServer } from '../apps/topic-manager/src/server.js';
 import { SyntheticTopicGenerator } from '../packages/topic-packs/generator.js';
 import { PublishedTopicClient,withPublishedTopics } from '../packages/topic-packs/port.js';
 import { startMockBackend } from '../apps/hskai-mock/src/backend.js';
-import { ConversationInitializer } from '../packages/agent-core/conversation-initializer.js';
+import { ConversationInitializer,planProjection } from '../packages/agent-core/conversation-initializer.js';
 import { Preparations } from '../apps/realtime-gateway/src/preparations.js';
 import { TeachingSession } from '../packages/agent-core/teaching.js';
 import { topicFallback,validateTopicConversation } from '../packages/agent-core/topic-initialization.js';
@@ -38,11 +38,33 @@ test('latest four learner snapshots choose sourced needs in the same fixed pack;
     const context=structuredClone(result.context),resource=structuredClone(result.resource);context.learning_profile.course_level='HSK9';context.student_profile.preferred_name='another';resource.goals.reverse();const changed=topicFallback({mode:'topic',topic_id:'sports'},context,resource);assert.equal(changed.primary_goal_id,expected);
   }assert.equal(f.calls(),2);
 });
-test('missing needs and mastered-only resources allow explained null; fabricated refs and routine basic reteaching fail',async t=>{
+test('every prepared topic has a goal: unknown evidence explores, stable skills apply in a new context',async t=>{
   const f=await fixture(t),i=await f.identity('poc-learner'),context=structuredClone(await f.port.read(i)),resource=await f.topics.read('sports'),entry={mode:'topic',topic_id:'sports'};
-  const noFacts=structuredClone(context);noFacts.learning_profile.kp_states=[];noFacts.learning_profile.review_candidates=[];noFacts.coverage.learning_profile='unavailable';const p=topicFallback(entry,noFacts,resource);assert.equal(p.primary_goal_id,null);assert.equal(p.teaching_decision.no_goal_reason,'insufficient_evidence');validateTopicConversation(p,{entry,context:noFacts,resource});
+  const noFacts=structuredClone(context);noFacts.learning_profile.kp_states=[];noFacts.learning_profile.review_candidates=[];noFacts.coverage.learning_profile='unavailable';const p=topicFallback(entry,noFacts,resource);assert.ok(p.primary_goal_id);assert.equal(p.teaching_decision.needs[0].reason,'explore_current_expression');validateTopicConversation(p,{entry,context:noFacts,resource});
+  assert.ok(resource.goals.find(g=>g.id===p.primary_goal_id).kp_ids.every(id=>resource.key_points.find(k=>k.id===id).prerequisites.length===0));
   const selected=topicFallback(entry,context,resource),bad=structuredClone(selected);bad.teaching_decision.needs[0].refs=['invented'];assert.throws(()=>validateTopicConversation(bad,{entry,context,resource}),/INVALID_NEED_REFERENCE/);
-  const empty=structuredClone(context);empty.learning_profile.review_candidates=[];empty.learning_profile.kp_states=empty.learning_profile.kp_states.map(s=>({...s,evidence_state:'demonstrated_transfer'}));assert.equal(topicFallback(entry,empty,resource).primary_goal_id,null);
+  const empty=structuredClone(context);empty.learning_profile.review_candidates=[];empty.learning_profile.kp_states=empty.learning_profile.kp_states.map(s=>({...s,evidence_state:'demonstrated_transfer'}));const application=topicFallback(entry,empty,resource);assert.ok(application.primary_goal_id);assert.equal(application.teaching_decision.needs[0].reason,'apply_in_new_context');assert.match(application.teaching_decision.task,/新情境/);validateTopicConversation(application,{entry,context:empty,resource});
+  const nullGoal={...selected,primary_goal_id:null,key_points:[]};assert.throws(()=>validateTopicConversation(nullGoal,{entry,context,resource}),/TOPIC_GOAL_REQUIRED/);
+});
+test('null model proposals are repaired or fall back; prepared details and voice use the accepted task',async t=>{
+  const f=await fixture(t),i=await f.identity('poc-learner'),entry={mode:'topic',topic_id:'music'};let calls=0;
+  const planner={planTopicConversation:async input=>{calls++;const p=topicFallback(input.entry,{...(await f.port.read(i))},input.resource);return {...p,primary_goal_id:null,key_points:[]};}};
+  const result=await new ConversationInitializer({port:f.port,planner}).prepare(entry,i);assert.equal(calls,2);assert.equal(result.plan.planner_kind,'rule');assert.equal(result.plan.degraded_reason,'planner_validation_failed');
+  const details=planProjection(result.plan,result.resource).goal_details;assert.ok(details.key_points.length);assert.ok(details.expression_task);assert.equal(details.goal_id,result.plan.primary_goal_id);assert.equal(details.expression_task,result.plan.goal_instance.task);assert.deepEqual(details.key_points.map(k=>k.id),result.plan.key_points);
+  const task='介绍一场你听过的演出，说明多久听一次这类音乐。';
+  const repairs=[],proposedPath=new ConversationInitializer({port:f.port,planner:{planTopicConversation:async(input,options)=>{repairs.push(options.repair);const p=topicFallback(input.entry,result.context,input.resource);return options.repair?{...p,teaching_decision:{...p.teaching_decision,task}}:{...p,primary_goal_id:null,key_points:[]};}}});
+  const accepted=await proposedPath.prepare(entry,i);assert.deepEqual(repairs,[false,true]);assert.equal(accepted.plan.planner_kind,'llm');assert.equal(accepted.plan.degraded_reason,null);assert.equal(planProjection(accepted.plan,accepted.resource).goal_details.expression_task,task);
+  const session=new TeachingSession({sessionId:'session',mode:'topic',planning:{...accepted,plan:{...accepted.plan,session_id:'session'}}});assert.ok(session.instructions().includes(task));assert.ok(session.instructions().includes(details.key_points[0].label));
+  session.planning.commitGoal('paused');assert.equal(session.view().goal_details.expression_task,task);assert.equal(session.view().goal_details.status,'paused');
+  session.planning.commitGoal('active');assert.equal(session.view().goal_details.expression_task,task);
+  const replacement=result.resource.goals.find(g=>g.id==='simple-reasons');session.planning.commitGoal('active',{goal:replacement});assert.equal(session.view().goal_details.expression_task,replacement.start_tip);assert.deepEqual(session.view().goal_details.key_points.map(k=>k.id),replacement.kp_ids);session.planning.close();
+});
+test('unavailable or declined topic goals fail preparation honestly; free still needs no pack or initial goal',async t=>{
+  const f=await fixture(t),i=await f.identity('poc-learner'),entry={mode:'topic',topic_id:'sports'},initializer=new ConversationInitializer({port:f.port}),preparations=new Preparations({initializer});t.after(()=>preparations.close());
+  const requested={...entry,opening_request:'只想聊天，不想练习。'},p=preparations.create(i,requested);await preparations.get(i,p.preparation_id).done;const failed=preparations.view(i,p.preparation_id);assert.equal(failed.status,'failed');assert.equal(failed.error,'TOPIC_PRACTICE_DECLINED');assert.equal(failed.view,undefined);await assert.rejects(preparations.consume(i,p.preparation_id,requested),/PREPARATION_NOT_READY/);
+  const context=structuredClone(await f.port.read(i)),resource=await f.topics.read('sports');context.learning_history.push({...context.learning_history[0],declined_goal_ids:resource.goals.map(g=>g.id)});assert.throws(()=>topicFallback(entry,context,resource),/TOPIC_NO_ELIGIBLE_GOAL/);
+  let modelCalls=0;const blocked=new ConversationInitializer({port:{read:async()=>context,getResource:async()=>resource},planner:{planTopicConversation(){modelCalls++;}}});await assert.rejects(blocked.prepare(entry,i),/TOPIC_NO_ELIGIBLE_GOAL/);assert.equal(modelCalls,0);
+  const free=new ConversationInitializer({port:{read:(...args)=>f.port.read(...args),getResource:()=>{throw new Error('FREE_MUST_NOT_READ_PACK');}}});const result=await free.prepare({mode:'free'},i);assert.equal(result.plan.primary_goal,null);assert.deepEqual(result.plan.key_points,[]);assert.equal(planProjection(result.plan,null).goal_details,null);
 });
 test('preparations pin a published version through a new publish; revocation blocks consume',async t=>{
   const f=await fixture(t),i=await f.identity('poc-learner'),preparations=new Preparations({initializer:new ConversationInitializer({port:f.port})}),entry={mode:'topic',topic_id:'sports'},p=preparations.create(i,entry);await preparations.get(i,p.preparation_id).done;const old=preparations.get(i,p.preparation_id).resource.version;

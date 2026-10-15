@@ -17,11 +17,11 @@ export class PreparationClient {
         const poll=await this.fetcher(`/api/conversation-preparations/${this.id}`,{signal:controller.signal});if(!poll.ok)throw new Error('PREPARATION_FAILED');const result=await poll.json();
         if(!current())return null;
         if(result.status==='ready'){this.onView(result.view);this.onStatus('ready',result.view.planning);return this.id;}
-        if(result.status!=='preparing')throw new Error('PREPARATION_FAILED');
+        if(result.status!=='preparing')throw new Error(result.error??'PREPARATION_FAILED');
         await new Promise(resolve=>{const done=()=>{clearTimeout(timer);controller.signal.removeEventListener('abort',done);resolve();};const timer=setTimeout(done,100);controller.signal.addEventListener('abort',done,{once:true});});
       }
       throw new Error('PREPARATION_FAILED');
-    }catch{if(current()||timedOut&&epoch===this.epoch)this.onStatus('failed');return null;}
+    }catch(error){if(current()||timedOut&&epoch===this.epoch)this.onStatus('failed',{error:error.message});return null;}
     finally{clearTimeout(deadline);}
   }
 }

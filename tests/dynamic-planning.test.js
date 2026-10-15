@@ -32,9 +32,9 @@ test('paired mock fixtures change content independently from evidence-driven goa
   assert.notEqual(a.plan.hash,b.plan.hash);assert.ok(Object.isFrozen(a.plan));
 });
 test('Mission selects all authored targets and unknown/free/declined contexts retain honest limits',async()=> {
-  const mission=await prepare('mission','b'),free=await prepare('free'),unknown=await prepare('sports','d'),declined=await prepare('sports','e');
+  const mission=await prepare('mission','b'),free=await prepare('free'),unknown=await prepare('sports','d');
   assert.equal(mission.plan.primary_goal.id,'express-time');assert.equal(free.plan.primary_goal,null);assert.deepEqual(free.plan.key_points,[]);
-  assert.equal(unknown.context.coverage.learning_history,'unavailable');assert.equal(unknown.plan.strategy.support_level,'unknown');assert.equal(declined.plan.primary_goal,null);
+  assert.equal(unknown.context.coverage.learning_history,'unavailable');assert.equal(unknown.plan.strategy.support_level,'unknown');await assert.rejects(prepare('sports','e'),/TOPIC_NO_ELIGIBLE_GOAL/);
 });
 test('context and curriculum validators reject foreign owners, private fields, stale or oversized snapshots and wrong references',()=> {
   const i=identity(),context=learnerFixture(i);
@@ -48,7 +48,7 @@ test('conversation validator rejects free goals, missing evidence, declined goal
   assert.throws(()=>validateConversation(p,{entry:{mode:'free'},context,resource:SPORTS_RESOURCE}),/FREE/);
   assert.throws(()=>validateConversation({...p,selection_basis:[{reason:'invented',refs:['future-input']}]},{entry,context,resource:SPORTS_RESOURCE}));
   assert.throws(()=>validateConversation({...p,primary_goal_id:'express-time',key_points:['time-expression']},{entry,context,resource:SPORTS_RESOURCE}),/PREREQUISITE/);
-  assert.throws(()=>validateConversation({...p,primary_goal_id:null,key_points:[]},{entry,context,resource:SPORTS_RESOURCE}),/RESOURCE_GOAL_REQUIRED/);
+  assert.throws(()=>validateConversation({...p,primary_goal_id:null,key_points:[]},{entry,context,resource:SPORTS_RESOURCE}),/TOPIC_GOAL_REQUIRED/);
   assert.throws(()=>normalizeEntry({mode:'sports',learner_id:'foreign'},i));assert.throws(()=>normalizeEntry({mode:'mission',mission_id:'foreign'},i));
 });
 test('shadow planning leaves the legacy preview and runtime instructions unchanged',async()=> {
