@@ -38,7 +38,9 @@ Ask Kai 希望让学生在真实交流中学习中文：既可以承接刚完成
 | 行动 | 如何执行回复、示范、澄清、词卡和获准的数据操作？ | M3 教学动作；M2 编排；M5 语音；M1 呈现；M4 业务读写 |
 | 反馈与适应 | 实际效果与计划相差多少？需要减少支架、调整或暂停吗？ | M3 观察与证据；M1／M2 执行和播放反馈；M4 后续记录 |
 
-模型承担意图理解、语义判断与规划；确定性代码承担权限、归属、预算、版本和取消控制。反馈用于调整计划、策略和获准记忆，不等于自动修改生产提示词或训练模型。
+模型承担意图理解、语义判断与规划；确定性代码承担权限、归属、规划用时上限、回复长度与内容数量限制、版本和取消控制。反馈用于调整计划、策略和获准记忆，不等于自动修改生产提示词或训练模型。
+
+原始英文术语 **budget** 在这里指“允许使用的资源上限”。**Time budget** 是完成规划所允许的最长时间；请求、格式修复、校验和提交共用这个时限。**Reply budget** 是回复长度与内容数量限制，例如每轮最多一个主要问题或练习任务、一个新知识点、一个短示范；中文与必要的英文共同计入长度限制。规划用时上限不代表学生会在这个时间内听到回复；回复限制也不代表超限时会直接截断音频。
 
 ### 2.2 五个核心工程模块
 
@@ -66,7 +68,7 @@ flowchart TD
 
 可信课程知识与学生记忆分开管理：课程资源说明可以教什么，学生记录说明实际经历和表现；Context Compiler 选择本轮相关信息。当前已支持三类 mock 数据及有限 Mission／运动资源，未知和截断明确标记；外部业务和通用资源检索未接入。见 [实施记录](docs/dynamic-planning-implementation.md)。
 
-Harness 的横向职责覆盖五个模块：状态版本、权限、取消、预算与幂等；数据来源、更正和删除；可观测性、评测与版本发布；教研审核和人工复核。当前有基础运行／策略边界，生产多机构隔离、完整持久化和真人接手另属产品化范围。本地 Mock 回执不代表真实账号、实际监护同意或真人处理完成。
+Harness 的横向职责覆盖五个模块：状态版本、权限、取消、规划用时上限、回复长度与内容数量限制及幂等；数据来源、更正和删除；可观测性、评测与版本发布；教研审核和人工复核。当前有基础运行／策略边界，生产多机构隔离、完整持久化和真人接手另属产品化范围。本地 Mock 回执不代表真实账号、实际监护同意或真人处理完成。
 
 评测运行器 `apps/eval-runner/` 是独立验证支撑，通过生产入口采集与回放实际行为；它的 `agent-harness.js` 是评测驱动器，不是生产 Agent Core。LangChain Judge／Langfuse 为可选配置，不是 POC 启动依赖。
 
@@ -215,7 +217,7 @@ sequenceDiagram
     Note over W,P: 学生主动聊宇宙时不强拉回旧运动兴趣
 ```
 
-**共用逐轮规划与观察：** 每个已接受的唯一 `user.final` 绑定不可变输入、实际此前话轮、上一回复转发结果／播放未知、整体计划、语言与拒绝／冷却状态，调用 MiniMax M3。提案需通过字段、大小、来源引用、目标、预算及策略校验；格式修复至多一次，共用截止时间。告别等明确控制可由规则直接处理；模型未配置／超时／非法输出的保守降级单独记录。新输入、偏好更正、打断、撤权或退出使旧在线规划失效，迟到结果不进入新回合。
+**共用逐轮规划与观察：** 每个已接受的唯一 `user.final` 绑定不可变输入、实际此前话轮、上一回复转发结果／播放未知、整体计划、语言与拒绝／冷却状态，调用 MiniMax M3。提案需通过字段、大小、来源引用、目标、回复限制及策略校验；格式修复至多一次，共用截止时间。告别等明确控制可由规则直接处理；模型未配置／超时／非法输出的保守降级单独记录。新输入、偏好更正、打断、撤权或退出使旧在线规划失效，迟到结果不进入新回合。
 
 当前 `next_turn_advisory` **不会等待规划再让豆包开始本轮自动回复**。逐轮建议在没有活动回复、待取消或待更新确认的边界发送；ACK 只确认对应上下文版本，不能追溯证明已开始的生成用了计划。执行账本将计划接受、自动输出首次观察、转发及客户端报告分开，供应商生成起点和实际播放没有证据时保持 unknown。普通 Web 尚不发送播放消费回执，不能从转发推断听到或理解。
 
@@ -282,7 +284,7 @@ sequenceDiagram
 
 后续目标迭代：381 项测试、三个 synthetic replay 和多目标总结的 Chromium 合成设备检查通过。12 案／18 轮独立离线行为检查通过；真实 M3 最后完整批次初始化 5/12 接受 LLM、7/12 降级，逐轮 7/18 接受 LLM、11/18 降级。自动行为检查初始 11/12、逐轮 17/18；发现的错误收束已增加硬约束并做单案复验。这些字段／行为检查不等于完整语义合格，旧十维分数不变。见 [新验证报告](docs/eval-results/2026-10-14-dynamic-goals.md)。
 
-上一轮可靠性迭代（826f2b8）：394 项测试、三个 synthetic replay、Chromium 合成设备回归通过。同一独立 12 案／18 轮数据与原 10 秒／5 秒预算下，旧完整契约初始化 4/12、逐轮 5/18 接受 LLM；Draft-v5 初始化 4/12、逐轮 4/18，其余明确降级。自动行为检查均通过，但不能证明语义合格或可靠性改善；当时 M3 默认保留旧 prompt，Draft 显式 opt-in。Provider transport、通用编译和业务校验分开，后续更强 LLM 使用相同生命周期／取消／评测。豆包 FC 三个规则隔离样本和最后一个已接受 M3 当轮计划的样本均在工具结果后观察到输出；两次 M3 联调分别为逐轮规则降级／LLM 接受，初始化都降级。controlled 保持关闭。见 [可靠性与控制实验结果](docs/eval-results/2026-10-14-planner-reliability.md)。
+上一轮可靠性迭代（826f2b8）：394 项测试、三个 synthetic replay、Chromium 合成设备回归通过。同一独立 12 案／18 轮数据与原初始化 10 秒／逐轮 5 秒的规划用时上限下，旧完整契约初始化 4/12、逐轮 5/18 接受 LLM；Draft-v5 初始化 4/12、逐轮 4/18，其余明确降级。自动行为检查均通过，但不能证明语义合格或可靠性改善；当时 M3 默认保留旧 prompt，Draft 显式 opt-in。Provider transport、通用编译和业务校验分开，后续更强 LLM 使用相同生命周期／取消／评测。豆包 FC 三个规则隔离样本和最后一个已接受 M3 当轮计划的样本均在工具结果后观察到输出；两次 M3 联调分别为逐轮规则降级／LLM 接受，初始化都降级。controlled 保持关闭。见 [可靠性与控制实验结果](docs/eval-results/2026-10-14-planner-reliability.md)。
 
 本次 Agent 优先迭代：406 项测试、三个回放、20 个独立反馈案例、原 12 案／18 轮离线回归及 Chromium 合成设备通过。Planner 的 attempted 必须引用当前目标实际观察；learner feedback 区分困难、限定句式尝试与最近实际输出中的匹配示范。内部 ID 和两条同语言显式问题会被拒绝；结构规则不代替通用语义判断，提示／独立／掌握继续 unknown。新增八项辅助语义 rubric，模型评分不进入学习事实。真实结果与限制见 [Agent 完善验证](docs/eval-results/2026-10-14-agent-feedback.md)。
 
@@ -362,13 +364,13 @@ MINIMAX_BASE_URL=https://api.minimax.cn/v1
 MINIMAX_PLANNER_MODEL=MiniMax-M3
 ```
 
-密钥仅放本机 `.env`。M3 初始化／逐轮请求与豆包实时 Key 分开；不启用额外 trace 或保存模型思维链。未配置 M3 时显示保守策略并记录 `planner_unconfigured`，不冒充真实语义规划。当前试点预算为初始化 10 秒、逐轮 5 秒，仍需真实校准。`npm run eval:planning` 使用 15 组独立合成 fixture 做离线契约检查；显式 `npm run eval:planning -- --live` 使用 6 组 fixture，最多 12 次规划请求及各至多一次格式修复，不调用豆包、Judge 或真实学生音频。`npm run probe:planning:voice` 单独验证一个动态初始上下文的真实连接，不上传麦克风。规划质量、生成因果、原十维内容和浏览器听感分别验收。
+密钥仅放本机 `.env`。M3 初始化／逐轮请求与豆包实时 Key 分开；不启用额外 trace 或保存模型思维链。未配置 M3 时显示保守策略并记录 `planner_unconfigured`，不冒充真实语义规划。当前试点规划用时上限为初始化 10 秒、逐轮 5 秒，仍需真实校准。`npm run eval:planning` 使用 15 组独立合成 fixture 做离线契约检查；显式 `npm run eval:planning -- --live` 使用 6 组 fixture，最多 12 次规划请求及各至多一次格式修复，不调用豆包、Judge 或真实学生音频。`npm run probe:planning:voice` 单独验证一个动态初始上下文的真实连接，不上传麦克风。规划质量、生成因果、原十维内容和浏览器听感分别验收。
 
-目标生命周期检查：npm run eval:goals。当前默认仍为完整契约 full_contract_v3，prompt 已加入通用 Agent reasoning 并升级为 kai-planner-v7；冻结对照仍为 kai-planner-v3。Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化总预算仍为 10 秒、逐轮 5 秒，初始化预留 50ms 提交明确降级。完整语义、当前轮控制和听感分别验收。
+目标生命周期检查：npm run eval:goals。当前默认仍为完整契约 full_contract_v3，prompt 已加入通用 Agent reasoning 并升级为 kai-planner-v7；冻结对照仍为 kai-planner-v3。Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化规划总用时上限仍为 10 秒、逐轮 5 秒，初始化预留 50ms 提交明确降级。完整语义、当前轮控制和听感分别验收。
 
 豆包 FC 检查为单独实验：先 npm run prepare:planning:fc，用本机系统语音生成固定作者输入；再 npm run probe:planning:fc -- --all --rule-planner 验证等待时序，或 --case=chat 用已配置 M3 联调。只上传这组本机合成 PCM，继续采音，不调用外部 ASR／TTS 服务；输出只有时序／数量／安全诊断。它不会改变普通 Web profile 或启用 controlled，亦不验证真实麦克风／听感。
 
-Agent 检查：npm run eval:agent 使用 20 个独立案例验证角色、尝试来源及实际输出范围，默认不调用模型。显式 --live --case=difficulty-report,teacher-full-forwarded,teacher-reported 限定真实 M3 规划；再加 --semantic-review 对每个已接受提案新增最多一次、12 秒截止的辅助 M3 审阅。审阅不进入运行／写回，也不增加语音规划预算；它不等于人工校准或独立 Judge 验收。
+Agent 检查：npm run eval:agent 使用 20 个独立案例验证角色、尝试来源及实际输出范围，默认不调用模型。显式 --live --case=difficulty-report,teacher-full-forwarded,teacher-reported 限定真实 M3 规划；再加 --semantic-review 对每个已接受提案新增最多一次、12 秒截止的辅助 M3 审阅。审阅不进入运行／写回，也不延长语音对话中的规划用时上限；它不等于人工校准或独立 Judge 验收。
 
 完整快照检查：npm run eval:goals -- --capture-review 保存合成私有 snapshot-v2；npm run review:planning -- --preflight 检查全部绑定，不调用模型。旧不完整 artifact 不回填上下文。npm run eval:agent:long 运行三个入口共 44 轮离线序列；ObservationPort 需服务器显式注入，默认不调用模型、候选不进入规划或写回。见 [四项实现](docs/agent-four-tasks.md)。
 
