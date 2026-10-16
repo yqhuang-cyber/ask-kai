@@ -4,6 +4,7 @@ import { Presentation } from './presentation.js';
 import { ExperienceTrace } from './diagnostics.js';
 import { SummaryCards } from './summary-cards.js';
 import { PreparationClient } from './preparation-client.js';
+import { renderTopicState } from './topic-state.js';
 import { failureCode,failureMessage } from './failure-messages.js';
 const diagnosticsEnabled=new URLSearchParams(location.search).get('diagnostics')==='1';
 const trace=diagnosticsEnabled?new ExperienceTrace():null;
@@ -75,6 +76,7 @@ function learning(packet) {
   goal.textContent=packet.goal;promptHint.textContent=packet.start_tip;
   const details=packet.goal_details;
   clearGoalDetails();
+  renderTopicState(document.querySelector('#topic-continuity'),packet.topic_scope);
   if(details){document.querySelector('#goal-details').hidden=false;document.querySelector('#goal-state').textContent=details.status==='active'?'已准备；交流中可以调整或暂停。':'该练习已暂停。';document.querySelector('#goal-expression-task').textContent=details.expression_task;document.querySelector('#goal-key-points').replaceChildren(...details.key_points.map(k=>{const li=document.createElement('li');li.textContent=k.label;return li;}));}
   if(packet.prompt_title)promptTitle.textContent=packet.prompt_title;
   const card=packet.cards[0];document.querySelector('.word-card').hidden=!card;
@@ -82,7 +84,7 @@ function learning(packet) {
   const count=packet.attempt_count??packet.attempts.length;
   document.querySelector('#learning-attempts').textContent=count ? `本轮记录 ${count} 次表达尝试。未评估掌握或发音。` : '本轮尚未记录目标表达尝试。';
 }
-function clearGoalDetails(){document.querySelector('#goal-details').hidden=true;document.querySelector('#goal-key-points').replaceChildren();document.querySelector('#goal-expression-task').textContent='';document.querySelector('#goal-state').textContent='';}
+function clearGoalDetails(){renderTopicState(document.querySelector('#topic-continuity'),null);document.querySelector('#goal-details').hidden=true;document.querySelector('#goal-key-points').replaceChildren();document.querySelector('#goal-expression-task').textContent='';document.querySelector('#goal-state').textContent='';}
 const entry=()=>({mode:topicManaged&&mode==='sports'?'topic':mode,...(topicManaged&&mode==='sports'?{topic_id:topicId,...(document.querySelector('#opening-request').value.trim()?{opening_request:document.querySelector('#opening-request').value.trim()}:{})}:{}),...(mode==='mission'?{mission_id:mission.id}:{}),...(paceSupported?{speech_pace:paceSelect.value}:{})});
 const preparer=new PreparationClient({fetcher:authorizedFetch,onView:learning,onStatus:(state,details)=> {
   if(state==='preparing'){clearGoalDetails();goal.textContent='正在规划本次对话……';promptHint.textContent='';document.querySelector('.word-card').hidden=true;message.textContent='正在准备对话……';}
@@ -108,7 +110,7 @@ document.querySelector('#opening-request').addEventListener('change',prepareSele
 topicSelect.addEventListener('change',()=>{topicId=topicSelect.value;prepareSelected();});
 document.querySelector('#refresh-topics').addEventListener('click',()=>{preparer.cancel();void loadTopics().then(prepareSelected);});
 void runtimeReady.then(runtime=>{entryPreviews=runtime.entry_previews??{};dynamicPlanning=runtime.planning?.available===true;saveLearning.hidden=!dynamicPlanning||runtime.planning.mode==='shadow';if(entryPreviews[mode])learning(entryPreviews[mode]);});
-function controls(active) {connect.disabled=active||learnerSwitching||topicManaged&&mode==='sports'&&!topicAvailable;topicSelect.disabled=active||learnerSwitching;document.querySelector('#opening-request').disabled=active||learnerSwitching;document.querySelector('#refresh-topics').disabled=active||learnerSwitching;learnerSelect.disabled=active||learnerSwitching;caseSelect.disabled=active;paceSelect.disabled=active||learnerSwitching || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active||learnerSwitching || (button.dataset.mode==='mission' && !mission || button.dataset.mode==='sports'&&topicManaged&&!topicAvailable);end.disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
+function controls(active) {connect.disabled=active||learnerSwitching||topicManaged&&mode==='sports'&&!topicAvailable;topicSelect.disabled=active||learnerSwitching;document.querySelector('#opening-request').disabled=active||learnerSwitching;document.querySelector('#refresh-topics').disabled=active||learnerSwitching;learnerSelect.disabled=active||learnerSwitching;caseSelect.disabled=active;paceSelect.disabled=active||learnerSwitching || !paceSupported;if(!active)paceHint.textContent=paceSupported?'开聊前选择，结束后可切换。':'当前服务暂不支持选择语速。';for(const button of modes)button.disabled=active||learnerSwitching || (button.dataset.mode==='mission' && !mission || button.dataset.mode==='sports'&&topicManaged&&!topicAvailable);end.disabled=!active;document.querySelector('#topic-change-end').disabled=!active;mute.disabled=!active;interrupt.disabled=!active;}
 async function loadSpeechPaces() {
   try {
     const response=await fetch('/api/speech-paces');if(!response.ok)throw new Error('PACE_UNAVAILABLE');
@@ -206,6 +208,7 @@ end.addEventListener('click',()=>{
   if(ws?.readyState===WebSocket.OPEN){const save=dynamicPlanning&&document.querySelector('#save-learning-input').checked;ws.send(JSON.stringify({type:'session.end',...(save?{save_learning:true}:{})}));const current=generation;message.textContent='正在结束对话……';void io?.close();setTimeout(()=>{if(current===generation)void stop();},save?5500:3000);}
   else void stop();
 });
+document.querySelector('#topic-change-end').addEventListener('click',()=>end.click());
 interrupt.addEventListener('click',()=> {
   const response_id=presentation.current;observe('manual.interrupt',{response_id});presentation.stop();
   if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:'response.cancel',response_id:response_id ?? undefined}));

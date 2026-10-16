@@ -26,6 +26,7 @@ const staticFiles = new Map([
   ['/summary-cards.js',['summary-cards.js','text/javascript']],
   ['/diagnostics.js',['diagnostics.js','text/javascript']], ['/experience-cases.json',['experience-cases.json','application/json']],
   ['/preparation-client.js',['preparation-client.js','text/javascript']],
+  ['/topic-state.js',['topic-state.js','text/javascript']],
   ['/dev/replay', ['replay.html','text/html']], ['/app.js',['app.js','text/javascript']], ['/style.css',['style.css','text/css']]
 ]);
 function json(res, status, body) {

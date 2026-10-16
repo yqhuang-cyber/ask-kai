@@ -67,7 +67,7 @@ test('resource reads and planner timeouts are bounded even when injected ports i
 test('authorized context correction cancels pending work and removes superseded interests from future planner input',async()=> {
   const p=await prepare(),state=new PlanningState({...p}),i=p.identity;
   const memory=[{field:'interest',value:'跑步'}],context=learnerFixture(i,{revision:2,memory});state.updateContext(context);
-  assert.equal(state.context.student_profile.interests[0].label,'跑步');assert.equal(state.plan.content_focus,'跑步');assert.equal(state.plan.input_refs.revision,2);assert.equal(state.plan.selection_basis[0].refs[0],context.snapshot_id);
+  assert.equal(state.context.student_profile.interests[0].label,'跑步');assert.equal(state.plan.content_focus,p.plan.content_focus);assert.equal(state.plan.input_refs.revision,2);assert.equal(state.plan.selection_basis[0].refs[0],context.snapshot_id);
 });
 test('M3 adapter uses the reviewed official endpoint, disables thinking and returns only parsed business JSON',async()=> {
   let request;
@@ -110,7 +110,7 @@ test('ASR revision creates a correction input revision and invalidates the previ
 });
 test('turn validators enforce current references, paused goals, cooldown and closing boundaries',async()=> {
   const prepared=await prepare(),turn={source_event_id:'input-a',expires_at:Date.now()+1000};
-  const policy={action:'RESPOND',teaching_paused:true,teaching_cooldown:2};const input={turn,policy};const p=conservativeTurn(input),allowedRefs=contextRefs(prepared.context,prepared.resource);allowedRefs.add('input-a');const state={plan:prepared.plan,input:turn,policy,allowedRefs};
+  const policy={action:'RESPOND',teaching_paused:true,teaching_cooldown:2};const input={turn,policy,topic_scope:prepared.plan.topic_scope};const p=conservativeTurn(input),allowedRefs=contextRefs(prepared.context,prepared.resource);allowedRefs.add('input-a');const state={plan:prepared.plan,input:turn,policy,allowedRefs};
   assert.throws(()=>validateTurn({...p,active_goal_id:'express-likes'},state),/POLICY/);
   assert.throws(()=>validateTurn({...p,reply_directive:{...p.reply_directive,new_points:1}},state),/POLICY/);
   assert.throws(()=>validateTurn({...p,evidence_refs:['future-input']},state));

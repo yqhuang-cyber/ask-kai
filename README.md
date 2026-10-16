@@ -2,11 +2,13 @@
 
 面向不同中文学习阶段的实时对话教学 Agent。
 
-> 更新于 2026-10-15。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。主题式对话新链路已加入独立 Topic Manager、已发布 Topic Pack、四位学习者自适应初始化和 2 秒逐轮预算；461 项测试、三个 synthetic replay 及两组 Chromium 合成设备浏览器检查通过。真实 M3 规划在当前 8 组固定包样本全部超时并按规则降级；结果见[主题链路实施记录](docs/topic-chain-implementation.md)。可替换 LLM 的接口、原始规划快照、Agent reasoning／learner feedback、shadow ObservationPort、辅助规划语义审阅及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
+> 更新于 2026-10-16。当前为独立 Web POC：真实豆包语音＋本地 Mock 业务数据。动态初始化、会话／逐轮规划、目标替换／暂停／停止及 free 自愿练习已接入；语音保持豆包实时全双工，当前为 next_turn_advisory。主题式对话新链路已加入独立 Topic Manager、已发布 Topic Pack、四位学习者自适应初始化和 2 秒逐轮预算；494 项测试、三个 synthetic replay 及两组 Chromium 合成设备浏览器检查通过。真实 M3 规划在当前 8 组固定包样本全部超时并按规则降级；结果见[主题链路实施记录](docs/topic-chain-implementation.md)。可替换 LLM 的接口、原始规划快照、Agent reasoning／learner feedback、shadow ObservationPort、辅助规划语义审阅及独立豆包 Function Calling 实验已加入；M3 可靠性、正式本轮生成门控及完整设备验收仍开放。
 
 **回复机制更新：** 当前 `kai-reply-v5` 取消默认一句、最多两句和固定字数限制，按语境与理解需要调整长度；Kai 先接住具体内容，再自然补充或追问。本轮 461 项测试及三个 synthetic replay 通过；真实豆包自然度与浏览器听感尚未验证。见[回复策略](docs/short-replies.md)。
 
 **主题目标更新：** 主题式对话初始化必须有一个合法教学目标，并同时提供关联知识点与表达任务；Web 准备完成后展示这三项。资料不足可安排探索性表达，已有稳定能力可安排新情境应用；无合法目标或明确只想聊天时准备失败并给出提示，不以空目标进入主题会话。会中仍可调整／暂停练习；free 初始化仍无预设目标。见[目标准备与展示](docs/topic-chain-implementation.md#主题目标准备与展示)。
+
+**主题连续性更新：** 主题范围与教学目标分开保存，暂停练习／规则回退仍保留主题，偏好刷新不再覆盖当前内容方向。“我想聊……”不再直接被视为更换整个主题；逐轮规划区分主题内选题、相关联想及换题意愿。明确换主题会暂停旧练习，并在 Web 显示待切换请求；结束后通过新准备流程选主题或自由聊天。字段校验不证明语义或实际语音绝不跑题，仍沿用 next_turn_advisory。见[持续规划与换题](docs/topic-continuity.md)。
 
 [产品介绍](#1-产品介绍) · [学习者画像](docs/learner-profiles.md) · [架构设计](#2-架构设计) · [三个入口](#3-使用方式三个入口) · [降级清单](docs/planner-fallback-inventory.md) · [评测](#4-评测机制与现有结果) · [现状](#5-实现范围与当前状态) · [计划](#6-接下来的计划) · [启动](#7-快速启动) · [文档](#8-文档导航)
 
@@ -103,7 +105,7 @@ Harness 的横向职责覆盖五个模块：状态版本、权限、取消、规
 | --- | --- | --- |
 | 进入 | 选择主题，查看目标、知识点和表达任务 | 三项完整且通过校验才准备成功；不接受空目标；切换选择时清除旧内容 |
 | 交流 | 围绕主题完成表达任务，需要时获得支持 | 任务是表达方向，允许不同说法；M3 提案经校验后作为后续输入建议，实际语义质量单独验收 |
-| 调整 | 继续聊内容，或换题、拒绝、打断 | 已尝试后减少支架；换题／拒绝暂停原目标 |
+| 调整 | 选择主题内内容，或拒绝练习、要求换主题、打断 | 主题内选题不暂停目标；拒绝练习保留主题；换主题请求暂停旧练习并显示待切换状态 |
 | 小结 | 查看实际表达尝试，选择是否再聊 | 支持的喜好句／限定时间句记 attempted；其他 KP 未评估 |
 
 ### 3.3 自由聊天
@@ -332,7 +334,7 @@ sequenceDiagram
 
 2026-10-16 已接入口头结束后的播放确认、自动关闭与本次会话记录写回／读回。小结包含本次目标和有来源的实际词汇／表达，保存到本地 mock 内存，重启重置；不自动升级掌握。豆包口头回顾已做有限作者合成语音检查，仍为 next_turn_advisory，完整知识语义覆盖与真人设备验收开放。见[实现记录与 CL-01～06](docs/conversation-closing-design.md#2026-10-16-实施记录)。
 
-2026-10-15 最新安排：本轮按用户要求补齐主题初始化必有目标、知识点／表达任务及 Web 展示；其余主题链路工作继续保留在[主题 TODO](docs/topic-planner-tasking.md#搁置-todo)。自由对话已复现的问题、能力缺口与建议顺序见[自由对话工程审查](docs/free-conversation-engineering-review.md)。下列整体计划保留为后续范围。
+2026-10-15 最新安排：本轮按用户要求补齐主题初始化必有目标、知识点／表达任务、Web 展示及主题连续性；其余主题链路工作继续保留在[主题 TODO](docs/topic-planner-tasking.md#搁置-todo)。自由对话已复现的问题、能力缺口与建议顺序见[自由对话工程审查](docs/free-conversation-engineering-review.md)。下列整体计划保留为后续范围。
 
 2026-10-15 已补齐[全模块任务清单](docs/agent-completion-tasking.md)和[独立 Agent 评测计划](docs/agent-evaluation-plan.md)：针对最终三入口自适应对话，明确资源、执行、观察、总结与设备缺口，关联正在推进的 TP／DP 工作。当前为规划，不新增实现或质量通过结论。
 
@@ -399,7 +401,7 @@ MINIMAX_PLANNER_MODEL=MiniMax-M3
 
 **什么时候会用规则代替模型规划、会使用什么规则：** 见[降级点与替代规则清单](docs/planner-fallback-inventory.md)。清单列出 8 类触发场景、三入口初始化规则、13 条逐轮规则及非降级边界；Topic Pack 生成失败不会自动替换成规则包。规则替代的是规划提案，不是豆包回复正文／音频；正常结束等规则控制与模型故障回退分别统计，当前资源失效路径存在降级标记缺口，详见文档。评估清单已记录，尚未改变运行行为或完成真实质量验收。
 
-目标生命周期检查：npm run eval:goals。当前默认仍为完整契约 full_contract_v3，prompt 已加入通用 Agent reasoning 并升级为 kai-planner-v9；冻结对照仍为 kai-planner-v3。Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化规划总用时上限为 15 秒、逐轮规划总用时上限为 2 秒；逐轮从接受输入计时并预留 200ms 提交窗口，修复不重置 deadline，超时明确降级；初始化预留 50ms。完整语义、当前轮控制和听感分别验收。
+目标生命周期检查：npm run eval:goals。当前默认仍为完整契约 full_contract_v3，prompt 已加入通用 Agent reasoning 并升级为 kai-planner-v10；冻结对照仍为 kai-planner-v3。Draft 候选设 ASK_KAI_PLANNER_PROTOCOL=draft_v1，或评测时显式 --draft-contract。--legacy-contract 使用冻结在 88c98f7 的原始适配器作对照，两种契约选项不能同时使用。换模型需注册核验过的 transport／adapter，不是直接随意改模型名称；具体能力与成本策略独立配置，不改业务规划契约。显式 --live 使用 12 个虚构案例，共 12 次初始化＋18 次逐轮请求，每次最多一次有界修复；--case=refusal 可限定一个案例。不调用豆包或独立 Judge；独立期望不进入模型输入。初始化规划总用时上限为 15 秒、逐轮规划总用时上限为 2 秒；逐轮从接受输入计时并预留 200ms 提交窗口，修复不重置 deadline，超时明确降级；初始化预留 50ms。完整语义、当前轮控制和听感分别验收。
 
 豆包 FC 检查为单独实验：先 npm run prepare:planning:fc，用本机系统语音生成固定作者输入；再 npm run probe:planning:fc -- --all --rule-planner 验证等待时序，或 --case=chat 用已配置 M3 联调。只上传这组本机合成 PCM，继续采音，不调用外部 ASR／TTS 服务；输出只有时序／数量／安全诊断。它不会改变普通 Web profile 或启用 controlled，亦不验证真实麦克风／听感。
 

@@ -90,7 +90,7 @@ test('corrected finals replace observation candidates rather than inflating evid
 });
 test('model cannot force a replacement, retire, resume or claim achieved from its own assessment',async()=> {
   const p=await prepared(),input={source_event_id:'input',text:'你好',expires_at:Date.now()+10000},policy={action:'RESPOND',teaching_paused:false,teaching_cooldown:0};
-  const proposal=conservativeTurn({turn:input,policy}),allowedRefs=contextRefs(p.context,p.resource);allowedRefs.add('input');
+  const proposal=conservativeTurn({turn:input,policy,topic_scope:p.plan.topic_scope}),allowedRefs=contextRefs(p.context,p.resource);allowedRefs.add('input');
   const state={...p,input,policy,allowedRefs};
   for(const patch of [{op:'replace',goal_id:'express-likes',refs:['input']},{op:'retire',goal_id:'express-time',refs:['input']},'resume',{op:'achieve',goal_id:'express-time',refs:['input']}])assert.throws(()=>validateTurn({...proposal,proposed_plan_patch:patch},state));
   assert.throws(()=>validateTurn({...proposal,goal_assessment:{progress:'mastered',gap:'none',refs:['input']}},state));

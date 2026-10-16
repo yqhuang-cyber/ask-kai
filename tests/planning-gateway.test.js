@@ -72,6 +72,7 @@ test('planning diagnostics preserve anonymous causal fields without prompt, stud
   const clean=metadata({turn_id:'turn-a',path:'next_turn_advisory',planning_revision:4,planner_kind:'llm',degraded:false,rejection_code:'PREREQUISITE_UNVERIFIED',goal_status:'paused',task:'PRIVATE',input:'PRIVATE',error:'PRIVATE'});
   assert.equal(clean.path,'next_turn_advisory');assert.ok(!JSON.stringify(clean).includes('PRIVATE'));
   assert.equal(clean.rejection_code,'PREREQUISITE_UNVERIFIED');assert.equal(clean.goal_status,'paused');assert.deepEqual(metadata({rejection_code:'PRIVATE'}),{});
+  assert.equal(metadata({rejection_code:'TOPIC_CHANGE_REQUIRES_REQUEST',request_quote:'PRIVATE'}).rejection_code,'TOPIC_CHANGE_REQUIRES_REQUEST');assert.ok(!JSON.stringify(metadata({rejection_code:'INVALID_TOPIC_DECISION',request_quote:'PRIVATE'})).includes('PRIVATE'));
   const trace=new ExperienceTrace();trace.gateway({name:'planning.accepted',at_ms:2,fields:clean});assert.equal(trace.snapshot().timeline[0].turn_ref,'t1');assert.equal(trace.snapshot().contains_text,false);
 });
 test('free practice uses host skills without resources and shares the page/voice plan',async t=> {

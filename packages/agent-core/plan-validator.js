@@ -4,6 +4,7 @@ import { PLAN_ACTIONS,LIMITS,exact,boundedText,isId,immutable } from '../contrac
 import { checkGoalPatch,goalChoice } from './goal-lifecycle.js';
 import { validateVisibleInstruction } from './agent-reasoning.js';
 import { measureReply,REPLY_POLICY_VERSION } from './reply-policy.js';
+import { topicScope,validateTopicDecision } from './topic-continuity.js';
 export const planHash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export function contextRefs(context,resource) {
   return new Set([context.snapshot_id,...context.student_profile.interests.map(r=>r.record_id),...context.learning_profile.kp_states.map(r=>r.record_id),...context.learning_history.map(r=>r.record_id),...(resource?[resource.id,...resource.goals.map(g=>g.id),...resource.key_points.map(k=>k.id),...resource.cards.map(c=>c.id)]:[])]);
@@ -37,7 +38,9 @@ export function validateConversation(p,{entry,context,resource}) {
   return immutable(p);
 }
 export function validateTurn(p,{plan,input,policy,allowedRefs,context,resource,priorExecution,review={difficulty_count:0},now=Date.now()}) {
-  if(!exact(p,['interpretation','prior_outcome','goal_assessment','action','active_goal_id','local_help_target','reply_directive','expected_observation','proposed_plan_patch','evidence_refs','rationale_code'])||Buffer.byteLength(JSON.stringify(p))>LIMITS.proposal_bytes||!exact(p.interpretation,['intent','clarity','refs'])||!boundedText(p.interpretation.intent,100)||!['clear','ambiguous','unknown'].includes(p.interpretation.clarity)||!refs(p.interpretation.refs,allowedRefs)||!PLAN_ACTIONS.includes(p.action)||!boundedText(p.rationale_code,100)||!refs(p.evidence_refs,allowedRefs))throw new Error('INVALID_TURN_PROPOSAL');
+  const scope=topicScope(plan,resource);
+  if(scope)validateTopicDecision(p?.topic_decision,{scope,input,policy,patch:p?.proposed_plan_patch,proposal:p});
+  if(!exact(p,[...(scope?['topic_decision']:[]),'interpretation','prior_outcome','goal_assessment','action','active_goal_id','local_help_target','reply_directive','expected_observation','proposed_plan_patch','evidence_refs','rationale_code'])||Buffer.byteLength(JSON.stringify(p))>LIMITS.proposal_bytes||!exact(p.interpretation,['intent','clarity','refs'])||!boundedText(p.interpretation.intent,100)||!['clear','ambiguous','unknown'].includes(p.interpretation.clarity)||!refs(p.interpretation.refs,allowedRefs)||!PLAN_ACTIONS.includes(p.action)||!boundedText(p.rationale_code,100)||!refs(p.evidence_refs,allowedRefs))throw new Error('INVALID_TURN_PROPOSAL');
   if(!exact(p.reply_directive,['task','support_level','new_points','budget_ref'])||!boundedText(p.reply_directive.task,400))throw new Error('INVALID_TURN_DIRECTIVE');
   if(!['none','partial','model','choice'].includes(p.reply_directive.support_level))throw new Error('INVALID_SUPPORT_LEVEL');
   if(![0,1].includes(p.reply_directive.new_points))throw new Error('INVALID_NEW_POINT_COUNT');

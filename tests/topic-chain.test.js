@@ -84,4 +84,17 @@ test('observed topic revocation retires the goal before new model planning',asyn
   const f=await fixture(t),i=await f.identity('poc-learner'),result=await new ConversationInitializer({port:f.port}).prepare({mode:'topic',topic_id:'sports'},i);let calls=0;
   const session=new TeachingSession({sessionId:'session',mode:'sports',planning:{...result,plan:{...result.plan,session_id:'session'}},planner:{planTurn(){calls++;}},resourceVerifier:(r,o)=>f.port.checkResource(i,r,o)});
   await f.store.revoke('sports',result.resource.version);const event={version:1,event_id:'input',session_id:'session',seq:1,at_ms:1,type:'user.final',turn_id:'turn',payload:{text:'我每周跑三次。'}};session.accept(event);await session.planTurn(event);assert.equal(session.planning.plan.primary_goal,null);assert.equal(calls,0);assert.equal(session.planning.accepted.planner_kind,'rule');
+  assert.equal(session.view().topic_scope.status,'unavailable');assert.ok(!session.instructions().includes('"brief":'));
+  const next={...event,event_id:'next-input',turn_id:'next-turn',payload:{text:'换个话题。'}};session.accept(next);assert.equal(session.view().topic_scope.status,'unavailable');await session.planTurn(next);assert.equal(session.view().topic_scope.status,'unavailable');assert.equal(calls,0);
+});
+test('gateway forwards persistent theme, local choices and pending switch state without a new resource',async t=>{
+  const f=await fixture(t),gateway=await setup(t,{...f.backend,planningPort:f.port,planningMode:'next_turn_advisory'});
+  const launch=await fetch(gateway.origin+'/api/poc/launch',{method:'POST',headers:{Origin:gateway.origin,'Content-Type':'application/json'},body:'{}'});
+  const response=await fetch(gateway.origin+'/api/sessions',{method:'POST',headers:{Origin:gateway.origin,Cookie:launch.headers.get('set-cookie').split(';')[0],'Content-Type':'application/json'},body:JSON.stringify({mode:'topic',topic_id:'sports'})});assert.equal(response.status,201);
+  const ticket=await response.json(),{ws,provider,packets}=await gateway.open(ticket);
+  provider.updateContext=value=>{provider.contexts.push(value);provider.control('context.updated',{version:value.version});};provider.emit('session.ready');
+  provider.emit('user.final',{text:'我想聊跑步。'},{turn_id:'local'});await until(()=>packets.some(p=>p.type==='teaching.state'&&p.decision?.turn_id==='local'&&p.topic_scope?.status==='active'));assert.ok(packets.filter(p=>p.type==='teaching.state').at(-1).goal_details);
+  provider.emit('user.final',{text:'换个话题，我想聊音乐。'},{turn_id:'switch'});await until(()=>packets.some(p=>p.type==='teaching.state'&&p.decision?.turn_id==='switch'&&p.topic_scope?.status==='change_requested'));
+  const view=packets.filter(p=>p.type==='teaching.state').at(-1);assert.equal(view.topic_scope.topic_id,'sports');assert.equal(view.topic_scope.title,'运动');assert.equal(view.goal_details.status,'paused');assert.equal(view.cards.length,0);assert.equal(f.calls(),2);assert.ok(provider.input.instructions.includes('主题连续性规则'));assert.ok(provider.contexts.some(c=>c.instructions.includes('"status":"change_requested"')));
+  ws.send(JSON.stringify({type:'session.end'}));await once(ws,'close');
 });

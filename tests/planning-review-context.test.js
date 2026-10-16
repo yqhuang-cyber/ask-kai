@@ -28,8 +28,10 @@ test('full review bundle refuses changed snapshot, wrong binding, duplicate rows
   const e=final('我下午打篮球。','t');s.accept(e);await s.planTurn(e);const row=structuredClone(planningReviewRow('case',0,captured));row.plan.planner_kind='llm';const {hash,...body}=row.plan;row.plan.hash=planHash(body);row.proposal_hash=row.plan.hash;
   const dataset={cases:[{id:'case',turns:[{text:e.payload.text}]}]},bundle={schema_version:REVIEW_BUNDLE_VERSION,source:'authored_synthetic_goal_eval',dataset_sha256:'dataset',candidate:{},rows:[row]};
   const result=validatedBundleInputs(bundle,dataset,'dataset');assert.equal(result.length,1);assert.deepEqual(result[0].input.student_input,captured.input_snapshot.turn);assert.deepEqual(result[0].input.actual_context,captured.input_snapshot.actual_context);assert.equal(result[0].input.conversation_plan.primary_goal.id,'express-time');
+  assert.deepEqual(result[0].input.topic_scope,captured.input_snapshot.topic_scope);
   for(const mutate of [b=>b.rows[0].input_snapshot.turn.text='private',b=>b.rows[0].input_snapshot.plan.revision++,b=>delete b.rows[0].input_snapshot.actual_context,b=>b.rows[0].plan.input_ref='wrong',b=>b.rows.push(b.rows[0]),b=>b.dataset_sha256='different']){const bad=structuredClone(bundle);mutate(bad);assert.throws(()=>validatedBundleInputs(bad,dataset,'dataset'));}
   assert.throws(()=>validatedBundleInputs([row],dataset,'dataset'));
+  const mixed=structuredClone(bundle);mixed.rows[0].input_snapshot.topic_scope.topic_id='music';mixed.rows[0].snapshot_hash=planHash(mixed.rows[0].input_snapshot);assert.throws(()=>validatedBundleInputs(mixed,dataset,'dataset'),/INVALID_REVIEW_BINDING/);
 });
 test('capture callback failure cannot control teaching execution and production defaults do not retain snapshots',async()=> {
   const s=new TeachingSession({sessionId:'eval-case',mode:'sports',planning:await bound(),onAcceptedProposal:()=>{throw new Error('PRIVATE');}});const e=final('你好。','t');s.accept(e);assert.ok(await s.planTurn(e));assert.equal(s.planning.acceptedInput,undefined);

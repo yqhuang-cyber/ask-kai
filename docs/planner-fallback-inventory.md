@@ -1,6 +1,6 @@
 # Planner 降级点与替代规则清单
 
-更新于 2026-10-15。依据当前工作区运行代码，自适应回复策略为 `kai-reply-v5`、Planner prompt 为 `kai-planner-v9`、fallback policy 为 `kai-planning-fallback-v3`。主题初始化现为 `kai-initial-teaching-v2`：准备成功必须有教学目标、知识点及表达任务；本文 I-T 已同步最新规则。评估和改进建议另列。
+更新于 2026-10-16。依据当前工作区运行代码，自适应回复策略为 `kai-reply-v6`、Planner prompt 为 `kai-planner-v10`、fallback policy 为 `kai-planning-fallback-v4`。主题初始化现为 `kai-initial-teaching-v2`：准备成功必须有教学目标、知识点及表达任务；本文 I-T 已同步最新规则。评估和改进建议另列。
 
 ## 1. 降级替代的是什么
 
@@ -45,6 +45,7 @@ Topic Pack 生成失败、资料读取失败、取消过期结果、正常语言
 | Topic 初始化教学决策 | 空目标 `TOPIC_GOAL_REQUIRED`、needs 引用不合法、无来源目标、缺表达任务、忽略已识别的明确选择、宣称掌握／发音等。已有稳定能力允许安排新情境应用，不应被描述成新发现的薄弱点；主要教学校验错误码已加入规划修复 allowlist |
 | 逐轮结构与执行归属 | 行动／支持枚举无效、回复策略版本不符、引用错误、先前执行状态不一致、过期提案、内部标识泄漏或任务包含多个问题 |
 | 逐轮教学与目标控制 | 与暂停／冷却／澄清限制冲突、未经学生选择恢复／替换／停止目标、已拒绝目标自动恢复、未结束却告别、正确表达被强制纠错、局部求助扩成正式任务、无实际观察却评 attempted |
+| 逐轮主题与换题来源 | 缺 topic_decision、主题 ID 或当前输入引用不符、请求片段不是当前学生来源、目的话题不在片段中、换题时仍继续旧目标教学等；字段与来源校验不证明回复语义一定相关 |
 
 依据：[Plan Validator](../packages/agent-core/plan-validator.js)、[Topic 初始化校验](../packages/agent-core/topic-initialization.js)、[目标生命周期](../packages/agent-core/goal-lifecycle.js)、[draft 编译](../packages/agent-core/planner-draft.js)。固定的提案字段长度限制约束的是规划数据，不是 Tutor 回复字数。
 
@@ -112,6 +113,8 @@ I-M／I-F 依据：[conservativeConversation](../packages/agent-core/conversatio
 | T-13 | 以上均未命中 | 回应具体内容／问题／感受，相关补充或自然追问，不新增目标或强制练习 | 已有目标尝试数 > 0 时 FOLLOW_UP，否则 RESPOND；none；`conservative_planner_fallback` |
 
 所有 T 规则由 `conservativeTurn` 包装：`new_points:0`、`goal_assessment:null`、逐轮提案的 `active_goal_id:null`，不宣称目标达成／独立／掌握；澄清的 clarity 为 ambiguous，其余 unknown。**逐轮提案不绑定 active_goal，不代表自动删除会话原目标**；会话目标继续由 controls 和有效 patch 管理。暂停时优先生成 pause patch，否则只有 T-03 可以提议替换目标。
+
+主题入口额外保留 `topic_scope` 并生成 `topic_decision`：一般回退保持当前主题，不主动另开无关话题；明确换主题请求暂停旧练习并提示结束后重新选择；资源不可用时停止旧目标。`unassessed` 不代表允许任意发散，普通“我想聊”也不再立即暂停主题目标。原 T 表优先级继续存在，最终回复任务还受该主题包装约束；语义／执行限制见[主题连续性](topic-continuity.md)。
 
 支持值表示给模型的指令，不证明学生实际获得支持。执行侧继续遵守当前语言偏好和自适应回复长度策略，不因降级恢复 36 字／两句限制。规则并不生成学生必须回答的固定答案。
 

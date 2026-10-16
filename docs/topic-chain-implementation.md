@@ -2,6 +2,8 @@
 
 2026-10-15。实现范围是独立 Web POC 的主题式对话。身份、三类学习者资料、课程记录仍由授权的本地 Mock HSKai 端口提供；共享 Topic Pack 不包含学习者资料。Mission 保留原入口契约；free 的依赖隔离修复见下文。豆包仍使用已审核的实时语音 profile，逐轮决策仍为 `next_turn_advisory`。
 
+主题持续规划现已补充独立主题状态、逐轮关系判断、换题来源约束、暂停后保留主题、偏好覆盖修复和 Web 待切换状态。行为、合成检查及语义／执行限制见[主题连续性](topic-continuity.md)；没有新增同步模型调用或当轮生成门控。
+
 ## 主题目标准备与展示
 
 2026-10-15 用户最新决定取代早先的“主题可无目标”：主题初始化必须选择一个合法教学目标。`kai-initial-teaching-v2` 固定 `plan_kind:targeted_practice`、`no_goal_reason:null`，目标关联的 `key_points` 必须与资源一致，`teaching_decision.task` 必须非空，明确本次表达任务。这里的知识点是已发布主题包关联的交流能力条目；没有扩展为完整 HSK 语法／词汇教学资源，也没有新增未经准入的语言例句。

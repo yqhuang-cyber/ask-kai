@@ -3,8 +3,9 @@ import { exact,isObject,boundedText,immutable,LIMITS,PLAN_ACTIONS } from '../con
 import { proposeTopic } from './topic-initialization.js';
 import { eligibleGoal } from './goal-lifecycle.js';
 import { AGENT_REASONING_INSTRUCTIONS } from './agent-reasoning.js';
-export const PLANNER_DRAFT_VERSION='kai-proposal-draft-v1';
-export const PLANNER_PROMPT_VERSION='kai-planner-v9';
+import { TOPIC_PLANNER_INSTRUCTIONS,TOPIC_RELATIONS } from './topic-continuity.js';
+export const PLANNER_DRAFT_VERSION='kai-proposal-draft-v2';
+export const PLANNER_PROMPT_VERSION='kai-planner-v10';
 const object=properties=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
 const text={type:'string',minLength:1,maxLength:200};
 const nullableText={anyOf:[text,{type:'null'}]};
@@ -13,7 +14,10 @@ export const DRAFT_SCHEMAS=immutable({
   conversation:object({conversation_purpose:text,content_focus:text,opening_options:{type:'array',maxItems:2,items:{...text,maxLength:100}},primary_goal_id:nullableText,candidate_goal_ids:{type:'array',maxItems:2,items:text},support_level:{enum:['none','partial','model','unknown']},selection_basis:{type:'array',minItems:1,maxItems:6,items:object({reason:{...text,maxLength:80},refs})}}),
   turn:object({interpretation:object({intent:{...text,maxLength:100},clarity:{enum:['clear','ambiguous','unknown']},refs}),goal_assessment:{anyOf:[{type:'null'},object({progress:{enum:['unknown','attempted','not_related']},gap:{...text,maxLength:150},refs})]},action:{enum:PLAN_ACTIONS},active_goal_id:nullableText,local_help_target:{anyOf:[{...text,maxLength:100},{type:'null'}]},reply_task:{...text,maxLength:400},support_level:{enum:['none','partial','model','choice']},new_points:{enum:[0,1]},expected_observation_kind:{...text,maxLength:100},proposed_plan_patch:{anyOf:[{type:'null'},{enum:['pause','resume']},object({op:{enum:['replace','retire']},goal_id:text,refs})]},evidence_refs:refs,rationale_code:{...text,maxLength:100}})
 });
-export const DRAFT_FIELD_NAMES=Object.freeze([...new Set(['root','extra_fields',...Object.keys(DRAFT_SCHEMAS.conversation.properties),...Object.keys(DRAFT_SCHEMAS.turn.properties)])]);
+const topicDecisionSchema=object({topic_id:text,relation:{enum:TOPIC_RELATIONS},request_quote:nullableText,requested_focus:{anyOf:[{...text,maxLength:80},{type:'null'}]},refs:{...refs,minItems:1,maxItems:1}});
+export const TOPIC_TURN_SCHEMA=immutable(object({...DRAFT_SCHEMAS.turn.properties,topic_decision:topicDecisionSchema}));
+export const plannerSchema=(kind,input)=>kind==='turn'&&input.topic_scope?TOPIC_TURN_SCHEMA:DRAFT_SCHEMAS[kind];
+export const DRAFT_FIELD_NAMES=Object.freeze([...new Set(['root','extra_fields','topic_decision',...Object.keys(DRAFT_SCHEMAS.conversation.properties),...Object.keys(DRAFT_SCHEMAS.turn.properties)])]);
 export const safeDraftFields=fields=>Array.isArray(fields)?fields.filter(f=>DRAFT_FIELD_NAMES.includes(f)).slice(0,4):[];
 // A small, bounded schema subset. Shared across JSON-prompt and future native
 // structured adapters; input-dependent ownership/policy is validated afterwards.
@@ -27,7 +31,7 @@ function valid(v,s) {
   return false;
 }
 export function compilePlannerDraft(kind,draft,input) {
-  const schema=DRAFT_SCHEMAS[kind];
+  const schema=plannerSchema(kind,input);
   if(!schema||!valid(draft,schema)||Buffer.byteLength(JSON.stringify(draft))>LIMITS.proposal_bytes) {
     const error=new Error('PLANNER_INVALID_DRAFT');
     error.invalid_fields=!schema||!isObject(draft)?['root']:[...(!exact(draft,Object.keys(schema.properties))?['extra_fields']:[]),...Object.entries(schema.properties).filter(([k,s])=>!valid(draft[k],s)).map(([k])=>k)].slice(0,4);
@@ -54,7 +58,7 @@ export function draftInputConstraints(input) {
 }
 export function plannerMessages(kind,input,{repairCode,repairFields}={}) {
   if(!DRAFT_SCHEMAS[kind])throw new Error('INVALID_PLANNER_METHOD');
-  return [{role:'system',content:COMMON+RULES[kind]+AGENT_REASONING_INSTRUCTIONS+' refs填写available_refs中的实际ID字符串，不填snapshot_ref或learning_profile等字段名。reason只用短原因码。goal_options是宿主派生的来源约束，不是评分答案。输出schema：'+JSON.stringify(DRAFT_SCHEMAS[kind])+(repairCode?' 上次失败原因码：'+repairCode+'，字段：'+safeDraftFields(repairFields).join(',')+'。重新按schema生成，不扩大权限或增加字段。':'')},{role:'user',content:JSON.stringify({...input,...draftInputConstraints(input)})}];
+  return [{role:'system',content:COMMON+RULES[kind]+AGENT_REASONING_INSTRUCTIONS+(input.topic_scope?TOPIC_PLANNER_INSTRUCTIONS:'')+' refs填写available_refs中的实际ID字符串，不填snapshot_ref或learning_profile等字段名。reason只用短原因码。goal_options是宿主派生的来源约束，不是评分答案。输出schema：'+JSON.stringify(plannerSchema(kind,input))+(repairCode?' 上次失败原因码：'+repairCode+'，字段：'+safeDraftFields(repairFields).join(',')+'。重新按schema生成，不扩大权限或增加字段。':'')},{role:'user',content:JSON.stringify({...input,...draftInputConstraints(input)})}];
 }
 export class DraftPlanner {
   constructor({transport}) {
@@ -66,7 +70,7 @@ export class DraftPlanner {
   get observe(){return this.transport.observe;}
   async propose(kind,input,options={}) {
     if(Buffer.byteLength(JSON.stringify(input))>49152)throw new Error('PLANNER_INPUT_TOO_LARGE');
-    const draft=await this.transport.completeJSON({kind,messages:plannerMessages(kind,input,{repairCode:options.repair?options.repairCode:undefined,repairFields:options.repairFields}),schema:DRAFT_SCHEMAS[kind],signal:options.signal});
+    const draft=await this.transport.completeJSON({kind,messages:plannerMessages(kind,input,{repairCode:options.repair?options.repairCode:undefined,repairFields:options.repairFields}),schema:plannerSchema(kind,input),signal:options.signal});
     return compilePlannerDraft(kind,draft,input);
   }
   planTopicConversation(input,options){return proposeTopic(this.transport,input,options);}

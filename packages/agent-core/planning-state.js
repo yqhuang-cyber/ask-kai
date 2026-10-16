@@ -7,11 +7,12 @@ import { ObservationCoordinator } from './observation-port.js';
 import { boundedProposal } from './planner-port.js';
 import { contextRefs,validateTurn,planHash } from './plan-validator.js';
 import { goalChoice,eligibleGoal,assessGoal,GOAL_POLICY_VERSION } from './goal-lifecycle.js';
+import { topicScope,topicDecisionShape,ruleTopicDecision,reviseTopicScope,topicFallbackTask } from './topic-continuity.js';
 export const TURN_PLANNING_BUDGET_MS=2000;
 export const TURN_PLANNING_COMMIT_RESERVE_MS=200;
 export function conservativeTurn(input) {
   const d=fallbackDecision(input),p=input.policy;
-  return {interpretation:{intent:d.code,clarity:d.action==='CLARIFY'?'ambiguous':'unknown',refs:[input.turn.source_event_id]},prior_outcome:{execution_ref:input.prior_execution?.execution_id??null,status:input.prior_execution?.status??'none',unknown:['学生理解与完整播放未知']},goal_assessment:null,action:d.action,active_goal_id:null,local_help_target:d.localHelp?'回应本轮表达求助':null,reply_directive:{task:d.task,support_level:d.support,new_points:0,budget_ref:REPLY_POLICY_VERSION},expected_observation:{kind:d.action==='CLOSE'?'student_choice':'conversation_continuity',required_student_answer:null},proposed_plan_patch:p.teaching_paused?'pause':d.easier?{op:'replace',goal_id:d.easier.id,refs:[input.turn.source_event_id]}:null,evidence_refs:[input.turn.source_event_id],rationale_code:d.code};
+  return {...(input.topic_scope?{topic_decision:ruleTopicDecision(input)}:{}),interpretation:{intent:d.code,clarity:d.action==='CLARIFY'?'ambiguous':'unknown',refs:[input.turn.source_event_id]},prior_outcome:{execution_ref:input.prior_execution?.execution_id??null,status:input.prior_execution?.status??'none',unknown:['学生理解与完整播放未知']},goal_assessment:null,action:d.action,active_goal_id:null,local_help_target:d.localHelp?'回应本轮表达求助':null,reply_directive:{task:topicFallbackTask(input,d.task),support_level:d.support,new_points:0,budget_ref:REPLY_POLICY_VERSION},expected_observation:{kind:d.action==='CLOSE'?'student_choice':'conversation_continuity',required_student_answer:null},proposed_plan_patch:p.teaching_paused?'pause':d.easier?{op:'replace',goal_id:d.easier.id,refs:[input.turn.source_event_id]}:null,evidence_refs:[input.turn.source_event_id],rationale_code:d.code};
 }
 export class PlanningState {
   constructor({plan,context,resource,planner,observations,resourceVerifier,mode=plan.execution_mode,clock=()=>Date.now(),budgetMs=TURN_PLANNING_BUDGET_MS,onRecord=()=>{},onAcceptedProposal,observationPort}) {
@@ -20,6 +21,18 @@ export class PlanningState {
     Object.assign(this,{plan,context,resource,planner,observations,resourceVerifier,mode,clock,budgetMs,onRecord,onAcceptedProposal,observationPort});this.observationCoordinator=new ObservationCoordinator({port:observationPort,clock});this.sessionDeclinedGoals=new Set();this.transitions=[];this.goalOutcomes=new Map();this.controlInputs=new Map();this.difficulties=[];this.localHelp=null;if(plan.primary_goal)this.goalOutcomes.set(plan.primary_goal.id,{goal:plan.primary_goal,status:plan.goal_status});this.revision=1;this.authorizationEpoch=1;this.closed=false;this.inputs=new Map();this.records=[];this.history=[];this.executions=new Map();this.current=null;this.accepted=null;this.controller=null;
   }
   get capabilities(){return planningCapabilities(this.plan,this.resource);}
+  get topicScope(){return topicScope(this.plan,this.resource);}
+  commitTopicDecision(decision,{resourceUnavailable=this.resourceUnavailable}={}) {
+    const scope=this.topicScope;if(!scope||this.mode==='shadow'||this.closed)return;
+    const nextScope=reviseTopicScope(scope,decision,{resourceUnavailable});
+    if(JSON.stringify(nextScope)===JSON.stringify(scope))return;
+    this.observationCoordinator.cancel('topic_revised');
+    const {hash,...base}=this.plan,next={...base,revision:base.revision+1,topic_scope:nextScope};
+    this.plan=immutable({...next,hash:planHash(next)});this.emit('conversation_plan.revised',{plan_revision:next.revision,reason:'topic_scope_updated'});
+  }
+  keepTopicForGoal(source) {
+    if(this.topicScope?.request)this.commitTopicDecision(topicDecisionShape(this.topicScope,source));
+  }
   noteInput(event) {
     if(this.closed||event.session_id!==this.plan.session_id||event.type!=='user.final')return;
     this.acceptedInputTimes??=new Map();
@@ -61,14 +74,15 @@ export class PlanningState {
       this.difficulties=[];if(this.plan.primary_goal)this.commitGoal('paused',{reason:policy.reason,source:event.event_id});
     }
     if(policy.action==='CLOSE')return;
+    if(this.topicScope&&policy.reason==='student_changed_topic')this.commitTopicDecision(ruleTopicDecision({topic_scope:this.topicScope,turn:{text:event.payload.text,source_event_id:event.event_id},policy}));
     if(choice.kind==='retire') {if(this.plan.primary_goal)this.sessionDeclinedGoals.add(this.plan.primary_goal.id);this.commitGoal('retired',{goal:null,reason:'student_cancelled_goal',source:event.event_id});this.difficulties=[];return;}
     if(choice.kind==='select'&&!this.resourceUnavailable) {
       const goal=this.capabilities?.goals.find(g=>g.id===choice.goal_id);
-      if(eligibleGoal(goal,this.context,this.capabilities,{explicit:true})) {this.sessionDeclinedGoals.delete(goal.id);this.commitGoal('active',{goal,reason:'student_selected_goal',source:event.event_id});this.difficulties=[];}
+      if(eligibleGoal(goal,this.context,this.capabilities,{explicit:true})) {this.sessionDeclinedGoals.delete(goal.id);this.commitGoal('active',{goal,reason:'student_selected_goal',source:event.event_id});this.keepTopicForGoal(event.event_id);this.difficulties=[];}
       else if(this.plan.primary_goal)this.commitGoal('paused',{reason:'requested_goal_unverified',source:event.event_id});
       return;
     }
-    if(this.plan.primary_goal&&this.plan.goal_status==='paused'&&!policy.teaching_paused&&['student_requested_practice','student_requested_help'].includes(policy.reason)&&eligibleGoal(this.plan.primary_goal,this.context,this.capabilities,{explicit:true})){this.sessionDeclinedGoals.delete(this.plan.primary_goal.id);this.commitGoal('active',{reason:'student_resumed_goal',source:event.event_id});}
+    if(this.plan.primary_goal&&this.plan.goal_status==='paused'&&!policy.teaching_paused&&['student_requested_practice','student_requested_help'].includes(policy.reason)&&eligibleGoal(this.plan.primary_goal,this.context,this.capabilities,{explicit:true})){this.sessionDeclinedGoals.delete(this.plan.primary_goal.id);this.commitGoal('active',{reason:'student_resumed_goal',source:event.event_id});this.keepTopicForGoal(event.event_id);}
     if(choice.kind==='difficulty'&&this.plan.primary_goal&&this.plan.goal_status==='active') {
       this.difficulties.push({turn_id:event.turn_id,source_event_id:event.event_id});this.difficulties=this.difficulties.slice(-2);
     } else this.difficulties=[];
@@ -103,13 +117,13 @@ export class PlanningState {
         if(expired())return null;
       } catch {
         if(this.closed||controller.signal.aborted||this.current!==input||this.revision!==input.revision)return null;
-        this.resourceUnavailable=true;this.commitGoal('retired',{goal:null,reason:'topic_unavailable',source:event.event_id});this.localHelp=null;
+        this.resourceUnavailable=true;this.commitGoal('retired',{goal:null,reason:'topic_unavailable',source:event.event_id});this.commitTopicDecision(null,{resourceUnavailable:true});this.localHelp=null;
       } finally {clearTimeout(timer);}
     }
     policy={...policy,teaching_paused:this.plan.goal_status==='paused'||this.plan.goal_status==='retired'||policy.teaching_paused&&this.plan.goal_status!=='active'};
     this.history=this.history.filter(h=>h.turn_id!==event.turn_id);
     const prior=[...this.executions.values()].at(-1)??null;
-    const snapshot=immutable({plan:this.plan,turn:input,policy,language,learner_feedback:this.observations?.feedback.get(event.turn_id)??null,actual_context:this.history.slice(-12),prior_execution:prior?{execution_id:prior.execution_id,status:prior.status,consumption:prior.consumption,generation_basis:prior.generation_basis}:null,student_profile:this.context.student_profile,learning_profile:this.context.learning_profile,learning_history:this.context.learning_history,coverage:this.context.coverage,resource:this.resource,...(this.plan.mode==='free'?{skill_catalog:this.capabilities}:{}),goal_review:this.review()});
+    const snapshot=immutable({plan:this.plan,turn:input,policy,language,...(this.topicScope?{topic_scope:this.topicScope}:{}),learner_feedback:this.observations?.feedback.get(event.turn_id)??null,actual_context:this.history.slice(-12),prior_execution:prior?{execution_id:prior.execution_id,status:prior.status,consumption:prior.consumption,generation_basis:prior.generation_basis}:null,student_profile:this.context.student_profile,learning_profile:this.context.learning_profile,learning_history:this.context.learning_history,coverage:this.context.coverage,resource:this.resource,...(this.plan.mode==='free'?{skill_catalog:this.capabilities}:{}),goal_review:this.review()});
     // Shadow observation never changes Planner input, goals, attempts or saved facts.
     this.observationWork=this.observationCoordinator.start(snapshot,{signal:controller.signal,isCurrent:()=>!this.closed&&this.current===input&&this.revision===input.revision&&this.authorizationEpoch===input.authorization_epoch&&this.plan.revision===snapshot.plan.revision});
     this.history.push({turn_id:input.turn_id,source_event_id:event.event_id,role:'student',text:input.text});this.history=this.history.slice(-12);
@@ -124,7 +138,7 @@ export class PlanningState {
     } catch {if(this.current===input&&expired())return null;const elapsed_ms=Math.max(0,this.clock()-startedAt);this.records.push({...base,status:'cancelled',elapsed_ms});this.emit('planning.cancelled',{turn_id:input.turn_id,elapsed_ms});return null;}
     if(this.closed||controller.signal.aborted||this.current!==input||this.revision!==input.revision){this.records.push({...base,status:'stale'});this.emit('planning.rejected',{turn_id:input.turn_id,reason:'stale'});return null;}
     if(expired())return null;
-    const proposal={schema_version:'turn-plan-v1',proposal_id:randomUUID(),session_id:this.plan.session_id,...base,...result.proposal,planner_kind:result.planner_kind,degraded_reason:result.degraded_reason,accepted_at:this.clock(),expires_at:input.expires_at};
+    const proposal={schema_version:this.topicScope?'turn-plan-v2':'turn-plan-v1',proposal_id:randomUUID(),session_id:this.plan.session_id,...base,...result.proposal,planner_kind:result.planner_kind,degraded_reason:result.degraded_reason,accepted_at:this.clock(),expires_at:input.expires_at};
     const accepted=immutable({...proposal,hash:planHash(proposal)});
     if(expired())return null;
     this.records.push({proposal_id:accepted.proposal_id,...base,status:this.mode==='shadow'?'shadow':'accepted',elapsed_ms:Math.max(0,this.clock()-startedAt),planner_kind:accepted.planner_kind,degraded_reason:accepted.degraded_reason,attempts:result.attempts??[],hash:accepted.hash});
@@ -132,6 +146,7 @@ export class PlanningState {
     // Default production sessions do not retain input snapshots or write files.
     try{this.onAcceptedProposal?.(immutable({input_snapshot:snapshot,plan:accepted}));}catch{}
     if(this.mode!=='shadow') {
+      if(accepted.topic_decision){this.commitTopicDecision(accepted.topic_decision,{resourceUnavailable:this.resourceUnavailable});if(accepted.topic_decision.relation==='change_requested')this.commitGoal('paused',{reason:'student_requested_topic_change',source:event.event_id});}
       const patch=accepted.proposed_plan_patch;
       if(policy.teaching_paused||patch==='pause')this.commitGoal('paused',{reason:'accepted_pause',source:event.event_id});
       else if(patch==='resume')this.commitGoal('active',{reason:'accepted_resume',source:event.event_id});
@@ -145,7 +160,7 @@ export class PlanningState {
   updateContext(context) {
     if(this.closed)return;this.invalidate('preferences_changed');this.context=context;
     const {hash,...base}=this.plan,interest=context.student_profile.interests[0]?.label;
-    const next={...base,revision:base.revision+1,input_refs:{...base.input_refs,context:context.snapshot_id,revision:context.revision,coverage:context.coverage},selection_basis:[{reason:'authorized_context_refresh',refs:[context.snapshot_id]}],content_focus:this.plan.mode==='free'?base.content_focus:interest??'跟随学生当前选择',strategy:{...base.strategy,language_support:context.learning_profile.language_support,correction:context.student_profile.conversation_preferences.correction}};
+    const next={...base,revision:base.revision+1,input_refs:{...base.input_refs,context:context.snapshot_id,revision:context.revision,coverage:context.coverage},selection_basis:[{reason:'authorized_context_refresh',refs:[context.snapshot_id]}],content_focus:['free','topic'].includes(this.plan.mode)?base.content_focus:interest??'跟随学生当前选择',strategy:{...base.strategy,language_support:context.learning_profile.language_support,correction:context.student_profile.conversation_preferences.correction}};
     this.plan=immutable({...next,hash:planHash(next)});this.emit('conversation_plan.revised',{plan_revision:this.plan.revision});
     if(this.plan.primary_goal&&!eligibleGoal(this.plan.primary_goal,context,this.capabilities,{explicit:true}))this.commitGoal('paused',{reason:'prerequisite_context_changed'});
   }

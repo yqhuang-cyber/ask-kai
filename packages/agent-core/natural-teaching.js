@@ -12,7 +12,7 @@ export const NATURAL_TEACHING_INSTRUCTIONS=`自然教学策略 ${TEACHING_POLICY
 表达求助也可能是澄清动作，不默认一收到“怎么说”就给示范。词在当前用途有不同中文表达而对象未明确时，先确认一个含义，暂不先选一个翻译再问是否正确。对象已由当前输入或实际前文明示时直接回答；理解不清楚的代词不能用画像兴趣补成指称。后台的词义线索只是来自已接受学生回合的有限提示，模型仍检查实际前文，不把提示当语义裁判。
 意思仍不清楚：只问一个容易回答的澄清问题，不同时解释多个可能意思、不猜意图、不先纠错；连续仍不清楚时给低压回应并等待，不轮番追问。学生明确含义后才给相关示范。只使用实际会话中的前文；参考答案、未来输入、画像兴趣不能补成学生意图。单词、英文或混合回答都有效，不等于表达能力差。
 纠正契约：意思明确且表达正确时直接交流，不制造错误。“喜欢＋名词”和“喜欢＋动词短语”都成立，例如“我喜欢音乐”无需补动词；扩展示范不是必需修正。只针对实际输入中能确认、且影响当前意思的错误给一次轻柔修正，保留学生原意；不确定转写或含义先确认。学生拒绝纠错后不要继续测试。不要把转写、重复、教师示范或供应商音频当成发音评估，也不声称掌握或独立使用。
-主题对话只围绕一个主要目标；Mission 只取可信任务的第一个目标，承接到生活，不照读所有目标；开放对话以交流为先，不预设运动目标。明确求助可给一个与当前表达相关的短示范；普通问题先回答，不附加知识点。
+主题对话只围绕一个主要目标；主题内子话题与更换整个主题不同，按独立主题状态处理，不因“我想聊”就认定换主题；Mission 只取可信任务的第一个目标，承接到生活，不照读所有目标；开放对话以交流为先，不预设运动目标。明确求助可给一个与当前表达相关的短示范；普通问题先回答，不附加知识点。
 学生已尝试目标句：转入内容交流，减少支架，不反复让学生跟读；最终转写不能证明掌握或发音。只有相关短答案且学生愿意时才轻量引出目标。一次至多一个新点、一个短示范；主动引导同一目标最多一次，之后由学生求助决定。
 教学或示范后至少隔两个完整学生回合再引入新点；中间继续交流、接住求助或给低压选择，避免重复解释。不给沉默安排定时催促。
 服务端决策是有来源的建议，不是已经播出的教学事实。它只对应所标注的学生话轮；如果出现更新的输入，必须按当前学生意图重新选择，不能照搬旧动作或旧示范。所有动作继续遵守中文优先、按理解需要提供英文支架、自适应回复长度与安全规则。`;
@@ -28,8 +28,14 @@ const endQuestion=/^(?:can|could|may) we (?:please )?(?:stop|end|finish) (?:here
 const bareEnd=/^(?:please )?(?:let['’]?s (?:end|stop|finish)|end|stop|finish)$/iu;
 const endWordDiscussion=/^(?:bye|goodbye|再见)(?:\s+(?:is|means|as)\b|\s*(?:这个词|是(?:一个)?(?:词|告别语)|的意思))/iu;
 const declineIntent=/(?:^|[，,。.!！;；\s])(?:我)?(?:先)?(?:不想|不愿意|不要|不用|不)(?:再)?(?:练习|学习|复习|跟读|重说|纠正)|(?:不练了|不学了|跳过(?:练习|复习|这个目标)|只想(?:聊天|聊聊)|(?:不要|不用|别)(?:再)?(?:教我|考我))|\b(?:i (?:do not|don'?t|don’t) want to (?:practice|learn|review)|(?:don'?t|don’t|stop) (?:teach|teaching|correct|correcting) me|skip (?:the )?(?:lesson|practice|review)|no (?:more )?(?:practice|lessons)|just (?:chat|talk))\b/iu;
-const changeIntent=/(?:换(?:个|一个)?话题|换题|聊点别的|(?:我想|我要|我们来)聊)|\b(?:let'?s (?:talk|chat) about|can we (?:talk|chat) about|change (?:the )?(?:topic|subject)|talk about something else)\b/iu;
-const keepTopic=/(?:不(?:要|想)?|别)换(?:个|一个)?(?:话题|题)|\b(?:do not|don'?t|don’t|not) change (?:the )?(?:topic|subject)\b/iu;
+const changeIntent=/(?:换(?:个|一个)?(?:主题|话题)|换题|聊点别的|(?:我想|我要|我们来)聊)|\b(?:let'?s (?:talk|chat) about|can we (?:talk|chat) about|change (?:the )?(?:topic|subject)|talk about something else)\b/iu;
+const keepTopic=/(?:不(?:要|想)?|别)换(?:个|一个)?(?:主题|话题|题)|\b(?:do not|don'?t|don’t|not) change (?:the )?(?:topic|subject)\b/iu;
+const explicitTopicChange=/^(?:(?:我(?:想|要)|我们(?:来|想)?|请)?(?:换(?:个|一个)?(?:主题|话题)|换题|聊点别的)|(?:(?:please|let['’]?s|can we|could we|i want to)\s+)?(?:change (?:the )?(?:topic|subject)|talk about something else)\b)/iu;
+export function topicChangeRequest(raw='') {
+  const text=controlText(raw),clauses=text.split(/[，,。？！!?；;\n]/u);let candidate=null;
+  for(const clause of clauses){const quote=clause.trim();if(!quote||keepTopic.test(quote)||languageQuestion.test(quote)||/^(?:老师|他|她|Kai)(?:说|告诉我)|^(?:the teacher|he|she|Kai) (?:said|says|told)/iu.test(quote))continue;if(changeIntent.test(quote)){const request={quote:quote.slice(0,200),explicit:explicitTopicChange.test(quote)};if(request.explicit)return request;candidate??=request;}}
+  return candidate??{quote:null,explicit:false};
+}
 const practiceIntent=/(?:继续(?:练习|学习|复习)|我(?:想|要|愿意)(?:练习|学习|复习))|\b(?:let'?s (?:practice|learn)|i want to (?:practice|learn|review))\b/iu;
 const helpIntent=/(?:中文怎么(?:说|讲)|怎么用中文(?:说|讲)|这(?:个)?(?:句子|词|表达)怎么说|教我(?:说|一句|中文)|不会说|说不出来)|\b(?:how (?:do|can|would) (?:i|you|we) say|how to say|teach me|help me say)\b/iu;
 const languageQuestion=/(?:什么意思|是什么(?:意思)?|怎么说|怎么讲)|\b(?:what does\b.*\bmean|how (?:do|can|would) (?:i|you|we) say|how to say)\b/iu;
@@ -63,14 +69,14 @@ export class NaturalTeaching {
     this.turns=0;this.paused=false;this.clarificationPending=false;this.goalAttempted=false;
     this.lastTeachingTurn=null;this.autoTeachingUsed=false;this.decision=null;this.priorInputTurn=null;this.contextHints=[];
   }
-  select(event,contextVersion) {
+  select(event,contextVersion,{deferTopicChange=false}={}) {
     this.turns++;
     const text=controlText(event.payload.text),helpKind=languageHelpKind(text),understanding=helpKind==='understanding',help=helpIntent.test(text)||helpKind==='expression',practice=practiceIntent.test(text);
     const continuation=stuckConversation.test(text)&&willingConversation.test(text);
     const hints=lexicalHints(text),ambiguous=help&&ambiguousRequest(text,hints,this.contextHints,this.priorInputTurn!==null);
     const clauses=text.split(/(?<!\p{N})\.(?!\p{N})|[，,。？！!?；;\n]/u).filter(c=>!languageQuestion.test(c));
     const ended=clauses.some(c=>!endWordDiscussion.test(c.trim())&&((endIntent.test(c.trim())||explicitEnd.test(c.trim())||bareEnd.test(c.trim()))&&!questionInput.test(c.trim())||endQuestion.test(c.trim())));
-    const declined=clauses.some(c=>declineIntent.test(c)),changed=clauses.some(c=>!keepTopic.test(c) && changeIntent.test(c));
+    const declined=clauses.some(c=>declineIntent.test(c)),changed=deferTopicChange?topicChangeRequest(text).explicit:clauses.some(c=>!keepTopic.test(c) && changeIntent.test(c));
     const relatedHelp=help && !!this.goal && ((this.likesGoal && sportsWord.test(text)) || /(?:原(?:来|本)?(?:的)?(?:目标|练习))|\b(?:original|previous) (?:goal|practice|lesson)\b/iu.test(text));
     const cooldown=this.lastTeachingTurn===null?0:Math.max(0,TEACHING_COOLDOWN_TURNS+1-(this.turns-this.lastTeachingTurn));
     const attempted=!!this.goal && this.likesGoal && sportsAttempt(event.payload.text);

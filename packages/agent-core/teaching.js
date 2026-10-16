@@ -54,7 +54,7 @@ export class TeachingSession {
     this.planning?.noteInput(event);
     this.seen.add(event.turn_id);
     this.version++;
-    const decision=this.teaching.select(event,this.version);
+    const decision=this.teaching.select(event,this.version,{deferTopicChange:!!this.planning?.topicScope&&this.planning.mode!=='shadow'});
     this.recap.input(event,{closing:decision.action==='CLOSE',plan:this.planning?.plan});
     this.planning?.controls(event,decision);this.syncGoal();
     if(decision.action!=='CLOSE'&&this.planning&&this.planning.mode!=='shadow'){for(const {goal,status} of this.planning.goalOutcomes.values())this.recap.goal({primary_goal:goal,goal_status:status,revision:this.planning.plan.revision});}
@@ -105,7 +105,7 @@ export class TeachingSession {
     const sports=this.mode==='sports';
     const language=this.languageSnapshot();
     const view={mode:this.mode,stage:this.stage,context_version:this.version,persona_version:(this.planning?.plan.schema_version==='conversation-plan-v2'||this.planning?.plan.mode==='free')?PERSONA_ADAPTIVE_VERSION:PERSONA_VERSION,reply_policy_version:REPLY_POLICY_VERSION,reply_budget:{...REPLY_BUDGET},language_policy:{version:language.policy_version,english_support:language.english_support,reason:language.reason,known_expression_count:language.known_expressions.length},teaching_policy_version:TEACHING_POLICY_VERSION,decision:this.teaching.decision?{...this.teaching.decision}:null,lesson_source:sports?SPORTS_LESSON.source:this.mode==='mission'?'authorized-hskai-mission':null,lesson_version:sports?SPORTS_LESSON.version:null,goal:sports?SPORTS_LESSON.goal.label:this.mode==='mission'?this.mission.targets[0]:'用中文聊感兴趣的话题。',start_tip:sports?SPORTS_LESSON.start_tip:'可以从一句简单的中文开始。',cards:sports?structuredClone(SPORTS_LESSON.cards):[],attempts:structuredClone(this.evidence.slice(-SUMMARY_LIMITS.view_attempts)),attempt_count:this.evidence.length,attempts_truncated:this.evidence.length>SUMMARY_LIMITS.view_attempts,notice:'最终识别仅形成学习尝试；尚未评估掌握或发音。'};
-    if(this.planning&&this.planning.mode!=='shadow'){const projection=planProjection(this.planning.plan,this.planning.resource);Object.assign(view,projection,{attempt_count:this.observations.observations.size,lesson_source:this.planning.capabilities?.source??'mock_hskai',lesson_version:this.planning.capabilities?.version??null});if(this.planning.plan.goal_status!=='active'){view.goal='跟随你当前的话题交流。';view.start_tip='';view.cards=[];}}
+    if(this.planning&&this.planning.mode!=='shadow'){const projection=planProjection(this.planning.plan,this.planning.resource);Object.assign(view,projection,{attempt_count:this.observations.observations.size,lesson_source:this.planning.capabilities?.source??'mock_hskai',lesson_version:this.planning.capabilities?.version??null});if(this.planning.plan.goal_status!=='active'){view.goal=projection.topic_scope?projection.topic_scope.status==='change_requested'?'原练习已暂停，等待重新选择主题。':projection.topic_scope.status==='unavailable'?'当前主题暂不可用。':'继续围绕已选主题交流，练习已暂停。':'跟随你当前的话题交流。';view.start_tip='';view.cards=[];}}
     return view;
   }
 }
