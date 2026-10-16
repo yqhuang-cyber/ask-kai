@@ -330,6 +330,8 @@ sequenceDiagram
 
 ## 6. 接下来的计划
 
+2026-10-16 已接入口头结束后的播放确认、自动关闭与本次会话记录写回／读回。小结包含本次目标和有来源的实际词汇／表达，保存到本地 mock 内存，重启重置；不自动升级掌握。豆包口头回顾已做有限作者合成语音检查，仍为 next_turn_advisory，完整知识语义覆盖与真人设备验收开放。见[实现记录与 CL-01～06](docs/conversation-closing-design.md#2026-10-16-实施记录)。
+
 2026-10-15 最新安排：本轮按用户要求补齐主题初始化必有目标、知识点／表达任务及 Web 展示；其余主题链路工作继续保留在[主题 TODO](docs/topic-planner-tasking.md#搁置-todo)。自由对话已复现的问题、能力缺口与建议顺序见[自由对话工程审查](docs/free-conversation-engineering-review.md)。下列整体计划保留为后续范围。
 
 2026-10-15 已补齐[全模块任务清单](docs/agent-completion-tasking.md)和[独立 Agent 评测计划](docs/agent-evaluation-plan.md)：针对最终三入口自适应对话，明确资源、执行、观察、总结与设备缺口，关联正在推进的 TP／DP 工作。当前为规划，不新增实现或质量通过结论。

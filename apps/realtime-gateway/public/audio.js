@@ -100,8 +100,9 @@ export class AudioIO {
   }
   mute(value) {if(this.gain)this.gain.gain.value=value?0:1;safeObserve(this.onObserve,'audio.muted',{muted:value});}
   stopPlayback() {this.playbackEpoch++;if(this.sources.size)safeObserve(this.onObserve,'audio.stopped',{sources:this.sources.size,queue_ms:Math.max(0,(this.nextAt-(this.context?.currentTime??0))*1000)});for(const source of this.sources){try{source.stop();}catch{}}this.sources.clear();this.queuedStats.clear();this.nextAt=0;}
+  stopCapture(){this.generation++;this.capture?.disconnect();this.input?.disconnect();this.stream?.getTracks().forEach(t=>t.stop());this.pending=new Uint8Array(0);}
   async close() {
-    this.generation++;this.stopPlayback();this.capture?.disconnect();this.input?.disconnect();this.stream?.getTracks().forEach(t=>t.stop());
+    this.stopCapture();this.stopPlayback();
     this.pending=new Uint8Array(0);const context=this.context;this.context=null;if(context && context.state!=='closed')await context.close();
   }
 }

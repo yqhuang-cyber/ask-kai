@@ -26,6 +26,8 @@
     "release:status": "node scripts/release-check.js",
     "release:check": "node scripts/release-check.js --require-ready",
     "test:browser": "node scripts/browser-check.js",
+    "test:browser:closing": "node scripts/closing-browser-check.js",
+    "probe:closing": "node --env-file-if-exists=.env scripts/closing-voice-probe.js",
     "eval:recorded": "node --env-file-if-exists=.env scripts/recorded-score.js",
     "eval:report": "node scripts/evaluation-report.js",
     "eval:review:compare": "node scripts/compare-recorded-reviews.js",
